@@ -1,0 +1,49 @@
+# --- Secrets: never commit real credentials. Only .env.example is tracked. ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Dependencies & build output ---
+node_modules
+.next
+out
+dist
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Local runtime data ---
+# dev email outbox + exports
+.dev/
+# legacy local storage (removed; kept ignored for old checkouts)
+uploads/
+*.log
+.dev-server.log
+.prod-server.log
+npm-debug.log*
+yarn-error.log*
+
+# --- Test / coverage / tooling ---
+coverage
+.nyc_output
+playwright-report
+test-results
+.eslintcache
+.turbo
+.vercel
+
+# --- Editors & OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- AI assistant local state ---
+.claude/settings.local.json

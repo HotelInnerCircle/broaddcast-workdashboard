@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design direction: "Bento" layout (dark icon rail, colour KPI tiles, floating rounded cards on a padded canvas)
+ * dressed in the "Linen" palette (warm paper, cocoa accent) and type (Instrument Serif display + DM Sans body).
+ * Brand name/logo live in config/brand.ts; every colour lives here as a token.
+ */
+:root {
+  --background: #f4f0e8;
+  --foreground: #2a2620;
+  --card: #fbf9f5;
+  --card-foreground: #2a2620;
+  --muted: #efe9dd;
+  --muted-foreground: #8f877a;
+  --border: #e6dfd2;
+  --input: #ddd5c6;
+  --primary: #8a5a3c;
+  --primary-hover: #6b4229;
+  --primary-foreground: #fbf9f5;
+  --primary-soft: #f1e6da;
+  --ring: #a8785a;
+  --success: #2f6b3a;
+  --success-soft: #dfeee0;
+  --warning: #9a5a1c;
+  --warning-soft: #f6e5cf;
+  --danger: #b4572f;
+  --danger-soft: #f5e0d6;
+  --info: #4f5d7a;
+  --info-soft: #e5e8ef;
+  /* Dark rail sidebar - stays dark in both themes (warm charcoal, not black). */
+  --sidebar: #2a2620;
+  --sidebar-foreground: #b5ab9c;
+  --sidebar-active: #3d372f;
+  /* KPI colour tiles (warm pastels; text colours pass 4.5:1 on their tile). */
+  --tile-default: #ece3d4;
+  --tile-default-fg: #5b4a33;
+  --tile-success: #dfeee0;
+  --tile-success-fg: #245a30;
+  --tile-warning: #f6e5cf;
+  --tile-warning-fg: #8a4f14;
+  --tile-danger: #f5ddd3;
+  --tile-danger-fg: #9a3f1e;
+  --tile-info: #e3e6ee;
+  --tile-info-fg: #3f4c66;
+  --tile-muted: #f0ebe2;
+  --tile-muted-fg: #7a7265;
+  --radius: 1rem;
+  /* Chart palette: validated CVD-safe categorical order (fixed, never cycled) + sequential blue. */
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #008300;
+  --chart-7: #4a3aa7;
+  --chart-8: #e34948;
+  --chart-grid: #e6dfd2;
+  --chart-muted: #a89f91;
+  /* Single-series marks use the brand accent; multi-series charts keep the categorical order above. */
+  --chart-single: #8a5a3c;
+}
+
+.dark {
+  --background: #1a1714;
+  --foreground: #ece6da;
+  --card: #231f1b;
+  --card-foreground: #ece6da;
+  --muted: #2d2823;
+  --muted-foreground: #a39a8b;
+  --border: #37312a;
+  --input: #443d34;
+  --primary: #d4a27e;
+  --primary-hover: #e2b895;
+  --primary-foreground: #1a1714;
+  --primary-soft: #3a2d23;
+  --ring: #d4a27e;
+  --success: #7fbf8a;
+  --success-soft: #1f3324;
+  --warning: #e0a45c;
+  --warning-soft: #3b2a14;
+  --danger: #e2896a;
+  --danger-soft: #3d2118;
+  --info: #a4b1cc;
+  --info-soft: #262b38;
+  --sidebar: #0f0d0b;
+  --sidebar-foreground: #9c9284;
+  --sidebar-active: #262119;
+  --tile-default: #35291f;
+  --tile-default-fg: #e8cdb4;
+  --tile-success: #1f3324;
+  --tile-success-fg: #a9d9b1;
+  --tile-warning: #3b2a14;
+  --tile-warning-fg: #f0c48a;
+  --tile-danger: #3d2118;
+  --tile-danger-fg: #f0a98c;
+  --tile-info: #262b38;
+  --tile-info-fg: #bcc7dd;
+  --tile-muted: #2d2823;
+  --tile-muted-fg: #b0a698;
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #008300;
+  --chart-7: #9085e9;
+  --chart-8: #e66767;
+  --chart-grid: #37312a;
+  --chart-muted: #7a7265;
+  --chart-single: #d4a27e;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-tile-default: var(--tile-default);
+  --color-tile-default-fg: var(--tile-default-fg);
+  --color-tile-success: var(--tile-success);
+  --color-tile-success-fg: var(--tile-success-fg);
+  --color-tile-warning: var(--tile-warning);
+  --color-tile-warning-fg: var(--tile-warning-fg);
+  --color-tile-danger: var(--tile-danger);
+  --color-tile-danger-fg: var(--tile-danger-fg);
+  --color-tile-info: var(--tile-info);
+  --color-tile-info-fg: var(--tile-info-fg);
+  --color-tile-muted: var(--tile-muted);
+  --color-tile-muted-fg: var(--tile-muted-fg);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 10px);
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --shadow-card: 0 1px 2px rgb(42 38 32 / 0.03), 0 10px 28px -14px rgb(42 38 32 / 0.16);
+  --shadow-float: 0 2px 4px rgb(42 38 32 / 0.04), 0 18px 40px -16px rgb(42 38 32 / 0.22);
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html { -webkit-font-smoothing: antialiased; }
+  body { background: var(--background); color: var(--foreground); font-family: var(--font-sans); }
+  ::selection { background: var(--primary-soft); }
+}
+
+@layer utilities {
+  /* Display type: Instrument Serif, regular weight, slightly tight tracking. Use on page titles, greetings, KPI numbers. */
+  .font-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+  .scrollbar-thin { scrollbar-width: thin; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .animate-in { animation: fade-in 0.2s ease-out; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+}

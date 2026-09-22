@@ -1,0 +1,67 @@
+# WorkPulse
+
+Multi-tenant work management & time tracking SaaS. Built phase by phase from `WorkPulse-Build-Spec-v2.pdf`; see `ASSUMPTIONS.md` for every decision the spec left open.
+
+**Status: all six phases complete** - Foundation; Clients, Projects, Tasks; Timer, Breaks, Attendance, Timesheets; Reports, Metrics, Exports; Realtime, Chat, Notifications, Activity, Search; SaaS layer (plans & limits, Super Admin, subscriptions, audit viewers, optional Razorpay).
+
+## Stack
+
+Next.js 15 (App Router) · TypeScript · React 19 · Tailwind CSS v4 · MongoDB + Mongoose 9 · Zod · React Hook Form · Auth.js v5 (Credentials, database sessions) · Socket.IO on a custom Node server · Nodemailer · ImageKit file storage · Docker.
+
+## Run locally
+
+```bash
+cp .env.example .env        # set MONGODB_URI, AUTH_SECRET, SUPERADMIN_EMAIL/PASSWORD, IMAGEKIT_*
+npm install
+npm run dev                 # http://localhost:3000 (Next + Socket.IO on one port)
+```
+
+On start the server bootstraps an empty database: it creates the default plans (Starter / Business / Enterprise) and the Super Admin from `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` (`lib/bootstrap.ts`). Sign in as the Super Admin and create the first company from Companies -> New company. Changing `SUPERADMIN_PASSWORD` in `.env` and restarting rotates the Super Admin password.
+
+Leave `SMTP_HOST` empty in development: emails are printed to the console and appended to `.dev/outbox.jsonl`.
+
+## Security notes
+
+- Never commit `.env` (ignored). Copy `.env.example`, generate `AUTH_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`, and set a strong `SUPERADMIN_PASSWORD` before the first seed.
+- A production start refuses placeholder secrets, non-https `APP_URL` and a localhost database (`lib/security/startup-checks.ts`); local production runs only warn.
+- Responses carry CSP, HSTS (https only), X-Frame-Options, nosniff, Referrer-Policy and Permissions-Policy headers. See ASSUMPTIONS.md A59.
+
+## Production / Docker
+
+```bash
+npm run build && npm start          # next build + esbuild server bundle -> dist/server.js
+docker compose up --build           # app + MongoDB
+```
+
+## Design
+
+Bento layout (dark icon rail, colour KPI tiles, floating rounded cards) in the Linen palette (warm paper, cocoa accent) with Instrument Serif display type and DM Sans body. Every colour is a CSS token in `app/globals.css` (light + warm dark), fonts are wired in `app/layout.tsx`, and `font-display` is the utility for serif display text. See ASSUMPTIONS.md A49.
+
+## Layout
+
+```
+app/(auth)/            login, register, forgot/reset password, invite/[token]
+app/(dashboard)/       shell + role segments (super-admin, admin, manager, team, employee) + shared pages
+app/api/               route handlers (Zod-validated, standard error/pagination shapes)
+components/            ui/ (design system), layout/, dashboard/, employees/, teams/, settings/, auth/
+config/                brand.ts (single branding source), navigation.ts (sidebar, filtered by permissions)
+lib/                   auth/, db/ (tenant-scoped DAL + guard), permissions.ts, audit.ts, limits.ts,
+                       email/, storage/, realtime/, validation/, api/, utils/
+models/                Mongoose models
+services/              business logic (server only)
+server.ts              custom server hosting Next.js and Socket.IO
+```
+
+Key rules: every tenant query goes through `scoped(Model, ctx)`; every mutation that matters calls `audit()`; permissions live only in `lib/permissions.ts`; the client never decides.
+
+## Owner changes after Phase 6 (21 Sep 2026)
+
+- Only the Super Admin creates companies (Companies -> New company; the first admin is invited by email) and only the Super Admin can delete a company (type-to-confirm; removes all tenant data). Public registration is gone. (A55)
+- Timers run on a Client plus a mandatory note about what is being worked on; project/task are attached only when started from a task page. Stopping asks to confirm/refine the note. (A53, A58)
+- Employees -> Add employee creates an account directly with a password (credentials shown once to hand over) or sends an email invitation; the Super Admin can likewise set the first admin password when creating a company. (A56)
+- Settings -> Company -> Job designations: the admin maintains job titles (Web Developer, Designer, ...) that appear as a Designation dropdown when adding or editing people; separate from the fixed access roles. (A57)
+- File storage is ImageKit only (`IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_URL_ENDPOINT` are required); the S3 and local-disk drivers were removed. (A54)
+
+## Payments (optional)
+
+Set `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and `RAZORPAY_WEBHOOK_SECRET` to enable online upgrades on Settings > Subscription; point the Razorpay webhook (events `payment.captured` / `order.paid`) at `POST /api/billing/webhook`. Without keys, plans are assigned by the Super Admin (Super Admin > Companies / Plans) and the limit system works unchanged.
