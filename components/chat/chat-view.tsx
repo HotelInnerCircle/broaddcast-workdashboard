@@ -10,7 +10,6 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useChat, type ConversationRow } from "@/hooks/useChat";
-import { usePickers } from "@/hooks/usePickers";
 import { api } from "@/lib/api/client";
 import { relativeTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
@@ -51,7 +50,9 @@ export function ChatView() {
   const [newDm, setNewDm] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
-  const { people } = usePickers({ people: newDm });
+  // A62: chat-scoped people list so employees (who cannot list employees) can still start a DM.
+  const [people, setPeople] = useState<{ id: string; name: string; avatarUrl: string | null; roleLabel: string; designation: string | null; online: boolean }[]>([]);
+  useEffect(() => { if (newDm) api<typeof people>("/api/chat/people").then(setPeople).catch(() => setPeople([])); }, [newDm]);
   useEffect(() => { const c = params.get("c"); if (c) chat.setActiveId(c); const dm = params.get("dm"); if (dm) void chat.openDm(dm); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params]);
   useEffect(() => { if (q.trim().length < 2) { setHits(null); return; } const t = setTimeout(() => api<SearchHit[]>(`/api/chat/search?q=${encodeURIComponent(q.trim())}`).then(setHits).catch(() => setHits([])), 250); return () => clearTimeout(t); }, [q]);
   const active = chat.conversations?.find((c) => c.id === chat.activeId);

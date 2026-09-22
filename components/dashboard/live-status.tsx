@@ -15,7 +15,7 @@ export function LiveStatus({ initial, title, description, withHours }: { initial
   const rt = useRealtime();
   const [rows, setRows] = useState<StatusRow[]>(initial);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const refetch = useCallback(async () => { try { setRows(await api<StatusRow[]>("/api/dashboard/status")); setUpdatedAt(new Date()); } catch { /* keep current rows */ } }, []);
+  const refetch = useCallback(async () => { try { setRows(await api<StatusRow[]>("/api/dashboard/status", { fresh: true })); setUpdatedAt(new Date()); } catch { /* keep current rows */ } }, []);
   useRealtimeRefetch(EVENTS, refetch);
   useEffect(() => { const iv = setInterval(refetch, 60_000); return () => clearInterval(iv); }, [refetch]);
   return (

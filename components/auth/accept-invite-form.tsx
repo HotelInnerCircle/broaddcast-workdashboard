@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Field } from "@/components/ui/label";
 import { api, ClientApiError } from "@/lib/api/client";
 import { acceptInviteSchema } from "@/lib/validation/auth";
@@ -37,7 +38,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
         <Input id="name" autoComplete="name" aria-invalid={!!errors.name} {...register("name")} />
       </Field>
       <Field label="Password" htmlFor="password" error={errors.password?.message} hint="At least 8 characters with a letter and a number.">
-        <Input id="password" type="password" autoComplete="new-password" aria-invalid={!!errors.password} {...register("password")} />
+        <PasswordInput id="password" autoComplete="new-password" aria-invalid={!!errors.password} {...register("password")} />
       </Field>
       <Button type="submit" className="w-full" size="lg" loading={isSubmitting}>Activate account</Button>
     </form>

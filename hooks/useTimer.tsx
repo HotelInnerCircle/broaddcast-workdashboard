@@ -46,7 +46,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    try { apply(await api<TimerPayload>("/api/timer")); } catch { /* keep last state */ } finally { if (mounted.current) setLoading(false); }
+    try { apply(await api<TimerPayload>("/api/timer", { fresh: true })); } catch { /* keep last state */ } finally { if (mounted.current) setLoading(false); }
   }, [apply]);
 
   useEffect(() => {

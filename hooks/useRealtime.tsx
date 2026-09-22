@@ -1,9 +1,9 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
-import { api } from "@/lib/api/client";
+import { api, apiCache } from "@/lib/api/client";
 
 type Handler = (payload: unknown) => void;
 interface RealtimeApi {
@@ -11,6 +11,9 @@ interface RealtimeApi {
   /** Subscribe to a server event; returns an unsubscribe function. */
   subscribe: (event: string, handler: Handler) => () => void;
   emit: (event: string, payload?: unknown, ack?: (ok: boolean) => void) => void;
+  /** Room membership that survives reconnects: joins are queued until the socket is up and replayed on every (re)connect. */
+  joinRoom: (conversationId: string) => void;
+  leaveRoom: (conversationId: string) => void;
   unreadNotifications: number;
   setUnreadNotifications: (n: number) => void;
 }
@@ -25,6 +28,8 @@ const HEARTBEAT_MS = 30_000;
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const handlers = useRef<Map<string, Set<Handler>>>(new Map());
+  const rooms = useRef<Set<string>>(new Set());
+  const dispatch = (event: string, payload: unknown) => { apiCache.clear(); handlers.current.get(event)?.forEach((h) => { try { h(payload); } catch { /* handler error */ } }); };
   const [connected, setConnected] = useState(false);
   const [unread, setUnread] = useState(0);
   const pathname = usePathname();
@@ -35,9 +40,16 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const socket = io({ path: "/socket.io", withCredentials: true, transports: ["websocket", "polling"] });
     socketRef.current = socket;
-    socket.on("connect", () => setConnected(true));
+    let everConnected = false;
+    socket.on("connect", () => {
+      setConnected(true);
+      // Rooms are server-side per socket: rejoin everything after a reconnect, then let subscribers catch up.
+      rooms.current.forEach((id) => socket.emit("chat:join", id));
+      if (everConnected) dispatch("realtime:reconnected", { at: Date.now() });
+      everConnected = true;
+    });
     socket.on("disconnect", () => setConnected(false));
-    socket.onAny((event: string, payload: unknown) => { handlers.current.get(event)?.forEach((h) => { try { h(payload); } catch { /* handler error */ } }); });
+    socket.onAny((event: string, payload: unknown) => dispatch(event, payload));
     const hb = setInterval(() => { if (socket.connected) socket.emit("presence:heartbeat"); }, HEARTBEAT_MS);
     api<{ unread: number }>("/api/notifications?limit=1").then((r) => setUnread(r.unread)).catch(() => {});
     return () => { clearInterval(hb); socket.disconnect(); socketRef.current = null; };
@@ -49,6 +61,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return () => { set.delete(handler); };
   }, []);
   const emit = useCallback((event: string, payload?: unknown, ack?: (ok: boolean) => void) => { socketRef.current?.emit(event, payload, ack); }, []);
+  const joinRoom = useCallback((id: string) => { rooms.current.add(id); if (socketRef.current?.connected) socketRef.current.emit("chat:join", id); }, []);
+  const leaveRoom = useCallback((id: string) => { rooms.current.delete(id); socketRef.current?.emit("chat:leave", id); }, []);
 
   // Notifications: bump the badge and toast (spec 12.16). Chat activity toasts when the user is not in the chat.
   useEffect(() => {
@@ -66,7 +80,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return () => { offNew(); offRead(); offChat(); };
   }, [subscribe, router]);
 
-  return <Ctx.Provider value={{ connected, subscribe, emit, unreadNotifications: unread, setUnreadNotifications: setUnread }}>{children}</Ctx.Provider>;
+  // Memoised so consumers that depend on the api object do not re-run effects on every provider render.
+  const value = useMemo<RealtimeApi>(() => ({ connected, subscribe, emit, joinRoom, leaveRoom, unreadNotifications: unread, setUnreadNotifications: setUnread }), [connected, subscribe, emit, joinRoom, leaveRoom, unread]);
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useRealtime(): RealtimeApi {

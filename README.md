@@ -60,6 +60,9 @@ Key rules: every tenant query goes through `scoped(Model, ctx)`; every mutation 
 - Timers run on a Client plus a mandatory note about what is being worked on; project/task are attached only when started from a task page. Stopping asks to confirm/refine the note. (A53, A58)
 - Employees -> Add employee creates an account directly with a password (credentials shown once to hand over) or sends an email invitation; the Super Admin can likewise set the first admin password when creating a company. (A56)
 - Settings -> Company -> Job designations: the admin maintains job titles (Web Developer, Designer, ...) that appear as a Designation dropdown when adding or editing people; separate from the fixed access roles. (A57)
+- Only Managers add clients; a manager's clients are visible to everyone who reports to them. (A61)
+- Chat delivers instantly (optimistic send, reconnect-safe rooms, catch-up + 15 s poll); employees can start DMs from the people picker. (A62)
+- Visited pages and list data are cached client-side (router cache 60 s, GET cache with background refresh, busted by any change or realtime event), so revisiting a page does not reload from the database. Run the production build (`npm run build && npm start`) for real use - `npm run dev` compiles each page on first open and is much slower. (A63)
 - File storage is ImageKit only (`IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_URL_ENDPOINT` are required); the S3 and local-disk drivers were removed. (A54)
 
 ## Payments (optional)

@@ -69,10 +69,23 @@ export async function taskScopeFilter(ctx: CompanyContext): Promise<Record<strin
   return { assignedTo: me };
 }
 
-/** Client visibility: everyone with clients.view sees all except employees, who see clients of their projects. */
+/**
+ * Client visibility (A61): a client belongs to the Manager who created it (`createdBy`).
+ *  - Company Admin: all clients.
+ *  - Manager: clients they created (plus legacy clients with no creator).
+ *  - Team Lead / Employee: clients created by their manager (direct manager or their team's manager),
+ *    plus clients of projects they are a member of, plus legacy clients with no creator.
+ */
 export async function clientScopeFilter(ctx: CompanyContext): Promise<Record<string, unknown>> {
-  if (ctx.role !== "EMPLOYEE") return {};
+  if (ctx.role === "COMPANY_ADMIN") return {};
+  const me = new Types.ObjectId(ctx.userId);
+  if (ctx.role === "MANAGER") return { $or: [{ createdBy: me }, { createdBy: null }] };
   const { Project } = await import("@/models/Project");
-  const projects = await scoped(Project, ctx).find({ memberIds: new Types.ObjectId(ctx.userId), archivedAt: null }).select("clientId").lean();
-  return { _id: { $in: projects.map((p) => p.clientId) } };
+  const { Team } = await import("@/models/Team");
+  const [projects, team] = await Promise.all([
+    scoped(Project, ctx).find({ memberIds: me, archivedAt: null }).select("clientId").lean(),
+    ctx.teamId ? scoped(Team, ctx).findById(ctx.teamId).select("managerId").lean() : null,
+  ]);
+  const managers = [ctx.managerId, team?.managerId ? String(team.managerId) : null].filter((x): x is string => Boolean(x)).map((x) => new Types.ObjectId(x));
+  return { $or: [{ createdBy: { $in: managers } }, { _id: { $in: projects.map((p) => p.clientId) } }, { createdBy: null }] };
 }

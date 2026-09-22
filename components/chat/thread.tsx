@@ -48,11 +48,13 @@ export function Thread({ chat, compact = false }: { chat: Chat; compact?: boolea
               <div className="w-7 shrink-0">{!grouped && m.sender && <Avatar name={m.sender.name} src={m.sender.avatarUrl} size="sm" />}</div>
               <div className={cn("max-w-[78%] min-w-0", mine ? "items-end text-right" : "")}>
                 {!grouped && <p className={cn("mb-0.5 text-[11px] text-muted-foreground", mine && "text-right")}>{mine ? "You" : m.sender?.name} <span title={formatDateTime(m.createdAt)}>{relativeTime(m.createdAt)}</span></p>}
-                <div className={cn("relative inline-block rounded-2xl px-3 py-2 text-sm text-left", mine ? "bg-primary text-primary-foreground" : "bg-muted", m.deleted && "italic opacity-70")}>
+                <div className={cn("relative inline-block rounded-2xl px-3 py-2 text-sm text-left", mine ? "bg-primary text-primary-foreground" : "bg-muted", m.deleted && "italic opacity-70", m.pending && "opacity-60", m.failed && "ring-2 ring-danger")}>
                   {m.replyTo && <div className={cn("mb-1 border-l-2 pl-2 text-xs opacity-80", mine ? "border-white/60" : "border-primary")}><span className="font-medium">{m.replyTo.sender}</span>: {m.replyTo.body}</div>}
                   {m.deleted ? "Message deleted" : <span className="whitespace-pre-wrap break-words">{renderBody(m.body, mentionNames)}</span>}
                   {m.attachments.map((a) => a.mime.startsWith("image/") ? <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mt-2 block"><img src={a.url} alt={a.name} className="max-h-56 rounded-lg" /></a> : <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className={cn("mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs underline", mine ? "bg-white/15" : "bg-card")}><Paperclip className="size-3" />{a.name} ({(a.size / 1024).toFixed(0)} KB)</a>)}
                   {m.editedAt && !m.deleted && <span className="ml-1 text-[10px] opacity-70">(edited)</span>}
+                  {m.pending && <span className="ml-1 text-[10px] opacity-70" title="Sending">&#9201;</span>}
+                  {m.failed && <span className="ml-1 text-[10px] font-semibold" title="Not sent">! not sent</span>}
                 </div>
                 {!m.deleted && !compact && (
                   <div className={cn("mt-0.5 hidden gap-1 group-hover:flex", mine ? "justify-end" : "")}>

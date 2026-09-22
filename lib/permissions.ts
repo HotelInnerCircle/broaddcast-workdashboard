@@ -39,7 +39,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     billing: g(["view", "manage"], "company"),
     employees: g(ALL, "company"),
     teams: g(ALL, "company"),
-    clients: g(RW, "company"),
+    clients: g(["view", "update", "archive"], "company"), // A61: only Managers create clients
     projects: g([...RW, "assign"], "company"),
     tasks: g([...RW, "assign"], "company"),
     reports: g(["view"], "company"),
@@ -55,7 +55,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
   MANAGER: {
     employees: g(["view", "invite", "update"], "scope"),
     teams: g(["view", "create", "update"], "scope"),
-    clients: g(RW, "company"),
+    clients: g(RW, "scope"), // A61: own clients (+ legacy unowned); visible to everyone under the manager
     projects: g([...RW, "assign"], "company"),
     tasks: g([...RW, "assign"], "company"),
     reports: g(["view"], "company"),

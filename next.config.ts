@@ -27,6 +27,8 @@ const csp = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // A63: client router cache - a page visited in the last 60s renders instantly on revisit instead of re-rendering on the server.
+  experimental: { staleTimes: { dynamic: 60, static: 300 } },
   outputFileTracingRoot: path.join(process.cwd()),
   serverExternalPackages: ["mongoose", "socket.io", "nodemailer", "bcryptjs", "exceljs", "pdfkit", "imagekit"],
   images: { remotePatterns: [{ protocol: "https", hostname: "**" }] },

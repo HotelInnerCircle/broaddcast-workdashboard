@@ -10,6 +10,7 @@ import { realtime } from "@/lib/realtime";
 import { storage } from "@/lib/storage";
 import { presence } from "@/lib/realtime/presence";
 import type { CompanyContext } from "@/lib/auth/context";
+import { ROLE_LABEL } from "@/types";
 import { notify, notifyMany } from "./notificationService";
 import { projectScopeFilter } from "./scope";
 
@@ -188,4 +189,10 @@ export async function totalUnread(ctx: CompanyContext) {
     n += await scoped(Message, ctx).countDocuments({ conversationId: c._id, createdAt: { $gt: myRead }, senderId: { $ne: oid(ctx.userId) }, deletedAt: null });
   }
   return n;
+}
+
+/** People picker for new DMs (A62): every active colleague, regardless of the caller's employee-list permissions. */
+export async function listChatPeople(ctx: CompanyContext) {
+  const users = await scoped(User, ctx).find({ archivedAt: null, status: "active", _id: { $ne: oid(ctx.userId) } }).select("name avatarUrl role designation").sort({ name: 1 }).lean();
+  return users.map((u) => ({ id: String(u._id), name: u.name, avatarUrl: (u.avatarUrl as string | null) ?? null, roleLabel: ROLE_LABEL[u.role as keyof typeof ROLE_LABEL] ?? u.role, designation: (u.designation as string | null) ?? null, online: presence.isOnline(String(u._id)) }));
 }

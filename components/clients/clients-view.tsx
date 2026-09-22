@@ -52,7 +52,7 @@ export function ClientsView() {
 
   return (
     <>
-      <PageHeader title="Clients" description="Companies you do work for. Every project and timer belongs to a client." actions={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Add client</Button>} />
+      <PageHeader title="Clients" description="Companies you do work for. Managers add clients; everyone under that manager sees them automatically." actions={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Add client</Button>} />
       <Card>
         <CardHeader className="flex-row flex-wrap items-center gap-3">
           <div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Search clients" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></div>
@@ -61,7 +61,7 @@ export function ClientsView() {
         </CardHeader>
         <CardContent className="p-0 pt-0">
           {error ? <ErrorState message={error} onRetry={load} /> : rows === null ? <TableSkeleton rows={5} cols={6} /> : rows.length === 0 ? (
-            <EmptyState icon={Building2} title="No clients yet" description={canCreate ? "Add your first client to start creating projects." : "No clients are assigned to you yet."} action={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Create client</Button>} />
+            <EmptyState icon={Building2} title="No clients yet" description={canCreate ? "Add your first client to start creating projects." : "Your manager has not added any clients yet."} action={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Create client</Button>} />
           ) : (
             <Table>
               <THead><TR><TH>Client</TH><TH>Contact</TH><TH>Industry</TH><TH>Projects</TH><TH>Open tasks</TH><TH>Status</TH>{canEdit && <TH className="w-12" />}</TR></THead>
