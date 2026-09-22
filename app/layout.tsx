@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Toaster richColors position="top-right" closeButton />
           {process.env.NODE_ENV === "production" && (
             // Inline so PWA scanners detect the registration on the page itself (A64).
-            <Script id="wp-sw" strategy="afterInteractive">{`if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){})})}`}</Script>
+            <Script id="wp-sw" strategy="afterInteractive">{`if("serviceWorker" in navigator){var r=function(){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){})};if(document.readyState==="complete"){r()}else{window.addEventListener("load",r)}}`}</Script>
           )}
         </ThemeProvider>
       </body>
