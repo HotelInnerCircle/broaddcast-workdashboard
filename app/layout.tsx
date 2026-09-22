@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, Instrument_Serif } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
+import Script from "next/script";
 import { brand } from "@/config/brand";
-import { PwaRegister } from "@/components/layout/pwa-register";
 import "./globals.css";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans", display: "swap" });
@@ -32,7 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
           <Toaster richColors position="top-right" closeButton />
-          <PwaRegister />
+          {process.env.NODE_ENV === "production" && (
+            // Inline so PWA scanners detect the registration on the page itself (A64).
+            <Script id="wp-sw" strategy="afterInteractive">{`if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("/sw.js",{scope:"/"}).catch(function(){})})}`}</Script>
+          )}
         </ThemeProvider>
       </body>
     </html>
