@@ -72,8 +72,8 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         collapsed ? "w-[84px]" : "w-64",
       )}
     >
-      <div className={cn("flex items-center px-4 pt-5 pb-3", collapsed && "justify-center px-0")}>
-        <BrandMark collapsed={collapsed} companyName={me.company?.name} companyLogoUrl={me.company?.logoUrl} className="text-white" />
+      <div className={cn("flex items-center pt-5 pb-3", collapsed ? "justify-center px-0" : "px-4")}>
+        <BrandMark collapsed={collapsed} wide={!collapsed} companyName={me.company?.name} companyLogoUrl={me.company?.logoUrl} className={cn("text-white", !collapsed && "w-full")} />
       </div>
       <SidebarNav collapsed={collapsed} />
       <button

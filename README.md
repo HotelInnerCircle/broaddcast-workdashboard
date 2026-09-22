@@ -20,6 +20,17 @@ On start the server bootstraps an empty database: it creates the default plans (
 
 Leave `SMTP_HOST` empty in development: emails are printed to the console and appended to `.dev/outbox.jsonl`.
 
+## Android app (APK / Play Store)
+
+The app is an installable PWA (manifest, service worker, offline page). To ship it as an Android app:
+
+1. Deploy on a public **https://** domain (e.g. https://app.yourdomain.com) - the Android wrapper loads the live site.
+2. Go to https://www.pwabuilder.com, enter the URL, choose **Android** -> download the package. You get an `.apk` (side-load / share) and an `.aab` (Play Store), plus the signing key - keep it safe.
+3. Put the values PWABuilder shows into `.env` on the server: `ANDROID_PACKAGE_NAME` (e.g. com.broaddcast.workpulse) and `ANDROID_CERT_SHA256` (signing certificate fingerprint; after Play app-signing, use the one from Play Console -> App signing). `/.well-known/assetlinks.json` then verifies the app so it opens full-screen without a browser bar.
+4. Create the app in Google Play Console, upload the `.aab`, fill the listing, submit for review.
+
+Replace the placeholder icons in `public/icons/` with your brand PNGs (192x192, 512x512, and a 512x512 maskable with safe padding) before packaging.
+
 ## Security notes
 
 - Never commit `.env` (ignored). Copy `.env.example`, generate `AUTH_SECRET` with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`, and set a strong `SUPERADMIN_PASSWORD` before the first seed.

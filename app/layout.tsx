@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, Instrument_Serif } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { brand } from "@/config/brand";
+import { PwaRegister } from "@/components/layout/pwa-register";
 import "./globals.css";
 
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans", display: "swap" });
@@ -11,6 +12,17 @@ const instrumentSerif = Instrument_Serif({ subsets: ["latin"], weight: "400", st
 export const metadata: Metadata = {
   title: { default: brand.name, template: `%s | ${brand.name}` },
   description: brand.tagline,
+  applicationName: brand.name,
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: brand.name },
+  icons: { icon: [{ url: "/icons/icon-192.png", sizes: "192x192" }, { url: "/icons/icon-512.png", sizes: "512x512" }], apple: "/icons/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: [{ media: "(prefers-color-scheme: light)", color: "#f4f0e8" }, { media: "(prefers-color-scheme: dark)", color: "#1a1714" }],
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -20,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           {children}
           <Toaster richColors position="top-right" closeButton />
+          <PwaRegister />
         </ThemeProvider>
       </body>
     </html>

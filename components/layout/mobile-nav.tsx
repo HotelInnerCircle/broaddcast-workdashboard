@@ -43,7 +43,7 @@ export function MobileDrawer({ open, onOpenChange }: { open: boolean; onOpenChan
         <DialogPrimitive.Content className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-sidebar text-sidebar-foreground shadow-xl md:hidden">
           <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
           <DialogPrimitive.Description className="sr-only">Main navigation</DialogPrimitive.Description>
-          <div className="flex h-16 items-center px-4"><BrandMark companyName={me.company?.name} companyLogoUrl={me.company?.logoUrl} className="text-white" /></div>
+          <div className="flex h-16 items-center px-4"><BrandMark wide companyName={me.company?.name} companyLogoUrl={me.company?.logoUrl} className="w-full text-white" /></div>
           <SidebarNav collapsed={false} onNavigate={() => onOpenChange(false)} />
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

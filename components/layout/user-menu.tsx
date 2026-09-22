@@ -15,7 +15,7 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-2 rounded-full outline-none ring-ring focus-visible:ring-2" aria-label="Open profile menu">
-        <Avatar name={me.name} src={me.avatarUrl} />
+        <Avatar name={me.name} src={me.avatarUrl ?? me.company?.logoUrl ?? null} fit={me.avatarUrl ? "cover" : "contain"} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="flex flex-col gap-1">
