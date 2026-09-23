@@ -17,6 +17,8 @@ export interface ProjectRow {
   archivedAt: string | null; createdAt: string; updatedAt: string; progress: ProjectProgress;
 }
 export interface ClientRow {
+  /** Services this client has taken from us (A69). */
+  services?: string[];
   id: string; name: string; contactPerson: string | null; email: string | null; phone: string | null; website: string | null; industry: string | null;
   status: string; notes: string | null; archivedAt: string | null; createdAt: string; updatedAt: string; projects?: number; activeProjects?: number; openTasks?: number;
 }

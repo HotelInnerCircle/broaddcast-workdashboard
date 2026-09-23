@@ -1,19 +1,28 @@
 "use client";
 import { useState } from "react";
-import { Plus, X, Briefcase } from "lucide-react";
+import { Briefcase, Plus, ShoppingBag, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api, ClientApiError } from "@/lib/api/client";
 
-const SUGGESTIONS = ["Web Developer", "Mobile Developer", "UI/UX Designer", "Graphic Designer", "Project Manager", "QA Engineer", "Business Analyst", "Content Writer", "Digital Marketer", "Accountant", "HR Executive", "Sales Executive"];
-
 /**
- * Company job designations (A57): the admin keeps this list; it feeds the "Designation" picker
- * when adding or editing people. Saved through the normal company-settings endpoint.
+ * Editor for a company-owned list of labels (A57 designations, A69 services). Adding or removing a
+ * chip saves immediately through the normal company-settings endpoint; suggestions are one tap.
  */
-export function DesignationsEditor({ initial }: { initial: string[] }) {
+const ICONS = { services: ShoppingBag, designations: Briefcase } as const;
+
+export function ListEditor({ field, initial, title, description, placeholder, suggestions }: {
+  /** Company settings field this list is stored in. */
+  field: "designations" | "services";
+  initial: string[];
+  title: string;
+  description: string;
+  placeholder: string;
+  suggestions: string[];
+}) {
+  const Icon = ICONS[field];
   const [items, setItems] = useState<string[]>(initial);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -21,11 +30,11 @@ export function DesignationsEditor({ initial }: { initial: string[] }) {
   const save = async (next: string[], okMsg: string) => {
     setSaving(true);
     try {
-      const res = await api<{ designations: string[] }>("/api/admin/company", { method: "PATCH", json: { designations: next } });
-      setItems(res.designations);
+      const res = await api<Record<string, string[]>>("/api/admin/company", { method: "PATCH", json: { [field]: next } });
+      setItems(res[field] ?? next);
       toast.success(okMsg);
     } catch (e) {
-      toast.error(e instanceof ClientApiError ? e.message : "Could not save designations");
+      toast.error(e instanceof ClientApiError ? e.message : "Could not save");
     } finally { setSaving(false); }
   };
   const add = (value: string) => {
@@ -36,21 +45,21 @@ export function DesignationsEditor({ initial }: { initial: string[] }) {
     void save([...items, v], `Added "${v}"`);
   };
   const remove = (value: string) => void save(items.filter((d) => d !== value), `Removed "${value}"`);
-  const unusedSuggestions = SUGGESTIONS.filter((s) => !items.some((d) => d.toLowerCase() === s.toLowerCase())).slice(0, 8);
+  const unused = suggestions.filter((s) => !items.some((d) => d.toLowerCase() === s.toLowerCase())).slice(0, 8);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Briefcase className="size-5 text-primary" />Job designations</CardTitle>
-        <CardDescription>Job titles your people can be assigned - e.g. Web Developer, Designer. They appear in the Designation dropdown when you add or edit an employee. (Access roles - Admin, Manager, Team Lead, Employee - are separate and fixed.)</CardDescription>
+        <CardTitle className="flex items-center gap-2"><Icon className="size-5 text-primary" />{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); add(draft); }}>
-          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Add a designation, e.g. Web Developer" maxLength={60} aria-label="New designation" />
+          <Input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} maxLength={60} aria-label={`New ${field === "services" ? "service" : "designation"}`} />
           <Button type="submit" loading={saving} disabled={!draft.trim()}><Plus />Add</Button>
         </form>
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No designations yet. Add your own above or pick from the suggestions.</p>
+          <p className="text-sm text-muted-foreground">Nothing added yet. Type your own above or pick from the suggestions.</p>
         ) : (
           <ul className="flex flex-wrap gap-2">
             {items.map((d) => (
@@ -61,11 +70,11 @@ export function DesignationsEditor({ initial }: { initial: string[] }) {
             ))}
           </ul>
         )}
-        {unusedSuggestions.length > 0 && (
+        {unused.length > 0 && (
           <div>
             <p className="mb-2 text-xs font-semibold text-muted-foreground">Suggestions</p>
             <div className="flex flex-wrap gap-2">
-              {unusedSuggestions.map((s) => (
+              {unused.map((s) => (
                 <button key={s} type="button" onClick={() => add(s)} disabled={saving} className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-border hover:text-foreground">+ {s}</button>
               ))}
             </div>

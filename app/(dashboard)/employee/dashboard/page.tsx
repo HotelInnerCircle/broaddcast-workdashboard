@@ -9,6 +9,7 @@ import { myWork } from "@/services/dashboardService";
 import { hoursSummary } from "@/services/timesheetService";
 import { StopwatchWidget } from "@/components/timer/stopwatch-widget";
 import { Greeting } from "@/components/dashboard/greeting";
+import { MobileHome, type MobileItem } from "@/components/dashboard/mobile-home";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,9 +36,22 @@ export default async function EmployeeDashboardPage() {
   const grouped = JSON.parse(JSON.stringify(work.grouped)) as Record<string, TaskRow[]>;
   const upcoming = JSON.parse(JSON.stringify(work.upcoming)) as TaskRow[];
   const focusCount = Object.values(grouped).reduce((n, l) => n + l.length, 0);
+  // Phone home ("Focus" direction, A66): the same data, laid out for one thumb.
+  const focusList = ORDER.flatMap((s) => grouped[s] ?? []);
+  const mobileItems: MobileItem[] = focusList.slice(0, 5).map((t) => ({ id: t.id, href: `/tasks/${t.id}`, title: t.title, meta: [t.project?.name, t.dueDate ? formatDate(t.dueDate) : null].filter(Boolean).join(" \u00b7 "), tone: t.overdue ? "danger" : t.status === "In Progress" ? "info" : "muted", badge: t.overdue ? "late" : undefined }));
 
   return (
     <>
+      <MobileHome
+        greeting={`Hi, ${ctx.name.split(" ")[0]}`}
+        stats={[
+          { label: "Today", value: formatDuration(hours.todaySeconds), progress: Math.min(100, (hours.todaySeconds / (8 * 3600)) * 100) },
+          { label: "Open tasks", value: String(work.openCount), hint: work.overdueCount > 0 ? `${work.overdueCount} overdue` : "nothing overdue", tone: work.overdueCount > 0 ? "danger" : undefined },
+        ]}
+        items={mobileItems}
+        itemsTitle="Today's focus"
+      />
+      <div className="hidden md:block">
       <Greeting name={ctx.name} timezone={ctx.company!.timezone} subtitle={team ? `Team ${team.name}` : undefined} />
       <StopwatchWidget />
 
@@ -102,6 +116,7 @@ export default async function EmployeeDashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </>
   );

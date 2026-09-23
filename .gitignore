@@ -47,3 +47,19 @@ desktop.ini
 
 # --- AI assistant local state ---
 .claude/settings.local.json
+
+# --- Native (Capacitor): keep the projects, ignore build output and local SDK files ---
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/release/
+android/app/src/main/assets/public/
+android/app/google-services.json
+ios/App/build/
+ios/App/Pods/
+ios/App/App/public/
+ios/App/App/GoogleService-Info.plist
+*.keystore
+*.jks
+android/key.properties

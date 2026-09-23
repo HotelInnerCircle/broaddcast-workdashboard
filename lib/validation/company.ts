@@ -11,6 +11,13 @@ export const updateCompanySchema = z.object({
   lateThresholdMinutes: z.number().int().min(0).max(240).optional(),
   defaultTaskStatus: z.string().trim().max(40).optional(),
   designations: z.array(z.string().trim().min(1, "Designation cannot be empty").max(60)).max(100).optional(),
+  services: z.array(z.string().trim().min(1, "Service cannot be empty").max(60)).max(100).optional(),
+  hiddenNav: z.object({
+    COMPANY_ADMIN: z.array(z.string()).max(60),
+    MANAGER: z.array(z.string()).max(60),
+    TEAM_LEAD: z.array(z.string()).max(60),
+    EMPLOYEE: z.array(z.string()).max(60),
+  }).partial().optional(),
   setupCompleted: z.boolean().optional(),
 });
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;

@@ -101,17 +101,17 @@ export function EmployeesView() {
               <TBody>
                 {rows.map((r) => (
                   <TR key={r.id}>
-                    <TD>
+                    <TD primary>
                       <div className="flex items-center gap-3">
                         <Avatar name={r.name} src={r.avatarUrl} size="sm" />
                         <div className="min-w-0"><Link href={`/employees/${r.id}`} className="block truncate font-medium hover:text-primary hover:underline">{r.name}</Link><p className="truncate text-xs text-muted-foreground">{r.email}</p></div>
                       </div>
                     </TD>
-                    <TD><Badge variant="outline">{r.roleLabel}</Badge>{r.designation && <p className="mt-1 text-xs text-muted-foreground">{r.designation}</p>}</TD>
-                    <TD className="text-muted-foreground">{r.team?.name ?? "-"}</TD>
-                    <TD className="text-muted-foreground">{r.manager?.name ?? "-"}</TD>
-                    <TD><Badge variant={r.status === "active" ? "success" : r.status === "invited" ? "warning" : "danger"}>{r.status}</Badge></TD>
-                    <TD className="text-xs text-muted-foreground">{relativeTime(r.lastActiveAt)}</TD>
+                    <TD label="Role"><Badge variant="outline">{r.roleLabel}</Badge>{r.designation && <p className="mt-1 text-xs text-muted-foreground">{r.designation}</p>}</TD>
+                    <TD label="Team" className="text-muted-foreground">{r.team?.name ?? "-"}</TD>
+                    <TD label="Manager" className="text-muted-foreground">{r.manager?.name ?? "-"}</TD>
+                    <TD label="Status"><Badge variant={r.status === "active" ? "success" : r.status === "invited" ? "warning" : "danger"}>{r.status}</Badge></TD>
+                    <TD label="Last active" className="text-xs text-muted-foreground">{relativeTime(r.lastActiveAt)}</TD>
                     {canEdit && <TD><Button variant="ghost" size="icon" aria-label={`Edit ${r.name}`} onClick={() => setSelected(r)}><Pencil /></Button></TD>}
                   </TR>
                 ))}
@@ -139,11 +139,11 @@ export function EmployeesView() {
               <TBody>
                 {invites.map((i) => (
                   <TR key={i.id}>
-                    <TD className="font-medium"><span className="inline-flex items-center gap-2"><Mail className="size-4 text-muted-foreground" />{i.email}</span></TD>
-                    <TD><Badge variant="outline">{ROLE_LABEL[i.role as keyof typeof ROLE_LABEL]}</Badge></TD>
-                    <TD className="text-muted-foreground">{i.team ?? "-"}</TD>
-                    <TD className="text-muted-foreground">{formatDate(i.expiresAt)}</TD>
-                    <TD className="text-right">
+                    <TD primary className="font-medium"><span className="inline-flex items-center gap-2"><Mail className="size-4 text-muted-foreground" />{i.email}</span></TD>
+                    <TD label="Role"><Badge variant="outline">{ROLE_LABEL[i.role as keyof typeof ROLE_LABEL]}</Badge></TD>
+                    <TD label="Team" className="text-muted-foreground">{i.team ?? "-"}</TD>
+                    <TD label="Expires" className="text-muted-foreground">{formatDate(i.expiresAt)}</TD>
+                    <TD className="text-right max-md:text-left">
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => inviteAction(i.id, "resend")}><RefreshCw />Resend</Button>
                         <Button variant="ghost" size="sm" className="text-danger" onClick={() => inviteAction(i.id, "revoke")}><XCircle />Revoke</Button>

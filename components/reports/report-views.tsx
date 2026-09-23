@@ -40,7 +40,7 @@ export function TimeReportView() {
           <Card>
             <CardHeader><CardTitle>Entries</CardTitle><CardDescription>{d.entries.length} entries - identical to the timesheet for the same filters.</CardDescription></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table>
+              <Table cards={false} className="table-sticky-1">
                 <THead><TR><TH>Date</TH><TH>Employee</TH><TH>Client</TH><TH>Project</TH><TH>Task</TH><TH>Start</TH><TH>End</TH><TH className="text-right">Duration</TH></TR></THead>
                 <TBody>{d.entries.slice(0, 300).map((e) => <TR key={e.id}><TD className="whitespace-nowrap">{formatDate(`${e.date}T12:00:00Z`)}</TD><TD>{e.user?.name}</TD><TD className="text-muted-foreground">{e.client?.name}</TD><TD className="text-muted-foreground">{e.project?.name}</TD><TD><Link href={`/tasks/${e.task?.id}`} className="hover:underline">{e.task?.name}</Link></TD><TD className="whitespace-nowrap">{timeOf(e.start)}</TD><TD className="whitespace-nowrap">{e.end ? timeOf(e.end) : "-"}</TD><TD className="text-right font-mono tabular-nums">{formatHMS(e.elapsedSeconds)}</TD></TR>)}</TBody>
               </Table>
@@ -74,7 +74,7 @@ export function EmployeeReportView() {
           <Card>
             <CardHeader><CardTitle>Per employee</CardTitle><CardDescription>Attendance columns: Present / Late / Half day / Absent / Leave over {d.totals.workingDays} completed working days.</CardDescription></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table>
+              <Table cards={false} className="table-sticky-1">
                 <THead><TR><TH>Employee</TH><TH className="text-right">Tracked</TH><TH className="text-right">Completed</TH><TH className="text-right">Open</TH><TH className="text-right">Overdue</TH><TH className="text-right">Est / actual</TH><TH className="text-right">Projects</TH><TH className="text-right">Clients</TH><TH className="text-right">Daily reports</TH><TH>Attendance</TH></TR></THead>
                 <TBody>{d.rows.map((r) => (
                   <TR key={r.id}>
@@ -118,7 +118,7 @@ export function TaskReportView() {
           <Card>
             <CardHeader><CardTitle>Tasks</CardTitle></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table>
+              <Table cards={false} className="table-sticky-1">
                 <THead><TR><TH>Task</TH><TH>Project</TH><TH>Assignee</TH><TH>Priority</TH><TH>Due</TH><TH>Status</TH><TH className="text-right">Est</TH><TH className="text-right">In range</TH><TH className="text-right">Total</TH></TR></THead>
                 <TBody>{d.rows.slice(0, 300).map((t) => (
                   <TR key={t.id} className={t.overdue ? "bg-danger-soft/30" : ""}>
@@ -160,7 +160,7 @@ export function ProjectReportView() {
           <Card>
             <CardHeader><CardTitle>Projects</CardTitle></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table>
+              <Table cards={false} className="table-sticky-1">
                 <THead><TR><TH>Project</TH><TH>Status</TH><TH className="text-right">Tasks</TH><TH className="text-right">Done</TH><TH className="text-right">Pending</TH><TH className="text-right">Overdue</TH><TH>Progress</TH><TH className="text-right">Estimated</TH><TH className="text-right">In range</TH><TH className="text-right">Total</TH><TH>Deadline</TH></TR></THead>
                 <TBody>{d.rows.map((p) => (
                   <TR key={p.id}>
@@ -209,7 +209,7 @@ export function ClientReportView() {
           <Card>
             <CardHeader><CardTitle>Clients</CardTitle></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table>
+              <Table cards={false} className="table-sticky-1">
                 <THead><TR><TH>Client</TH><TH>Industry</TH><TH>Status</TH><TH className="text-right">Projects</TH><TH className="text-right">Tasks</TH><TH className="text-right">Open</TH><TH className="text-right">Hours in range</TH><TH className="text-right">Hours total</TH></TR></THead>
                 <TBody>{d.rows.map((c) => <TR key={c.id}><TD><Link href={`/clients/${c.id}`} className="font-medium hover:underline">{c.name}</Link></TD><TD className="text-muted-foreground">{c.industry ?? "-"}</TD><TD>{c.archived ? <Badge variant="outline">Archived</Badge> : <Badge variant={c.status === "active" ? "success" : "warning"}>{c.status}</Badge>}</TD><TD className="text-right tabular-nums">{c.projects}</TD><TD className="text-right tabular-nums">{c.tasks}</TD><TD className="text-right tabular-nums">{c.openTasks}</TD><TD className="text-right tabular-nums">{h(c.trackedInRangeHours)}</TD><TD className="text-right tabular-nums">{h(c.trackedTotalHours)}</TD></TR>)}</TBody>
               </Table>
@@ -233,7 +233,7 @@ export function AttendanceReportView() {
             <StatsCard label="Present" value={d.summary.present} tone="success" /><StatsCard label="Late" value={d.summary.late} tone="warning" /><StatsCard label="Half day" value={d.summary.halfDay} tone="danger" /><StatsCard label="Absent" value={d.summary.absent} tone="muted" /><StatsCard label="Leave" value={d.summary.leave} tone="info" /><StatsCard label="Needs review" value={d.summary.flagged} icon={CalendarCheck} tone={d.summary.flagged ? "danger" : "muted"} />
           </div>
           <ChartCard title="Days by status per employee" description="Present, late, half day, absent, leave" empty={d.perUser.length === 0}>
-            <Table>
+            <Table cards={false} className="table-sticky-1">
               <THead><TR><TH>Employee</TH><TH className="text-right">Present</TH><TH className="text-right">Late</TH><TH className="text-right">Half day</TH><TH className="text-right">Absent</TH><TH className="text-right">Leave</TH><TH className="text-right">Work hours</TH><TH className="text-right">Auto-closed</TH></TR></THead>
               <TBody>{d.perUser.map((u) => <TR key={u.id}><TD><Link href={`/employees/${u.id}`} className="font-medium hover:underline">{u.name}</Link><span className="ml-2 text-xs text-muted-foreground">{u.team}</span></TD><TD className="text-right tabular-nums text-success">{u.present}</TD><TD className="text-right tabular-nums text-warning">{u.late}</TD><TD className="text-right tabular-nums text-danger">{u.halfDay}</TD><TD className="text-right tabular-nums">{u.absent}</TD><TD className="text-right tabular-nums text-info">{u.leave}</TD><TD className="text-right tabular-nums">{formatDuration(u.workSeconds)}</TD><TD className="text-right tabular-nums">{u.autoClosed}</TD></TR>)}</TBody>
             </Table>
@@ -241,7 +241,7 @@ export function AttendanceReportView() {
           <Card>
             <CardHeader><CardTitle>Records</CardTitle></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table>
+              <Table cards={false} className="table-sticky-1">
                 <THead><TR><TH>Employee</TH><TH>Date</TH><TH>Clock in</TH><TH>Clock out</TH><TH className="text-right">Break</TH><TH className="text-right">Work</TH><TH>Status</TH></TR></THead>
                 <TBody>{d.rows.slice(0, 400).map((r) => <TR key={r.id} className={cn(r.autoClosed && "bg-danger-soft/30", r.virtual && "opacity-70")}><TD><span className="inline-flex items-center gap-2">{r.user && <Avatar name={r.user.name} src={r.user.avatarUrl} size="sm" />}{r.user?.name}</span></TD><TD className="whitespace-nowrap">{formatDate(`${r.date}T12:00:00Z`)}</TD><TD>{r.clockIn ? timeOf(r.clockIn) : "-"}</TD><TD>{r.clockOut ? timeOf(r.clockOut) : "-"}{r.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger">auto</span>}</TD><TD className="text-right tabular-nums">{r.breakSeconds ? formatDuration(r.breakSeconds) : "-"}</TD><TD className="text-right tabular-nums">{r.workSeconds ? formatDuration(r.workSeconds) : "-"}</TD><TD><Badge variant={ATT[r.status] ?? "default"}>{r.status}</Badge></TD></TR>)}</TBody>
               </Table>

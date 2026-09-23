@@ -11,6 +11,7 @@ import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { ClientStatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { api, apiPaged, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -52,7 +53,7 @@ export function ClientsView() {
 
   return (
     <>
-      <PageHeader title="Clients" description="Companies you do work for. Managers add clients; everyone under that manager sees them automatically." actions={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Add client</Button>} />
+      <PageHeader title="Clients" description="Companies you do work for. A manager's clients are visible to their team; clients the admin adds are visible to everyone." actions={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Add client</Button>} />
       <Card>
         <CardHeader className="flex-row flex-wrap items-center gap-3">
           <div className="relative min-w-56 flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Search clients" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} /></div>
@@ -64,16 +65,17 @@ export function ClientsView() {
             <EmptyState icon={Building2} title="No clients yet" description={canCreate ? "Add your first client to start creating projects." : "Your manager has not added any clients yet."} action={canCreate && <Button onClick={() => setDialog({ open: true, client: null })}><Plus />Create client</Button>} />
           ) : (
             <Table>
-              <THead><TR><TH>Client</TH><TH>Contact</TH><TH>Industry</TH><TH>Projects</TH><TH>Open tasks</TH><TH>Status</TH>{canEdit && <TH className="w-12" />}</TR></THead>
+              <THead><TR><TH>Client</TH><TH>Contact</TH><TH>Services</TH><TH>Industry</TH><TH>Projects</TH><TH>Open tasks</TH><TH>Status</TH>{canEdit && <TH className="w-12" />}</TR></THead>
               <TBody>
                 {rows.map((c) => (
                   <TR key={c.id} className={c.archivedAt ? "opacity-60" : ""}>
-                    <TD><Link href={`/clients/${c.id}`} className="font-medium hover:text-primary hover:underline">{c.name}</Link>{c.website && <p className="truncate text-xs text-muted-foreground">{c.website}</p>}</TD>
-                    <TD>{c.contactPerson ?? "-"}{c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}</TD>
-                    <TD className="text-muted-foreground">{c.industry ?? "-"}</TD>
-                    <TD>{c.projects ?? 0}<span className="text-xs text-muted-foreground"> ({c.activeProjects ?? 0} active)</span></TD>
-                    <TD>{c.openTasks ?? 0}</TD>
-                    <TD><ClientStatusBadge status={c.status} archived={!!c.archivedAt} /></TD>
+                    <TD primary><Link href={`/clients/${c.id}`} className="font-medium hover:text-primary hover:underline">{c.name}</Link>{c.website && <p className="truncate text-xs text-muted-foreground">{c.website}</p>}</TD>
+                    <TD label="Contact">{c.contactPerson ?? "-"}{c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}</TD>
+                    <TD label="Services">{c.services?.length ? <span className="flex flex-wrap gap-1">{c.services.slice(0, 3).map((s) => <Badge key={s} variant="primary">{s}</Badge>)}{c.services.length > 3 && <Badge variant="outline">+{c.services.length - 3}</Badge>}</span> : <span className="text-muted-foreground">-</span>}</TD>
+                    <TD label="Industry" className="text-muted-foreground">{c.industry ?? "-"}</TD>
+                    <TD label="Projects">{c.projects ?? 0}<span className="text-xs text-muted-foreground"> ({c.activeProjects ?? 0} active)</span></TD>
+                    <TD label="Open tasks">{c.openTasks ?? 0}</TD>
+                    <TD label="Status"><ClientStatusBadge status={c.status} archived={!!c.archivedAt} /></TD>
                     {canEdit && (
                       <TD>
                         <DropdownMenu>

@@ -85,6 +85,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** Null outside RealtimeProvider, instead of throwing. */
+export function useRealtimeOptional(): RealtimeApi | null { return useContext(Ctx); }
+
 export function useRealtime(): RealtimeApi {
   const v = useContext(Ctx);
   if (!v) throw new Error("useRealtime must be used inside RealtimeProvider");

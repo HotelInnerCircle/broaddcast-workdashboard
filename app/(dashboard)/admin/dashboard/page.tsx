@@ -6,6 +6,7 @@ import { adminDashboardStats } from "@/services/companyService";
 import { workKpis } from "@/services/dashboardService";
 import { ProjectStatusBadge } from "@/components/ui/status-badge";
 import { Greeting } from "@/components/dashboard/greeting";
+import { MobileHome } from "@/components/dashboard/mobile-home";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { ActivityList } from "@/components/dashboard/activity-list";
 import { ComingSoon } from "@/components/dashboard/coming-soon";
@@ -23,6 +24,21 @@ export default async function AdminDashboardPage() {
 
   return (
     <>
+      <MobileHome
+        greeting={`Hi, ${ctx.name.split(" ")[0]}`}
+        stats={[
+          { label: "Headcount", value: String(stats.headcount), hint: `${stats.activeToday} active today` },
+          { label: "Overdue", value: String(kpi.tasks.overdue), hint: `${kpi.projects.active} active projects`, tone: kpi.tasks.overdue > 0 ? "danger" : undefined },
+        ]}
+        items={[
+          { id: "employees", href: "/employees", title: "Employees", meta: `${stats.headcount} people${limit ? ` of ${limit} seats` : ""}`, tone: "info" as const },
+          { id: "projects", href: "/projects", title: "Projects", meta: `${kpi.projects.active} active, ${kpi.projects.total} total`, tone: "muted" as const },
+          { id: "reports", href: "/reports", title: "Reports", meta: "Hours, tasks, attendance", tone: "success" as const },
+        ]}
+        itemsTitle="Manage"
+        itemsHref="/employees"
+      />
+      <div className="hidden md:block">
       <Greeting name={ctx.name} timezone={ctx.company!.timezone} subtitle={ctx.company!.name} />
       {!ctx.company!.setupCompleted && <SetupBanner />}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
@@ -70,6 +86,7 @@ export default async function AdminDashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </>
   );

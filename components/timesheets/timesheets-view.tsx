@@ -91,15 +91,15 @@ export function TimesheetsView() {
               <TBody>
                 {data.entries.map((e) => (
                   <TR key={e.id}>
-                    <TD className="whitespace-nowrap">{formatDate(`${e.date}T12:00:00Z`)}</TD>
-                    {manager && <TD><span className="inline-flex items-center gap-2">{e.user && <Avatar name={e.user.name} src={e.user.avatarUrl} size="sm" />}{e.user?.name}</span></TD>}
-                    <TD className="text-muted-foreground">{e.client?.name}</TD>
-                    <TD className="text-muted-foreground">{e.project?.name ? <Link href={`/projects/${e.project.id}`} className="hover:underline">{e.project.name}</Link> : "-"}</TD>
-                    <TD>{e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="font-medium hover:text-primary hover:underline">{e.task.name}</Link> : <span className="text-muted-foreground">-</span>}{e.notes ? <p className="max-w-64 truncate text-xs text-muted-foreground" title={e.notes}>{e.notes}</p> : e.autoClosed ? <p className="text-xs text-danger">No notes (auto-closed)</p> : null}</TD>
-                    <TD className="whitespace-nowrap">{time(e.start)}</TD>
-                    <TD className="whitespace-nowrap">{time(e.end)}{e.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger">auto</span>}</TD>
-                    <TD className="text-right font-mono tabular-nums">{formatHMS(e.status === "COMPLETED" ? e.durationSeconds : e.id === t.entry?.id ? t.elapsed : e.elapsedSeconds)}</TD>
-                    <TD><Badge variant={e.status === "RUNNING" ? "success" : e.status === "PAUSED" ? "warning" : "outline"}>{e.status.toLowerCase()}</Badge></TD>
+                    <TD label="Date" className="whitespace-nowrap">{formatDate(`${e.date}T12:00:00Z`)}</TD>
+                    {manager && <TD label="Employee"><span className="inline-flex items-center gap-2">{e.user && <Avatar name={e.user.name} src={e.user.avatarUrl} size="sm" />}{e.user?.name}</span></TD>}
+                    <TD label="Client" className="text-muted-foreground">{e.client?.name}</TD>
+                    <TD label="Project" className="text-muted-foreground">{e.project?.name ? <Link href={`/projects/${e.project.id}`} className="hover:underline">{e.project.name}</Link> : "-"}</TD>
+                    <TD primary>{e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="font-medium hover:text-primary hover:underline">{e.task.name}</Link> : <span className="text-muted-foreground">-</span>}{e.notes ? <p className="max-w-64 truncate text-xs text-muted-foreground" title={e.notes}>{e.notes}</p> : e.autoClosed ? <p className="text-xs text-danger">No notes (auto-closed)</p> : null}</TD>
+                    <TD label="Start" className="whitespace-nowrap">{time(e.start)}</TD>
+                    <TD label="End" className="whitespace-nowrap">{time(e.end)}{e.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger">auto</span>}</TD>
+                    <TD label="Duration" className="text-right font-mono tabular-nums">{formatHMS(e.status === "COMPLETED" ? e.durationSeconds : e.id === t.entry?.id ? t.elapsed : e.elapsedSeconds)}</TD>
+                    <TD label="Status"><Badge variant={e.status === "RUNNING" ? "success" : e.status === "PAUSED" ? "warning" : "outline"}>{e.status.toLowerCase()}</Badge></TD>
                   </TR>
                 ))}
               </TBody>

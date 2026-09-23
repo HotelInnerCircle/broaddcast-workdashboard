@@ -33,6 +33,9 @@ export function scoped<TRaw>(model: Model<TRaw>, ctx: TenantCtx) {
       model.findOneAndUpdate(withTenant(filter), update, { returnDocument: "after", ...options }),
     findByIdAndUpdate: (id: string, update: UpdateQuery<TRaw>, options?: QueryOptions<TRaw>) =>
       model.findOneAndUpdate(withTenant(idFilter(id)), update, { returnDocument: "after", ...options }),
+    /** Hard deletes are rare (most records archive); these stay tenant-scoped like every other helper. */
+    deleteOne: (filter: QueryFilter<TRaw>) => model.deleteOne(withTenant(filter)),
+    deleteMany: (filter: QueryFilter<TRaw>) => model.deleteMany(withTenant(filter)),
     aggregate: <R = unknown>(pipeline: PipelineStage[]) => model.aggregate<R>([{ $match: { companyId } }, ...pipeline]),
   };
 }

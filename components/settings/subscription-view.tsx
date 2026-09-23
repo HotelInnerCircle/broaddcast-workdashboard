@@ -136,7 +136,7 @@ export function BillingView() {
         {payments.length === 0 ? <EmptyState icon={Receipt} title="No payments yet" description="Payments and manual plan assignments will be listed here." /> : (
           <Table>
             <THead><TR><TH>Date</TH><TH>Description</TH><TH>Period</TH><TH className="text-right">Amount</TH><TH>Reference</TH></TR></THead>
-            <TBody>{payments.map((p) => <TR key={p.id}><TD className="whitespace-nowrap">{formatDateTime(p.createdAt)}</TD><TD>{p.note ?? (p.provider === "manual" ? "Plan assigned" : `Payment via ${p.provider}`)}</TD><TD className="whitespace-nowrap text-muted-foreground">{formatDate(p.periodStart)} - {formatDate(p.periodEnd)}</TD><TD className="text-right tabular-nums">{p.amount ? fmt(p.amount, p.currency) : "-"}</TD><TD className="font-mono text-xs text-muted-foreground">{p.paymentId ?? p.orderId ?? "-"}</TD></TR>)}</TBody>
+            <TBody>{payments.map((p) => <TR key={p.id}><TD label="Date" className="whitespace-nowrap">{formatDateTime(p.createdAt)}</TD><TD primary>{p.note ?? (p.provider === "manual" ? "Plan assigned" : `Payment via ${p.provider}`)}</TD><TD label="Period" className="whitespace-nowrap text-muted-foreground">{formatDate(p.periodStart)} - {formatDate(p.periodEnd)}</TD><TD label="Amount" className="text-right tabular-nums">{p.amount ? fmt(p.amount, p.currency) : "-"}</TD><TD className="font-mono text-xs text-muted-foreground">{p.paymentId ?? p.orderId ?? "-"}</TD></TR>)}</TBody>
           </Table>
         )}
       </CardContent>

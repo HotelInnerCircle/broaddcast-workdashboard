@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { LogOut, Settings, User } from "lucide-react";
 import { signOut } from "next-auth/react";
+import { unregisterPushDevice } from "@/lib/native";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -29,7 +30,7 @@ export function UserMenu() {
           <DropdownMenuItem asChild><Link href="/settings"><Settings />Company settings</Link></DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem destructive onSelect={async () => { await signOut({ redirect: false }); router.push("/login"); router.refresh(); }}>
+        <DropdownMenuItem destructive onSelect={async () => { await unregisterPushDevice(); await signOut({ redirect: false }); router.push("/login"); router.refresh(); }}>
           <LogOut />Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

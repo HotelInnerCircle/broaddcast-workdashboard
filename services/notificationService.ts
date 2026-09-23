@@ -3,6 +3,8 @@ import { scoped } from "@/lib/db/scoped";
 import { Notification } from "@/models/Notification";
 import { realtime } from "@/lib/realtime";
 import type { NotificationType } from "@/types";
+import { DeviceToken } from "@/models/DeviceToken";
+import { pushEnabled, sendPush } from "@/lib/push";
 
 export interface NotifyInput { userId: string | Types.ObjectId; type: NotificationType; title: string; body?: string | null; link?: string | null; actorId?: string | Types.ObjectId | null; dedupeKey?: string | null }
 
@@ -18,11 +20,23 @@ export async function notify(companyId: string | Types.ObjectId, input: NotifyIn
     const n = await scoped(Notification, ctx).create({ userId: new Types.ObjectId(String(input.userId)), type: input.type, title: input.title, body: input.body ?? null, link: input.link ?? null, actorId: input.actorId ? new Types.ObjectId(String(input.actorId)) : null, dedupeKey: input.dedupeKey ?? null });
     const dto = serializeNotification(n.toObject() as Record<string, unknown>);
     realtime().emitToUser(String(input.userId), "notification:new", dto);
+    void deliverPush(ctx, String(input.userId), dto); // native push (A65); no-op until FCM is configured
     return dto;
   } catch (e) {
     if ((e as { code?: number }).code === 11000) return null; // deduplicated reminder
     throw e;
   }
+}
+
+/** Fire-and-forget FCM delivery for the same notification; invalid tokens are pruned. */
+async function deliverPush(ctx: { companyId: string }, userId: string, dto: ReturnType<typeof serializeNotification>) {
+  if (!pushEnabled()) return;
+  try {
+    const rows = await scoped(DeviceToken, ctx).find({ userId: new Types.ObjectId(userId) }).select("token").lean();
+    if (rows.length === 0) return;
+    const { invalid } = await sendPush(rows.map((r) => r.token as string), { title: dto.title, body: dto.body, link: dto.link, type: dto.type });
+    if (invalid.length) await scoped(DeviceToken, ctx).deleteMany({ token: { $in: invalid } });
+  } catch { /* push must never break the in-app notification */ }
 }
 
 export async function notifyMany(companyId: string | Types.ObjectId, userIds: (string | Types.ObjectId)[], input: Omit<NotifyInput, "userId">) {

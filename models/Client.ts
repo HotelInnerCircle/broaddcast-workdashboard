@@ -10,6 +10,10 @@ const ClientSchema = new Schema(
     phone: { type: String, default: null, trim: true },
     website: { type: String, default: null, trim: true },
     industry: { type: String, default: null, trim: true },
+    /** Created by a Company Admin (A70): visible to everyone in the company, not only one manager's people. */
+    sharedWithCompany: { type: Boolean, default: false },
+    /** Services this client has taken from us (A69); values come from Company.services. */
+    services: { type: [String], default: [] },
     status: { type: String, enum: CLIENT_STATUSES, default: "active" },
     notes: { type: String, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },

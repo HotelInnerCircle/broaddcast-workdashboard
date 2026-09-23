@@ -15,7 +15,7 @@ import { BrandMark } from "./brand-mark";
 export function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const me = useAuth();
   const pathname = usePathname();
-  const groups = navigationFor(me.role);
+  const groups = navigationFor(me.role, me.company?.hiddenNav ?? []);
   return (
     <nav className={cn("flex-1 overflow-y-auto scrollbar-none", collapsed ? "space-y-1 px-2 py-2" : "space-y-4 px-3 py-3")}>
       {groups.map((group, gi) => (

@@ -22,6 +22,8 @@ export function CalendarView() {
   const me = useAuth();
   const tz = me.company?.timezone ?? "UTC";
   const [mode, setMode] = useState<Mode>("month");
+  // Phones open on the day list; a 7-column month grid is unreadable at 390px (A67).
+  useEffect(() => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) setMode("day"); }, []);
   const [cursor, setCursor] = useState(() => new Date(formatInTimeZone(new Date(), tz, "yyyy-MM-dd") + "T00:00:00"));
   const [events, setEvents] = useState<CalendarEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,14 +73,14 @@ export function CalendarView() {
           {error ? <ErrorState message={error} onRetry={load} /> : events === null ? <Skeleton className="h-96" /> : mode === "day" ? (
             <DayList date={key(cursor)} events={byDay.get(key(cursor)) ?? []} />
           ) : (
-            <div className={cn("grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border")}>
+            <div className={cn("grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border", mode === "month" && "max-md:text-[11px]")}>
               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} className="bg-muted px-2 py-1.5 text-center text-xs font-medium text-muted-foreground">{d}</div>)}
               {days.map((d) => {
                 const k = key(d);
                 const list = byDay.get(k) ?? [];
                 const muted = mode === "month" && !isSameMonth(d, cursor);
                 return (
-                  <div key={k} className={cn("flex flex-col gap-1 bg-card p-1.5", mode === "month" ? "min-h-24" : "min-h-72", muted && "bg-muted/40 text-muted-foreground")}>
+                  <div key={k} className={cn("flex flex-col gap-1 bg-card p-1.5", mode === "month" ? "min-h-20 md:min-h-24" : "min-h-40 md:min-h-72", muted && "bg-muted/40 text-muted-foreground")}>
                     <button onClick={() => { setCursor(d); setMode("day"); }} className={cn("self-start rounded-full px-1.5 text-xs", k === today && "bg-primary font-semibold text-primary-foreground")}>{format(d, "d")}</button>
                     {list.slice(0, mode === "month" ? 3 : 20).map((e) => <EventChip key={e.id} event={e} />)}
                     {mode === "month" && list.length > 3 && <button onClick={() => { setCursor(d); setMode("day"); }} className="text-left text-[11px] text-muted-foreground hover:underline">+{list.length - 3} more</button>}

@@ -15,7 +15,13 @@ export function serializeCompany(c: Record<string, unknown>) {
   return {
     id: String(c._id), name: c.name as string, logoUrl: (c.logoUrl as string | null) ?? null, timezone: c.timezone as string,
     currency: c.currency as string, workingHours: c.workingHours as { start: string; end: string }, workingDays: c.workingDays as string[],
-    lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []),
+    lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []), services: ((c.services as string[] | undefined) ?? []),
+    hiddenNav: {
+      COMPANY_ADMIN: ((c.hiddenNav as Record<string, string[]> | undefined)?.COMPANY_ADMIN ?? []),
+      MANAGER: ((c.hiddenNav as Record<string, string[]> | undefined)?.MANAGER ?? []),
+      TEAM_LEAD: ((c.hiddenNav as Record<string, string[]> | undefined)?.TEAM_LEAD ?? []),
+      EMPLOYEE: ((c.hiddenNav as Record<string, string[]> | undefined)?.EMPLOYEE ?? []),
+    },
     status: c.status as string, setupCompleted: c.setupCompleted as boolean, createdAt: c.createdAt as Date,
   };
 }
@@ -40,10 +46,12 @@ export async function updateCompany(ctx: CompanyContext, input: UpdateCompanyInp
   if (input.workingDays !== undefined) c.set("workingDays", input.workingDays);
   if (input.lateThresholdMinutes !== undefined) c.lateThresholdMinutes = input.lateThresholdMinutes;
   if (input.defaultTaskStatus !== undefined) c.defaultTaskStatus = input.defaultTaskStatus;
-  if (input.designations !== undefined) {
-    // Keep order, drop duplicates case-insensitively.
-    const seen = new Set<string>();
-    c.set("designations", input.designations.filter((d) => { const k = d.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }));
+  // Keep order, drop duplicates case-insensitively.
+  const dedupe = (list: string[]) => { const seen = new Set<string>(); return list.filter((d) => { const k = d.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); };
+  if (input.designations !== undefined) c.set("designations", dedupe(input.designations));
+  if (input.services !== undefined) c.set("services", dedupe(input.services));
+  if (input.hiddenNav !== undefined) {
+    for (const [role, hrefs] of Object.entries(input.hiddenNav)) if (hrefs) c.set(`hiddenNav.${role}`, [...new Set(hrefs)]);
   }
   if (input.setupCompleted !== undefined) c.setupCompleted = input.setupCompleted;
   await c.save();

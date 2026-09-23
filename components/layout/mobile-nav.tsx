@@ -1,37 +1,80 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, ListChecks, Timer, MessageSquare, MoreHorizontal } from "lucide-react";
+import { Home, ListChecks, Timer, MessageSquare, User } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils/cn";
 import { useAuth } from "@/hooks/useAuth";
+import { useTimerOptional } from "@/hooks/useTimer";
+import { useRealtimeOptional } from "@/hooks/useRealtime";
 import { ROLE_HOME } from "@/types";
 import { SidebarNav } from "./sidebar";
 import { BrandMark } from "./brand-mark";
 
-/** Bottom navigation for phones (spec section 11): Home, Tasks, Timer, Chat, More. */
+/**
+ * Bottom navigation for phones ("Ribbon" direction, A66): a light rounded bar with the Timer as a
+ * raised centre button, so starting or stopping time is one thumb-tap from anywhere.
+ * Order: Home, Tasks, [Timer], Chat, Profile. Tabs the admin has hidden for this role (A71) drop
+ * out of the bar, and the grid narrows to match.
+ */
 export function MobileBottomNav({ onMore }: { onMore: () => void }) {
   const me = useAuth();
   const pathname = usePathname();
-  const items = [
+  const { entry, break: onBreak, unread } = useBottomNavState();
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const hidden = me.company?.hiddenNav ?? [];
+  const side = [
     { label: "Home", href: ROLE_HOME[me.role], icon: Home },
-    { label: "Tasks", href: "/tasks", icon: ListChecks, soon: false },
-    { label: "Timer", href: "/timer", icon: Timer, soon: false },
-    { label: "Chat", href: "/chat", icon: MessageSquare, soon: false },
-  ];
+    { label: "Tasks", href: "/tasks", icon: ListChecks },
+    { label: "Chat", href: "/chat", icon: MessageSquare, badge: unread },
+    { label: "Profile", href: null, icon: User },
+  ].filter((i) => !i.href || !hidden.includes(i.href));
+  const showTimer = !hidden.includes("/timer");
+  const left = Math.floor(side.length / 2);
+  const columns = side.length + (showTimer ? 1 : 0);
+  const timerActive = isActive("/timer");
+  const running = entry?.status === "RUNNING" || onBreak;
+
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 rounded-t-2xl bg-sidebar pb-[env(safe-area-inset-bottom)] text-sidebar-foreground shadow-float md:hidden">
-      {items.map((i) => {
-        const active = pathname.startsWith(i.href);
-        return (
-          <Link key={i.label} href={i.soon ? "#" : i.href} onClick={(e) => i.soon && e.preventDefault()} className={cn("flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium", active ? "text-white" : "text-sidebar-foreground", i.soon && "opacity-50")}>
-            <i.icon className="size-5" />{i.label}
-          </Link>
-        );
-      })}
-      <button onClick={onMore} className="flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-sidebar-foreground"><MoreHorizontal className="size-5" />More</button>
+    <nav style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      className="fixed inset-x-0 bottom-0 z-30 grid items-end rounded-t-[26px] bg-card px-3 pb-[max(16px,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-10px_30px_-22px_rgb(42_38_32/0.7)] ring-1 ring-border/60 md:hidden">
+      {side.slice(0, left).map((i) => <NavTab key={i.label} {...i} active={isActive(i.href!)} />)}
+
+      {showTimer && (
+      <Link href="/timer" aria-label="Timer" className="flex flex-col items-center gap-1">
+        <span className={cn("-mt-7 flex size-14 items-center justify-center rounded-full border-4 border-card shadow-[0_10px_22px_-10px_rgb(42_38_32/0.55)] transition-colors", running ? "bg-success text-white" : timerActive ? "bg-foreground text-background" : "bg-primary text-primary-foreground")}>
+          <Timer className="size-6" strokeWidth={2.2} />
+        </span>
+        <span className={cn("text-[10px] font-bold", timerActive || running ? "text-foreground" : "text-muted-foreground")}>Timer</span>
+      </Link>
+      )}
+
+      {side.slice(left).map((i) => (
+        i.href
+          ? <NavTab key={i.label} {...i} active={isActive(i.href)} />
+          : <button key={i.label} type="button" onClick={onMore} aria-label="Profile and menu" className={cn("flex flex-col items-center gap-1 py-1 text-[10px] font-bold", pathname.startsWith("/settings") || pathname.startsWith("/notifications") ? "text-foreground" : "text-muted-foreground")}><i.icon className="size-[19px]" strokeWidth={2} />{i.label}</button>
+      ))}
     </nav>
   );
+}
+
+function NavTab({ label, href, icon: Icon, active, badge }: { label: string; href?: string | null; icon: typeof Home; active: boolean; badge?: number }) {
+  return (
+    <Link href={href ?? "#"} className={cn("relative flex flex-col items-center gap-1 py-1 text-[10px] font-bold", active ? "text-foreground" : "text-muted-foreground")}>
+      <span className="relative">
+        <Icon className="size-[19px]" strokeWidth={active ? 2.3 : 2} />
+        {Boolean(badge) && <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">{badge! > 9 ? "9+" : badge}</span>}
+      </span>
+      {label}
+    </Link>
+  );
+}
+
+/** Timer/unread state for the bar; null-safe outside the providers (the Super Admin shell has neither). */
+function useBottomNavState() {
+  const t = useTimerOptional();
+  const rt = useRealtimeOptional();
+  return { entry: t?.entry ?? null, break: Boolean(t?.break), unread: rt?.unreadNotifications ?? 0 };
 }
 
 export function MobileDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {

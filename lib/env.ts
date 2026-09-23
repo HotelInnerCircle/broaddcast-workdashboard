@@ -22,6 +22,8 @@ export const env = {
   get MAX_UPLOAD_MB() { return Number(process.env.MAX_UPLOAD_MB ?? 10); },
   get SUPERADMIN_EMAIL() { return process.env.SUPERADMIN_EMAIL ?? ""; },
   get SUPERADMIN_PASSWORD() { return process.env.SUPERADMIN_PASSWORD ?? ""; },
+  /** Firebase service-account JSON (raw or base64) for FCM push; empty = push disabled. */
+  get FIREBASE_SERVICE_ACCOUNT() { return process.env.FIREBASE_SERVICE_ACCOUNT ?? ""; },
   get RAZORPAY_KEY_ID() { return process.env.RAZORPAY_KEY_ID ?? ""; },
   get RAZORPAY_KEY_SECRET() { return process.env.RAZORPAY_KEY_SECRET ?? ""; },
   get RAZORPAY_WEBHOOK_SECRET() { return process.env.RAZORPAY_WEBHOOK_SECRET ?? ""; },

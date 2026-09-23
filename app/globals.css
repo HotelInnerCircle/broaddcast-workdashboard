@@ -165,6 +165,107 @@
   ::selection { background: var(--primary-soft); }
 }
 
+@layer base {
+  /* Native shell (A65): honour device safe areas and keep the viewport stable when the keyboard opens. */
+  html.native-app body { padding-top: env(safe-area-inset-top); overscroll-behavior-y: none; -webkit-text-size-adjust: 100%; }
+  html.native-app { -webkit-tap-highlight-color: transparent; }
+  /* Never allow sideways scrolling on phones. */
+  html, body { max-width: 100%; overflow-x: hidden; }
+  @media (max-width: 767px) {
+    /* Comfortable touch targets on phones (WCAG 2.5.5 ~44px). */
+    button, [role="button"], a.nav, select, summary { min-height: 40px; }
+  }
+}
+
+@layer components {
+  /* Tables become card lists on phones (A67). Each row is a card; each cell shows its column
+     name from data-label, the cell marked data-primary becomes the card heading. */
+  @media (max-width: 767px) {
+    .table-cards,
+    .table-cards tbody,
+    .table-cards tr,
+    .table-cards td { display: block; width: 100%; }
+    .table-cards thead { display: none; }
+    .table-cards tbody tr,
+    .table-cards tbody tr:nth-child(odd) {
+      background: var(--card);
+      border-radius: 1rem;
+      box-shadow: var(--shadow-card);
+      outline: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      outline-offset: -1px;
+      padding: 0.25rem 0.875rem 0.5rem;
+      margin-bottom: 0.625rem;
+    }
+    .table-cards td {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
+      min-width: 0;
+      padding: 0.4rem 0;
+      text-align: right;
+      border-radius: 0 !important;
+    }
+    .table-cards td::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--muted-foreground);
+    }
+    /* Cells with no label (action buttons) keep the value left-aligned and take the full width. */
+    .table-cards td:not([data-label]),
+    .table-cards td[data-label=""] { justify-content: flex-start; text-align: left; }
+    .table-cards td:not([data-label])::before,
+    .table-cards td[data-label=""]::before { content: none; }
+    /* The identifying cell becomes the card heading. */
+    .table-cards td[data-primary] {
+      justify-content: flex-start;
+      text-align: left;
+      font-weight: 600;
+      padding: 0.6rem 0 0.55rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.15rem;
+    }
+    .table-cards td[data-primary]::before { content: none; }
+  }
+}
+
+@layer components {
+  /* Wide report tables: pin the first column so the row's identity stays visible while scrolling. */
+  @media (max-width: 767px) {
+    .table-sticky-1 th:first-child,
+    .table-sticky-1 td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--card);
+      box-shadow: 1px 0 0 var(--border);
+      max-width: 9.5rem;
+    }
+    .table-sticky-1 tbody tr:nth-child(odd) td:first-child { background: color-mix(in srgb, var(--muted) 45%, var(--card)); }
+  }
+}
+
+@layer components {
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .table-cards th,
+    .table-cards td { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+    .table-cards th:first-child,
+    .table-cards td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      background: var(--card);
+      box-shadow: 1px 0 0 color-mix(in srgb, var(--border) 70%, transparent);
+    }
+    .table-cards tbody tr:nth-child(odd) td:first-child { background: color-mix(in srgb, var(--muted) 45%, var(--card)); }
+  }
+}
+
 @layer utilities {
   /* Display type: Instrument Serif, regular weight, slightly tight tracking. Use on page titles, greetings, KPI numbers. */
   .font-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }

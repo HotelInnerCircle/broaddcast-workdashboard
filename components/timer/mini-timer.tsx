@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Pause, Play, Square, Coffee, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,12 +28,15 @@ export function entrySubtitle(e: ActiveEntry | null | undefined): string {
  */
 export function MiniTimer() {
   const t = useTimer();
+  const pathname = usePathname();
+  // The phone home screen shows the same timer in its hero (A66), so the bar would duplicate it.
+  const onHome = pathname.endsWith("/dashboard");
   if (!t.entry && !t.break) return <TimerDialogs />;
   const onBreak = Boolean(t.break);
   const running = t.entry?.status === "RUNNING";
   return (
     <>
-      <div className={cn("fixed inset-x-0 bottom-[3.65rem] z-30 bg-card/95 px-3 py-2 shadow-float backdrop-blur md:sticky md:top-[4.75rem] md:bottom-auto md:mx-0 md:rounded-2xl md:px-5 md:shadow-card", onBreak ? "border-l-4 border-l-warning" : "border-l-4 border-l-success")}>
+      <div className={cn("sticky top-16 z-20 bg-card/95 px-3 py-2 shadow-card backdrop-blur md:top-[4.75rem] md:mx-0 md:rounded-2xl md:px-5", onHome ? "hidden md:block" : "", onBreak ? "border-l-4 border-l-warning" : "border-l-4 border-l-success")}>
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl", onBreak ? "bg-warning-soft text-warning" : running ? "bg-success-soft text-success" : "bg-muted text-muted-foreground")}>{onBreak ? <Coffee className="size-4" /> : <Timer className="size-4" />}</div>
           <div className="min-w-0 flex-1">

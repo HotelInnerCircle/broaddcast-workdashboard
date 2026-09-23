@@ -17,6 +17,15 @@ const CompanySchema = new Schema(
     defaultTaskStatus: { type: String, default: "To Do" },
     /** Job designations the admin maintains (A57), e.g. "Web Developer"; picked when adding/editing people. */
     designations: { type: [String], default: [] },
+    /** Services the company sells (A69), e.g. "Meta Ads"; ticked per client. */
+    services: { type: [String], default: [] },
+    /** Menu items hidden per role (A71), keyed by role, values are nav hrefs. Empty = everything visible. */
+    hiddenNav: {
+      COMPANY_ADMIN: { type: [String], default: [] },
+      MANAGER: { type: [String], default: [] },
+      TEAM_LEAD: { type: [String], default: [] },
+      EMPLOYEE: { type: [String], default: [] },
+    },
     status: { type: String, enum: COMPANY_STATUSES, default: "active", index: true },
     planId: { type: Schema.Types.ObjectId, ref: "Plan", default: null },
     setupCompleted: { type: Boolean, default: false },

@@ -47,6 +47,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         <StatsCard label="People involved" value={client.members.length} icon={Users} tone="success" />
       </div>
 
+      {client.services.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2"><CardTitle>Services taken</CardTitle><CardDescription>What this client buys from us.</CardDescription></CardHeader>
+          <CardContent className="flex flex-wrap gap-2 pt-0">{client.services.map((s) => <Badge key={s} variant="primary">{s}</Badge>)}</CardContent>
+        </Card>
+      )}
+
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
           <section>

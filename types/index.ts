@@ -36,6 +36,8 @@ export interface SessionContext {
     timezone: string;
     currency: string;
     setupCompleted: boolean;
+    /** Menu items hidden for this user's role (A71): nav hrefs. */
+    hiddenNav: string[];
   } | null;
 }
 

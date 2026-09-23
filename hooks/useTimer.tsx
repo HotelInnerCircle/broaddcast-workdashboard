@@ -149,6 +149,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** Null outside TimerProvider (e.g. the Super Admin shell), instead of throwing. */
+export function useTimerOptional(): TimerApi | null { return useContext(Ctx); }
+
 export function useTimer(): TimerApi {
   const v = useContext(Ctx);
   if (!v) throw new Error("useTimer must be used inside TimerProvider");

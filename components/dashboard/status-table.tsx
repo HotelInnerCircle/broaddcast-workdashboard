@@ -33,28 +33,28 @@ export function StatusTable({ rows, title = "Employee status", description }: { 
         ) : (
           <Table>
             <THead>
-              <TR><TH>Employee</TH><TH>Role</TH><TH>Current client</TH><TH>Current project</TH><TH>Current task</TH><TH>Timer</TH><TH>Today</TH><TH>Status</TH><TH>Last active</TH><TH /></TR>
+              <TR><TH>Employee</TH><TH className="max-2xl:hidden">Role</TH><TH>Current client</TH><TH>Current project</TH><TH>Current task</TH><TH>Timer</TH><TH>Today</TH><TH>Status</TH><TH className="max-2xl:hidden">Last active</TH><TH /></TR>
             </THead>
             <TBody>
               {rows.map((r) => {
                 const p = PRESENCE[r.presence];
                 return (
                   <TR key={r.id}>
-                    <TD>
+                    <TD primary>
                       <div className="flex items-center gap-3">
                         <Avatar name={r.name} src={r.avatarUrl} size="sm" />
                         <div className="min-w-0"><Link href={`/employees/${r.id}`} className="block truncate font-medium hover:text-primary hover:underline">{r.name}</Link><p className="truncate text-xs text-muted-foreground">{r.team?.name ?? r.email}</p></div>
                       </div>
                     </TD>
-                    <TD><Badge variant="outline">{r.roleLabel}</Badge></TD>
-                    <TD className="text-muted-foreground">{r.current?.client ?? "-"}</TD>
-                    <TD className="text-muted-foreground">{r.current?.project ?? "-"}</TD>
-                    <TD>{r.current?.task ? <Link href={`/tasks/${r.current.taskId}`} className="hover:text-primary hover:underline">{r.current.task}</Link> : r.current?.notes ? <span className="text-muted-foreground" title={r.current.notes}>{r.current.notes.length > 40 ? r.current.notes.slice(0, 40) + "..." : r.current.notes}</span> : <span className="text-muted-foreground">-</span>}</TD>
-                    <TD className="font-mono text-xs tabular-nums">{r.current ? <span className={r.current.status === "RUNNING" ? "text-success" : "text-muted-foreground"}>{formatHMS(r.current.elapsedSeconds)}{r.current.status === "PAUSED" && " (paused)"}</span> : <span className="text-muted-foreground">00:00:00</span>}</TD>
-                    <TD className="tabular-nums">{r.todaySeconds ? formatDuration(r.todaySeconds) : "-"}</TD>
-                    <TD><span className="inline-flex items-center gap-1.5 text-xs font-medium"><StatusDot color={p.color} />{p.label}</span></TD>
-                    <TD className="text-xs text-muted-foreground">{relativeTime(r.lastActiveAt)}</TD>
-                    <TD><Link href={`/employees/${r.id}`} className="text-xs text-primary hover:underline">View</Link></TD>
+                    <TD label="Role" className="max-2xl:hidden"><Badge variant="outline">{r.roleLabel}</Badge></TD>
+                    <TD label="Client" className="text-muted-foreground">{r.current?.client ?? "-"}</TD>
+                    <TD label="Project" className="text-muted-foreground">{r.current?.project ?? "-"}</TD>
+                    <TD label="Working on">{r.current?.task ? <Link href={`/tasks/${r.current.taskId}`} className="hover:text-primary hover:underline">{r.current.task}</Link> : r.current?.notes ? <span className="text-muted-foreground" title={r.current.notes}>{r.current.notes.length > 40 ? r.current.notes.slice(0, 40) + "..." : r.current.notes}</span> : <span className="text-muted-foreground">-</span>}</TD>
+                    <TD label="Timer" className="font-mono text-xs tabular-nums">{r.current ? <span className={r.current.status === "RUNNING" ? "text-success" : "text-muted-foreground"}>{formatHMS(r.current.elapsedSeconds)}{r.current.status === "PAUSED" && " (paused)"}</span> : <span className="text-muted-foreground">00:00:00</span>}</TD>
+                    <TD label="Today" className="tabular-nums">{r.todaySeconds ? formatDuration(r.todaySeconds) : "-"}</TD>
+                    <TD label="Status"><span className="inline-flex items-center gap-1.5 text-xs font-medium"><StatusDot color={p.color} />{p.label}</span></TD>
+                    <TD label="Last active" className="text-xs text-muted-foreground max-2xl:hidden">{relativeTime(r.lastActiveAt)}</TD>
+                    <TD hideOnMobile><Link href={`/employees/${r.id}`} className="text-xs text-primary hover:underline">View</Link></TD>
                   </TR>
                 );
               })}

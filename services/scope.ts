@@ -70,16 +70,17 @@ export async function taskScopeFilter(ctx: CompanyContext): Promise<Record<strin
 }
 
 /**
- * Client visibility (A61): a client belongs to the Manager who created it (`createdBy`).
+ * Client visibility (A61, amended by A70): a client belongs to the Manager who created it
+ * (`createdBy`); one created by a Company Admin is `sharedWithCompany` and everyone sees it.
  *  - Company Admin: all clients.
- *  - Manager: clients they created (plus legacy clients with no creator).
+ *  - Manager: clients they created, company-shared ones, plus legacy clients with no creator.
  *  - Team Lead / Employee: clients created by their manager (direct manager or their team's manager),
- *    plus clients of projects they are a member of, plus legacy clients with no creator.
+ *    company-shared ones, clients of projects they are a member of, plus legacy clients.
  */
 export async function clientScopeFilter(ctx: CompanyContext): Promise<Record<string, unknown>> {
   if (ctx.role === "COMPANY_ADMIN") return {};
   const me = new Types.ObjectId(ctx.userId);
-  if (ctx.role === "MANAGER") return { $or: [{ createdBy: me }, { createdBy: null }] };
+  if (ctx.role === "MANAGER") return { $or: [{ createdBy: me }, { sharedWithCompany: true }, { createdBy: null }] };
   const { Project } = await import("@/models/Project");
   const { Team } = await import("@/models/Team");
   const [projects, team] = await Promise.all([
@@ -87,5 +88,5 @@ export async function clientScopeFilter(ctx: CompanyContext): Promise<Record<str
     ctx.teamId ? scoped(Team, ctx).findById(ctx.teamId).select("managerId").lean() : null,
   ]);
   const managers = [ctx.managerId, team?.managerId ? String(team.managerId) : null].filter((x): x is string => Boolean(x)).map((x) => new Types.ObjectId(x));
-  return { $or: [{ createdBy: { $in: managers } }, { _id: { $in: projects.map((p) => p.clientId) } }, { createdBy: null }] };
+  return { $or: [{ createdBy: { $in: managers } }, { sharedWithCompany: true }, { _id: { $in: projects.map((p) => p.clientId) } }, { createdBy: null }] };
 }

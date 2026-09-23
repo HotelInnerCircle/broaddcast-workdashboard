@@ -16,15 +16,15 @@ export function TaskTable({ tasks, showProject = true, showAssignee = true, empt
       <TBody>
         {tasks.map((t) => (
           <TR key={t.id}>
-            <TD>
+            <TD primary>
               <Link href={`/tasks/${t.id}`} className="font-medium hover:text-primary hover:underline">{t.title}</Link>
               {t.attachmentCount > 0 && <span className="ml-2 inline-flex items-center gap-0.5 text-xs text-muted-foreground"><Paperclip className="size-3" />{t.attachmentCount}</span>}
             </TD>
-            {showProject && <TD className="text-muted-foreground">{t.project?.name ? <Link href={`/projects/${t.project.id}`} className="hover:underline">{t.project.name}</Link> : "-"}{t.client?.name && <p className="text-xs">{t.client.name}</p>}</TD>}
-            {showAssignee && <TD>{t.assignee ? <span className="inline-flex items-center gap-2"><Avatar name={t.assignee.name} src={t.assignee.avatarUrl} size="sm" />{t.assignee.name}</span> : <span className="text-muted-foreground">Unassigned</span>}</TD>}
-            <TD><PriorityBadge priority={t.priority} /></TD>
-            <TD className={cn("whitespace-nowrap", t.overdue ? "font-medium text-danger" : "text-muted-foreground")}>{t.dueDate ? formatDate(t.dueDate) : "-"}{t.overdue && <span className="ml-1 text-[10px] uppercase">overdue</span>}</TD>
-            <TD><TaskStatusBadge status={t.status} /></TD>
+            {showProject && <TD label="Project" className="text-muted-foreground">{t.project?.name ? <Link href={`/projects/${t.project.id}`} className="hover:underline">{t.project.name}</Link> : "-"}{t.client?.name && <p className="text-xs">{t.client.name}</p>}</TD>}
+            {showAssignee && <TD label="Assignee">{t.assignee ? <span className="inline-flex items-center gap-2"><Avatar name={t.assignee.name} src={t.assignee.avatarUrl} size="sm" />{t.assignee.name}</span> : <span className="text-muted-foreground">Unassigned</span>}</TD>}
+            <TD label="Priority"><PriorityBadge priority={t.priority} /></TD>
+            <TD label="Due" className={cn("whitespace-nowrap", t.overdue ? "font-medium text-danger" : "text-muted-foreground")}>{t.dueDate ? formatDate(t.dueDate) : "-"}{t.overdue && <span className="ml-1 text-[10px] uppercase">overdue</span>}</TD>
+            <TD label="Status"><TaskStatusBadge status={t.status} /></TD>
           </TR>
         ))}
       </TBody>

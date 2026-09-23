@@ -94,14 +94,14 @@ export function AttendanceView() {
               <TBody>
                 {data.rows.map((r) => (
                   <TR key={r.id} className={cn(r.autoClosed && !r.reviewed && "bg-danger-soft/40 hover:bg-danger-soft/60", r.virtual && "opacity-70")}>
-                    {manager && <TD><span className="inline-flex items-center gap-2">{r.user && <Avatar name={r.user.name} src={r.user.avatarUrl} size="sm" />}{r.user?.name}</span></TD>}
-                    <TD className="whitespace-nowrap">{formatDate(`${r.date}T12:00:00Z`)}</TD>
-                    <TD className="whitespace-nowrap">{time(r.clockIn)}</TD>
-                    <TD className="whitespace-nowrap">{time(r.clockOut)}{r.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger" title="Forgotten clock-out closed automatically at end of day + 2h">auto</span>}</TD>
-                    <TD>{r.breakSeconds ? formatHM(r.breakSeconds) : "-"}</TD>
-                    <TD className="font-medium tabular-nums">{r.workSeconds ? formatHM(r.workSeconds) : r.clockIn && !r.clockOut ? <span className="text-success">in progress</span> : "-"}</TD>
-                    <TD><Badge variant={STATUS_VARIANT[r.status] ?? "default"}>{r.status}</Badge>{r.note && <p className="mt-0.5 max-w-40 truncate text-xs text-muted-foreground">{r.note}</p>}</TD>
-                    {manager && <TD className="text-right">{r.autoClosed && !r.reviewed ? <Button size="sm" variant="outline" onClick={() => review(r.id)}><CheckCircle2 />Reviewed</Button> : r.autoClosed ? <span className="text-xs text-muted-foreground">reviewed</span> : null}</TD>}
+                    {manager && <TD primary><span className="inline-flex items-center gap-2">{r.user && <Avatar name={r.user.name} src={r.user.avatarUrl} size="sm" />}{r.user?.name}</span></TD>}
+                    <TD label="Date" className="whitespace-nowrap max-md:font-semibold">{formatDate(`${r.date}T12:00:00Z`)}</TD>
+                    <TD label="Clock in" className="whitespace-nowrap">{time(r.clockIn)}</TD>
+                    <TD label="Clock out" className="whitespace-nowrap">{time(r.clockOut)}{r.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger" title="Forgotten clock-out closed automatically at end of day + 2h">auto</span>}</TD>
+                    <TD label="Break">{r.breakSeconds ? formatHM(r.breakSeconds) : "-"}</TD>
+                    <TD label="Total hours" className="font-medium tabular-nums">{r.workSeconds ? formatHM(r.workSeconds) : r.clockIn && !r.clockOut ? <span className="text-success">in progress</span> : "-"}</TD>
+                    <TD label="Status"><Badge variant={STATUS_VARIANT[r.status] ?? "default"}>{r.status}</Badge>{r.note && <p className="mt-0.5 max-w-40 truncate text-xs text-muted-foreground">{r.note}</p>}</TD>
+                    {manager && <TD className="text-right max-md:text-left">{r.autoClosed && !r.reviewed ? <Button size="sm" variant="outline" onClick={() => review(r.id)}><CheckCircle2 />Reviewed</Button> : r.autoClosed ? <span className="text-xs text-muted-foreground">reviewed</span> : null}</TD>}
                   </TR>
                 ))}
               </TBody>

@@ -20,3 +20,4 @@ export { TaskComment, type TaskCommentDoc } from "./TaskComment";
 export { Announcement, type AnnouncementDoc } from "./Announcement";
 export { Subscription, type SubscriptionDoc, type SubscriptionPayment } from "./Subscription";
 export { Invoice, type InvoiceDoc } from "./Invoice";
+export { DeviceToken, type DeviceTokenDoc } from "./DeviceToken";

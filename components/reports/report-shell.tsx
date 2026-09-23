@@ -83,8 +83,8 @@ export function ReportShell<T>({ title, description, endpoint, show = {}, childr
         <CardContent className="flex flex-wrap items-end gap-3 p-4">
           <Field label="From" htmlFor="rp-from"><Input id="rp-from" type="date" value={filters.from} onChange={(e) => set({ from: e.target.value })} /></Field>
           <Field label="To" htmlFor="rp-to"><Input id="rp-to" type="date" value={filters.to} onChange={(e) => set({ to: e.target.value })} /></Field>
-          <div className="flex flex-wrap gap-1 pb-0.5">
-            {[["today", "Today"], ["week", "This week"], ["month", "This month"], ["last-month", "Last month"], ["30d", "30 days"]].map(([p, l]) => <Button key={p} variant="ghost" size="sm" onClick={() => preset(p)}>{l}</Button>)}
+          <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 scrollbar-none max-md:w-full">
+            {[["today", "Today"], ["week", "This week"], ["month", "This month"], ["last-month", "Last month"], ["30d", "30 days"]].map(([p, l]) => <Button key={p} variant="ghost" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => preset(p)}>{l}</Button>)}
           </div>
           {manager && show.team !== false && <Field label="Team" htmlFor="rp-team"><NativeSelect id="rp-team" className="w-36" value={filters.teamId} onChange={(e) => set({ teamId: e.target.value, userId: "" })}><option value="">All teams</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</NativeSelect></Field>}
           {manager && show.employee !== false && <Field label="Employee" htmlFor="rp-user"><NativeSelect id="rp-user" className="w-40" value={filters.userId} onChange={(e) => set({ userId: e.target.value })}><option value="">Everyone</option>{people.filter((p) => !filters.teamId || p.team?.id === filters.teamId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</NativeSelect></Field>}

@@ -14,6 +14,8 @@ export type ReportFilter = z.infer<typeof reportFilterSchema>;
 const text = z.string().trim().max(4000);
 export const dailyReportSchema = z.object({
   date: dayKey.optional(),
-  completed: text, inProgress: text, pending: text, blockers: text, tomorrow: text,
+  completed: text,
+  // Removed from the form (A68); still accepted so older clients and stored data keep working.
+  inProgress: text.optional(), pending: text.optional(), blockers: text.optional(), tomorrow: text.optional(),
 });
 export const dailyReportQuerySchema = z.object({ date: dayKey.optional(), from: dayKey.optional(), to: dayKey.optional(), userId: objectId.optional(), teamId: objectId.optional() });

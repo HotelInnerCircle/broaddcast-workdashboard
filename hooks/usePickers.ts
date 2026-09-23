@@ -38,3 +38,15 @@ export function useDesignations(enabled = true) {
   }, [enabled]);
   return designations;
 }
+
+/** Services the company sells (A69) for the client checkboxes. */
+export function useCompanyServices(enabled = true) {
+  const [services, setServices] = useState<string[]>([]);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    api<{ services: string[] }>("/api/company/services").then((r) => { if (!cancelled) setServices(r.services); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [enabled]);
+  return services;
+}

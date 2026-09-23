@@ -21,7 +21,7 @@ import { serializeEmployee } from "./employeeService";
 export function serializeClient(c: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   return {
     id: String(c._id), name: c.name as string, contactPerson: (c.contactPerson as string | null) ?? null, email: (c.email as string | null) ?? null,
-    phone: (c.phone as string | null) ?? null, website: (c.website as string | null) ?? null, industry: (c.industry as string | null) ?? null,
+    phone: (c.phone as string | null) ?? null, website: (c.website as string | null) ?? null, industry: (c.industry as string | null) ?? null, sharedWithCompany: Boolean(c.sharedWithCompany), services: ((c.services as string[] | undefined) ?? []),
     status: c.status as string, notes: (c.notes as string | null) ?? null, archivedAt: (c.archivedAt as Date | null) ?? null,
     createdAt: c.createdAt as Date, updatedAt: c.updatedAt as Date, ...extra,
   };
@@ -81,7 +81,8 @@ export async function getClient(ctx: CompanyContext, id: string) {
 export async function createClient(ctx: CompanyContext, input: CreateClientInput, ip: string | null) {
   if (await scoped(Client, ctx).exists({ name: input.name, archivedAt: null })) throw Errors.conflict("CLIENT_EXISTS", "A client with this name already exists");
   await checkLimit(ctx.companyId, "clients");
-  const client = await scoped(Client, ctx).create({ ...input, createdBy: new Types.ObjectId(ctx.userId) });
+  // A70: a client the admin creates has no owning manager, so it is shared with the whole company.
+  const client = await scoped(Client, ctx).create({ ...input, createdBy: new Types.ObjectId(ctx.userId), sharedWithCompany: ctx.role === "COMPANY_ADMIN" });
   await audit({ ctx, companyId: ctx.companyId, entity: "client", entityId: client._id, action: "client.created", summary: `Client "${client.name}" created`, after: { name: client.name, status: client.status }, ip });
   return serializeClient(client.toObject() as Record<string, unknown>);
 }

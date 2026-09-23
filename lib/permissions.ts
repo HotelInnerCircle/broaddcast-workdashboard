@@ -39,7 +39,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     billing: g(["view", "manage"], "company"),
     employees: g(ALL, "company"),
     teams: g(ALL, "company"),
-    clients: g(["view", "update", "archive"], "company"), // A61: only Managers create clients
+    clients: g(RW, "company"), // A70: admins add clients too; theirs are shared company-wide
     projects: g([...RW, "assign"], "company"),
     tasks: g([...RW, "assign"], "company"),
     reports: g(["view"], "company"),

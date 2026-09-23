@@ -11,13 +11,13 @@ export function serializeDailyReport(r: Record<string, unknown>) {
   return {
     id: String(r._id), userId: u && typeof u === "object" && "name" in (u as object) ? String((u as { _id: unknown })._id) : String(u),
     user: u && typeof u === "object" && "name" in (u as object) ? { id: String((u as { _id: unknown })._id), name: (u as { name: string }).name } : null,
-    date: r.date as string, completed: r.completed as string, inProgress: r.inProgress as string, pending: r.pending as string, blockers: r.blockers as string, tomorrow: r.tomorrow as string,
+    date: r.date as string, completed: r.completed as string,
     submittedAt: r.submittedAt as Date, updatedAt: r.updatedAt as Date,
   };
 }
 
 /** Employees submit (or re-submit) their own report for a day; defaults to today in the company timezone. */
-export async function submitDailyReport(ctx: CompanyContext, input: { date?: string; completed: string; inProgress: string; pending: string; blockers: string; tomorrow: string }, ip: string | null) {
+export async function submitDailyReport(ctx: CompanyContext, input: { date?: string; completed: string; inProgress?: string; pending?: string; blockers?: string; tomorrow?: string }, ip: string | null) {
   const clock = await companyClock(ctx.companyId);
   const today = clock.dayOf(new Date());
   const date = input.date ?? today;

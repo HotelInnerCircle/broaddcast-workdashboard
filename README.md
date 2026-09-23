@@ -20,7 +20,11 @@ On start the server bootstraps an empty database: it creates the default plans (
 
 Leave `SMTP_HOST` empty in development: emails are printed to the console and appended to `.dev/outbox.jsonl`.
 
-## Android app (APK / Play Store)
+## Mobile apps
+
+Native Android/iOS apps are built with Capacitor in remote-URL mode (the shell loads the deployed site). Setup, build and store-deployment commands: **[MOBILE.md](MOBILE.md)**. (A65)
+
+## Android app (PWA route: APK / Play Store)
 
 The app is an installable PWA (manifest, service worker, offline page). To ship it as an Android app:
 
@@ -70,9 +74,12 @@ Key rules: every tenant query goes through `scoped(Model, ctx)`; every mutation 
 - Only the Super Admin creates companies (Companies -> New company; the first admin is invited by email) and only the Super Admin can delete a company (type-to-confirm; removes all tenant data). Public registration is gone. (A55)
 - Timers run on a Client plus a mandatory note about what is being worked on; project/task are attached only when started from a task page. Stopping asks to confirm/refine the note. (A53, A58)
 - Employees -> Add employee creates an account directly with a password (credentials shown once to hand over) or sends an email invitation; the Super Admin can likewise set the first admin password when creating a company. (A56)
+- Settings -> Company -> Services you offer: the admin maintains what the company sells (Creatives, Meta Ads, ...); each client then has checkboxes for what they have taken, shown as chips on the clients list and client page. (A69)
 - Settings -> Company -> Job designations: the admin maintains job titles (Web Developer, Designer, ...) that appear as a Designation dropdown when adding or editing people; separate from the fixed access roles. (A57)
-- Only Managers add clients; a manager's clients are visible to everyone who reports to them. (A61)
+- Sidebar > ADMIN > Menu visibility: the admin switches sidebar items on or off per role while features are rolled out; hiding is menu-only (permissions are unchanged and a direct link still works) and one button shows everything again. (A71)
+- Managers and the Company Admin add clients: a manager's clients are visible to everyone who reports to them, an admin's to the whole company. (A61, A70)
 - Chat delivers instantly (optimistic send, reconnect-safe rooms, catch-up + 15 s poll); employees can start DMs from the people picker. (A62)
+- Every page is responsive from 320px up: tables become card lists on phones, wide report tables pin their first column, and the phone home screen has its own layout. (A66, A67)
 - Visited pages and list data are cached client-side (router cache 60 s, GET cache with background refresh, busted by any change or realtime event), so revisiting a page does not reload from the database. Run the production build (`npm run build && npm start`) for real use - `npm run dev` compiles each page on first open and is much slower. (A63)
 - File storage is ImageKit only (`IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_URL_ENDPOINT` are required); the S3 and local-disk drivers were removed. (A54)
 

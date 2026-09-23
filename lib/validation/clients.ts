@@ -11,6 +11,7 @@ export const createClientSchema = z.object({
   website: optionalText(200),
   industry: optionalText(80),
   status: z.enum(CLIENT_STATUSES).default("active"),
+  services: z.array(z.string().trim().max(60)).max(100).optional(),
   notes: optionalText(5000),
 });
 export const updateClientSchema = z.object({
@@ -21,6 +22,7 @@ export const updateClientSchema = z.object({
   website: z.string().trim().max(200).nullable().optional(),
   industry: z.string().trim().max(80).nullable().optional(),
   status: z.enum(CLIENT_STATUSES).optional(),
+  services: z.array(z.string().trim().max(60)).max(100).optional(),
   notes: z.string().trim().max(5000).nullable().optional(),
   archived: z.boolean().optional(),
 });

@@ -56,22 +56,22 @@ export function AuditViewer({ platform = false, companies = [] }: { platform?: b
         <CardContent className="p-0 pt-0">
           {error ? <ErrorState message={error} onRetry={load} /> : rows === null ? <TableSkeleton rows={8} cols={5} /> : rows.length === 0 ? <EmptyState icon={ScrollText} title="No audit entries" description="Nothing matches these filters." /> : (
             <Table>
-              <THead><TR><TH className="w-8" /><TH>When</TH>{platform && <TH>Company</TH>}<TH>Actor</TH><TH>Action</TH><TH>Summary</TH></TR></THead>
+              <THead><TR><TH className="w-8 max-lg:hidden" /><TH>When</TH>{platform && <TH>Company</TH>}<TH>Actor</TH><TH>Action</TH><TH>Summary</TH></TR></THead>
               <TBody>{rows.map((r) => (
                 <>
                   <TR key={r.id} className={cn("cursor-pointer", r.crossTenant && "bg-warning-soft/30")} onClick={() => setOpen(open === r.id ? null : r.id)}>
-                    <TD>{open === r.id ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}</TD>
-                    <TD className="whitespace-nowrap text-muted-foreground">{formatDateTime(r.createdAt)}</TD>
-                    {platform && <TD>{r.company ?? <span className="text-muted-foreground">platform</span>}</TD>}
-                    <TD>{r.actorName ?? <span className="text-muted-foreground">System</span>}{r.actorRole && <span className="ml-1 text-xs text-muted-foreground">({r.actorRole.replace("_", " ").toLowerCase()})</span>}</TD>
-                    <TD><span className="font-mono text-xs">{r.action}</span>{r.crossTenant && <Badge variant="warning" className="ml-2">cross-tenant</Badge>}</TD>
-                    <TD className="max-w-md truncate">{r.summary ?? "-"}</TD>
+                    <TD hideOnMobile className="max-lg:hidden">{open === r.id ? <ChevronDown className="size-4 text-muted-foreground" /> : <ChevronRight className="size-4 text-muted-foreground" />}</TD>
+                    <TD label="When" className="text-muted-foreground max-xl:whitespace-normal xl:whitespace-nowrap">{formatDateTime(r.createdAt)}</TD>
+                    {platform && <TD label="Company">{r.company ?? <span className="text-muted-foreground">platform</span>}</TD>}
+                    <TD label="Actor">{r.actorName ?? <span className="text-muted-foreground">System</span>}{r.actorRole && <span className="ml-1 text-xs text-muted-foreground">({r.actorRole.replace("_", " ").toLowerCase()})</span>}</TD>
+                    <TD label="Action" className="max-md:flex-wrap max-xl:whitespace-normal"><span className="font-mono text-xs break-words max-xl:break-all">{r.action}</span>{r.crossTenant && <Badge variant="warning" className="ml-2">cross-tenant</Badge>}</TD>
+                    <TD primary className="max-w-md truncate max-xl:max-w-48 max-md:max-w-none max-md:whitespace-normal">{r.summary ?? "-"}</TD>
                   </TR>
                   {open === r.id && (
                     <TR key={`${r.id}-d`}><TD colSpan={platform ? 6 : 5} className="bg-muted/40">
-                      <div className="grid gap-3 text-xs sm:grid-cols-2">
-                        <div><p className="mb-1 font-medium">Before</p><pre className="max-h-48 overflow-auto rounded bg-card p-2">{r.before ? JSON.stringify(r.before, null, 2) : "-"}</pre></div>
-                        <div><p className="mb-1 font-medium">After</p><pre className="max-h-48 overflow-auto rounded bg-card p-2">{r.after ? JSON.stringify(r.after, null, 2) : "-"}</pre></div>
+                      <div className="grid min-w-0 gap-3 text-xs sm:grid-cols-2">
+                        <div className="min-w-0"><p className="mb-1 font-medium">Before</p><pre className="max-h-48 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded bg-card p-2">{r.before ? JSON.stringify(r.before, null, 2) : "-"}</pre></div>
+                        <div className="min-w-0"><p className="mb-1 font-medium">After</p><pre className="max-h-48 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded bg-card p-2">{r.after ? JSON.stringify(r.after, null, 2) : "-"}</pre></div>
                         <p className="text-muted-foreground sm:col-span-2">entity {r.entity}{r.entityId ? ` #${r.entityId}` : ""}{r.ip ? ` - ip ${r.ip}` : ""}</p>
                       </div>
                     </TD></TR>

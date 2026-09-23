@@ -42,11 +42,11 @@ export function CompaniesTable({ initial, plans }: { initial: CompanyRow[]; plan
           <TBody>
             {rows.map((c) => (
               <TR key={c.id}>
-                <TD><Link href={`/super-admin/companies/${c.id}`} className="font-medium hover:text-primary hover:underline">{c.name}</Link><p className="text-xs text-muted-foreground">{c.slug}</p></TD>
-                <TD>{c.users}</TD>
-                <TD>{c.plan ?? <span className="text-muted-foreground">None</span>}</TD>
-                <TD className="text-muted-foreground">{formatDate(c.createdAt)}</TD>
-                <TD><Badge variant={c.status === "active" ? "success" : "danger"}>{c.status}</Badge></TD>
+                <TD primary><Link href={`/super-admin/companies/${c.id}`} className="font-medium hover:text-primary hover:underline">{c.name}</Link><p className="text-xs text-muted-foreground">{c.slug}</p></TD>
+                <TD label="Users">{c.users}</TD>
+                <TD label="Plan">{c.plan ?? <span className="text-muted-foreground">None</span>}</TD>
+                <TD label="Created" className="text-muted-foreground">{formatDate(c.createdAt)}</TD>
+                <TD label="Status"><Badge variant={c.status === "active" ? "success" : "danger"}>{c.status}</Badge></TD>
                 <TD>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" loading={busy === c.id} aria-label="Company actions"><MoreHorizontal /></Button></DropdownMenuTrigger>

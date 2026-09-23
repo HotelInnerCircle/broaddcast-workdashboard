@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, ListChecks, FolderKanban, Building2, CalendarDays, Timer, Table2, CalendarCheck, Users, UsersRound,
-  ShieldCheck, MessageSquare, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText,
+  ShieldCheck, MessageSquare, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye,
 } from "lucide-react";
 import { can, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
@@ -9,8 +9,14 @@ import { ROLE_HOME, type Role } from "@/types";
 export interface NavItem { label: string; href: string; icon: LucideIcon; permission?: [Resource, Action]; roles?: Role[]; phase?: number }
 export interface NavGroup { label: string; items: NavItem[] }
 
-/** Sidebar groups (spec section 11). Items are filtered by the permission matrix. Items with `phase` > 1 render as "coming soon". */
-export function navigationFor(role: Role): NavGroup[] {
+/**
+ * Sidebar groups (spec section 11). Items are filtered by the permission matrix, then by the
+ * company's per-role menu visibility (A71): `hidden` holds the hrefs an admin has switched off.
+ * "Menu visibility" itself is never hidden, so an admin can always switch things back on.
+ */
+const ALWAYS_VISIBLE = ["/admin/navigation"];
+
+export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
   if (role === "SUPER_ADMIN") {
     return [
       { label: "PLATFORM", items: [
@@ -57,9 +63,10 @@ export function navigationFor(role: Role): NavGroup[] {
       { label: "Subscription", href: "/settings?tab=subscription", icon: CreditCard, permission: ["billing", "view"] },
       { label: "Billing", href: "/settings?tab=billing", icon: Receipt, permission: ["billing", "view"] },
       { label: "Audit log", href: "/admin/audit", icon: ScrollText, permission: ["auditLog", "view"], roles: ["COMPANY_ADMIN"] },
+      { label: "Menu visibility", href: "/admin/navigation", icon: Eye, permission: ["companySettings", "update"], roles: ["COMPANY_ADMIN"] },
     ] },
   ];
   return groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(role, ...i.permission)) && (!i.roles || i.roles.includes(role))) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(role, ...i.permission)) && (!i.roles || i.roles.includes(role)) && (ALWAYS_VISIBLE.includes(i.href) || !hidden.includes(i.href))) }))
     .filter((g) => g.items.length > 0);
 }
