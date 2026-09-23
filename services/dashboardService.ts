@@ -31,14 +31,14 @@ export async function teamStatusRows(ctx: CompanyContext) {
   const breakBy = new Map(breaks.map((b) => [String(b.userId), b]));
   const hoursBy = new Map<string, number>();
   for (const e of todayEntries) hoursBy.set(String(e.userId), (hoursBy.get(String(e.userId)) ?? 0) + (e.status === "COMPLETED" ? e.durationSeconds : elapsedSeconds(e.segments as never, now)));
-  const { presence } = await import("@/lib/realtime/presence");
+  const { isOnlineUser } = await import("@/lib/realtime/presence");
   const name = (v: unknown) => (v && typeof v === "object" && ("name" in v || "title" in v) ? ((v as { name?: string; title?: string }).name ?? (v as { title?: string }).title ?? null) : null);
   const id = (v: unknown) => (v && typeof v === "object" && "_id" in v ? String((v as { _id: unknown })._id) : null);
   return rows.map((r) => {
     const e = serializeEmployee(r as Record<string, unknown>);
     const a = activeBy.get(e.id);
     const b = breakBy.get(e.id);
-    const online = presence.isOnline(e.id);
+    const online = isOnlineUser(e.id, (r as { lastActiveAt?: Date | null }).lastActiveAt);
     const state: "working" | "break" | "online" | "offline" = b ? "break" : a?.status === "RUNNING" && online ? "working" : online ? "online" : "offline";
     return {
       ...e, presence: state,

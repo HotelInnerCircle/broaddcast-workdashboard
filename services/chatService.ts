@@ -8,7 +8,7 @@ import { Project } from "@/models/Project";
 import { Errors } from "@/lib/api/errors";
 import { realtime } from "@/lib/realtime";
 import { storage } from "@/lib/storage";
-import { presence } from "@/lib/realtime/presence";
+import { isOnlineUser } from "@/lib/realtime/presence";
 import type { CompanyContext } from "@/lib/auth/context";
 import { ROLE_LABEL } from "@/types";
 import { notify, notifyMany } from "./notificationService";
@@ -65,8 +65,8 @@ export async function conversationMembers(ctx: { companyId: string }, conv: Conv
     const project = await scoped(Project, ctx).findById(String(conv.projectId)).select("memberIds managerId").lean();
     filter = { $or: [{ _id: { $in: [...(project?.memberIds ?? []), project?.managerId].filter(Boolean) } }, { role: "COMPANY_ADMIN" }] };
   }
-  const users = await scoped(User, ctx).find({ ...filter, archivedAt: null, status: "active" }).select("name avatarUrl role").sort({ name: 1 }).lean();
-  return users.map((u) => ({ id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null, role: u.role, online: presence.isOnline(String(u._id)) }));
+  const users = await scoped(User, ctx).find({ ...filter, archivedAt: null, status: "active" }).select("name avatarUrl role lastActiveAt").sort({ name: 1 }).lean();
+  return users.map((u) => ({ id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null, role: u.role, online: isOnlineUser(String(u._id), u.lastActiveAt) }));
 }
 
 const channelName = (c: { name?: string | null }) => `# ${c.name ?? "channel"}`;
@@ -84,19 +84,19 @@ export async function listConversations(ctx: CompanyContext) {
   const { teams, projects } = await channelScope(ctx);
   for (const t of teams) if (!(await scoped(Conversation, ctx).exists({ teamId: t._id }))) await scoped(Conversation, ctx).create({ type: "team", teamId: t._id, participantIds: [], createdBy: null }).catch(() => null);
   for (const p of projects) if (!(await scoped(Conversation, ctx).exists({ projectId: p._id }))) await scoped(Conversation, ctx).create({ type: "project", projectId: p._id, participantIds: [], createdBy: null }).catch(() => null);
-  const convs = await scoped(Conversation, ctx).find({ ...(await accessFilter(ctx)), archivedAt: null }).sort({ lastMessageAt: -1, createdAt: -1 }).populate([pop("participantIds", "name avatarUrl"), pop("teamId", "name"), pop("projectId", "name"), pop("lastMessageSenderId", "name")]).lean();
+  const convs = await scoped(Conversation, ctx).find({ ...(await accessFilter(ctx)), archivedAt: null }).sort({ lastMessageAt: -1, createdAt: -1 }).populate([pop("participantIds", "name avatarUrl lastActiveAt"), pop("teamId", "name"), pop("projectId", "name"), pop("lastMessageSenderId", "name")]).lean();
   const me = ctx.userId;
   const rows = await Promise.all(convs.map(async (c) => {
     const myRead = c.reads.find((r) => String(r.userId) === me)?.at ?? new Date(0);
     const unread = await scoped(Message, ctx).countDocuments({ conversationId: c._id, createdAt: { $gt: myRead }, senderId: { $ne: oid(me) }, deletedAt: null });
-    const participants = c.participantIds as unknown as { _id: unknown; name: string; avatarUrl?: string | null }[];
+    const participants = c.participantIds as unknown as { _id: unknown; name: string; avatarUrl?: string | null; lastActiveAt?: Date | null }[];
     const other = c.type === "dm" ? participants.find((p) => String(p._id) !== me) : null;
     const name = c.type === "dm" ? other?.name ?? "Direct message"
       : c.type === "channel" ? channelName(c)
       : c.type === "team" ? `# ${(c.teamId as unknown as { name?: string })?.name ?? "team"}`
       : `# ${(c.projectId as unknown as { name?: string })?.name ?? "project"}`;
     return {
-      id: String(c._id), type: c.type, name, description: c.description ?? null, avatarUrl: other?.avatarUrl ?? null, otherUserId: other ? String(other._id) : null, online: other ? presence.isOnline(String(other._id)) : null,
+      id: String(c._id), type: c.type, name, description: c.description ?? null, avatarUrl: other?.avatarUrl ?? null, otherUserId: other ? String(other._id) : null, online: other ? isOnlineUser(String(other._id), other.lastActiveAt) : null,
       teamId: c.teamId ? String((c.teamId as unknown as { _id?: unknown })._id ?? c.teamId) : null, projectId: c.projectId ? String((c.projectId as unknown as { _id?: unknown })._id ?? c.projectId) : null,
       memberCount: c.type === "channel" ? participants.length : null, canManage: c.type === "channel" && canManageChannel(ctx, c as unknown as Conv),
       lastMessageAt: c.lastMessageAt, lastMessagePreview: c.lastMessagePreview, lastMessageSender: (c.lastMessageSenderId as unknown as { name?: string } | null)?.name ?? null, unread,
@@ -406,6 +406,6 @@ export async function totalUnread(ctx: CompanyContext) {
 
 /** People picker for new DMs (A62): every active colleague, regardless of the caller's employee-list permissions. */
 export async function listChatPeople(ctx: CompanyContext) {
-  const users = await scoped(User, ctx).find({ archivedAt: null, status: "active", _id: { $ne: oid(ctx.userId) } }).select("name avatarUrl role designation").sort({ name: 1 }).lean();
-  return users.map((u) => ({ id: String(u._id), name: u.name, avatarUrl: (u.avatarUrl as string | null) ?? null, roleLabel: ROLE_LABEL[u.role as keyof typeof ROLE_LABEL] ?? u.role, designation: (u.designation as string | null) ?? null, online: presence.isOnline(String(u._id)) }));
+  const users = await scoped(User, ctx).find({ archivedAt: null, status: "active", _id: { $ne: oid(ctx.userId) } }).select("name avatarUrl role designation lastActiveAt").sort({ name: 1 }).lean();
+  return users.map((u) => ({ id: String(u._id), name: u.name, avatarUrl: (u.avatarUrl as string | null) ?? null, roleLabel: ROLE_LABEL[u.role as keyof typeof ROLE_LABEL] ?? u.role, designation: (u.designation as string | null) ?? null, online: isOnlineUser(String(u._id), u.lastActiveAt as Date | null) }));
 }

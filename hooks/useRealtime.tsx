@@ -23,6 +23,8 @@ interface RealtimeApi {
 
 const Ctx = createContext<RealtimeApi | null>(null);
 const HEARTBEAT_MS = 30_000;
+/** How long to wait for the socket before deciding this host has none and falling back to HTTP (A74). */
+const SOCKET_GRACE_MS = 6_000;
 
 /**
  * One socket per browser tab (spec 3.3, 7.6): authenticates with the session cookie, sends a
@@ -55,9 +57,25 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     });
     socket.on("disconnect", () => setConnected(false));
     socket.onAny((event: string, payload: unknown) => dispatch(event, payload));
-    const hb = setInterval(() => { if (socket.connected) socket.emit("presence:heartbeat"); }, HEARTBEAT_MS);
+    /**
+     * Presence heartbeat (A74). On a host that runs the custom server this goes over the socket, as
+     * before. Where there is no socket - a serverless deployment, or simply a blocked connection -
+     * the same beat goes over HTTP instead, so the person still shows as online and gets everyone
+     * else's state back. Without this, the whole company appeared permanently offline.
+     */
+    const started = Date.now();
+    const beat = async () => {
+      if (socket.connected) { socket.emit("presence:heartbeat"); return; }
+      if (Date.now() - started < SOCKET_GRACE_MS) return; // still trying to connect - do not thrash
+      try {
+        const r = await api<{ online: string[] }>("/api/me/presence", { method: "POST" });
+        dispatch("presence:sync", { online: r.online });
+      } catch { /* offline or signed out - the next beat tries again */ }
+    };
+    const hb = setInterval(() => { void beat(); }, HEARTBEAT_MS);
+    const firstBeat = setTimeout(() => { void beat(); }, SOCKET_GRACE_MS + 500);
     api<{ unread: number }>("/api/notifications?limit=1").then((r) => setUnread(r.unread)).catch(() => {});
-    return () => { clearInterval(hb); socket.disconnect(); socketRef.current = null; };
+    return () => { clearInterval(hb); clearTimeout(firstBeat); socket.disconnect(); socketRef.current = null; };
   }, []);
 
   const subscribe = useCallback((event: string, handler: Handler) => {

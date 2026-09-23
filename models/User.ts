@@ -37,6 +37,8 @@ UserSchema.index({ companyId: 1, status: 1 });
 UserSchema.index({ companyId: 1, teamId: 1 });
 UserSchema.index({ companyId: 1, managerId: 1 });
 UserSchema.index({ companyId: 1, createdAt: -1 });
+// Presence fallback (A74): "who in this company was active recently?" runs every 30s per open tab.
+UserSchema.index({ companyId: 1, lastActiveAt: -1 });
 
 export type UserDoc = InferSchemaType<typeof UserSchema>;
 export const User = (models.User as Model<UserDoc>) ?? model<UserDoc>("User", UserSchema);

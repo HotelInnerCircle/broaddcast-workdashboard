@@ -158,13 +158,19 @@ export function useChat(initialConversationId?: string | null) {
     });
     const offActivity = subscribe("chat:activity", () => void loadConversations());
     const offConv = subscribe("chat:conversation-updated", () => { void loadConversations(); void catchUp(); });
+    // A74: the whole company's presence in one go, from the HTTP heartbeat on hosts with no socket.
+    const offPresenceSync = subscribe("presence:sync", (p) => {
+      const online = new Set((p as { online: string[] }).online);
+      setConversations((cs) => cs?.map((c) => (c.otherUserId ? { ...c, online: online.has(c.otherUserId) } : c)) ?? cs);
+      setThread((t) => (t ? { ...t, members: t.members.map((m) => ({ ...m, online: online.has(m.id) })) } : t));
+    });
     const offPresence = subscribe("presence:update", (p) => {
       const u = p as { userId: string; online: boolean };
       setConversations((cs) => cs?.map((c) => (c.otherUserId === u.userId ? { ...c, online: u.online } : c)) ?? cs);
       setThread((t) => (t ? { ...t, members: t.members.map((m) => (m.id === u.userId ? { ...m, online: u.online } : m)) } : t));
     });
     const sweep = setInterval(() => setTyping((ty) => Object.fromEntries(Object.entries(ty).filter(([, v]) => Date.now() - v.at < 4000))), 1500);
-    return () => { offMsg(); offUpd(); offTyping(); offDelivered(); offRead(); offActivity(); offConv(); offPresence(); clearInterval(sweep); };
+    return () => { offMsg(); offUpd(); offTyping(); offDelivered(); offRead(); offActivity(); offConv(); offPresence(); offPresenceSync(); clearInterval(sweep); };
   }, [subscribe, me.userId, markRead, loadConversations, catchUp]);
 
   /** Tell the server we have these messages on screen - this is what turns one tick into two (A72). */
