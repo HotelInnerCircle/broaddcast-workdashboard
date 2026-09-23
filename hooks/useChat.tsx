@@ -22,6 +22,8 @@ export interface ChatMessage {
   replyTo: { id: string; body: string; sender: string | null; attachmentCount: number } | null;
   /** Tick state (A72): who has received the message, and who has opened the conversation since. */
   deliveredTo: Receipt[]; readBy: Receipt[];
+  /** A copy made by forwarding (A73) - the bubble shows a "Forwarded" label. */
+  forwarded?: boolean;
   editedAt: string | null; createdAt: string;
 }
 export interface Member { id: string; name: string; avatarUrl: string | null; role: string; online: boolean }
@@ -37,7 +39,7 @@ interface ThreadState {
 export function useChat(initialConversationId?: string | null) {
   const me = useAuth();
   const rt = useRealtime();
-  const { subscribe, emit, joinRoom, leaveRoom } = rt;
+  const { subscribe, emit, joinRoom, leaveRoom, setMutedConversation } = rt;
   const [conversations, setConversations] = useState<ConversationRow[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialConversationId ?? null);
   const [thread, setThread] = useState<ThreadState | null>(null);
@@ -75,10 +77,11 @@ export function useChat(initialConversationId?: string | null) {
   }, [activeId, markRead]);
   // Room membership is separate from fetching: joinRoom queues until the socket is up and is replayed after every reconnect.
   useEffect(() => {
+    setMutedConversation(activeId);
     if (!activeId) return;
     joinRoom(activeId);
-    return () => leaveRoom(activeId);
-  }, [activeId, joinRoom, leaveRoom]);
+    return () => { leaveRoom(activeId); setMutedConversation(null); };
+  }, [activeId, joinRoom, leaveRoom, setMutedConversation]);
 
   // Catch-up (A62): anything that arrived while the socket was down is fetched after a reconnect, and a
   // light poll every 15s backstops delivery even if an event is lost. Only messages newer than the last
@@ -134,6 +137,15 @@ export function useChat(initialConversationId?: string | null) {
     // Blue ticks: their read cursor moved, so everything of ours up to that moment is read.
     const offRead = subscribe("chat:read", (p) => {
       const r = p as { conversationId: string; userId: string; at: string };
+      // The list updates wherever we are (A73): our own row goes blue when they read it, and our
+      // unread badge clears when we read the conversation in another tab.
+      setConversations((cs) => cs?.map((c) => {
+        if (c.id !== r.conversationId) return c;
+        if (r.userId === me.userId) return { ...c, unread: 0 };
+        // Only a DM can be called "read" from one person reading it; a channel needs everyone, so
+        // its row waits for the next list refresh rather than turning blue too early.
+        return c.type === "dm" && c.lastMessageSenderId === me.userId ? { ...c, lastMessageRead: true } : c;
+      }) ?? cs);
       if (r.conversationId !== activeRef.current) return;
       setReads((rs) => ({ ...rs, [r.userId]: r.at }));
       setThread((t) => (t ? {
@@ -213,7 +225,18 @@ export function useChat(initialConversationId?: string | null) {
     try { const t = await api<ThreadState>(`/api/chat/conversations/${activeId}/messages?limit=50&before=${thread.messages[0].id}`, { fresh: true }); setThread((cur) => (cur ? { ...cur, messages: [...t.messages, ...cur.messages], hasMore: t.hasMore } : cur)); } catch { /* ignore */ }
   }, [activeId, thread]);
   const notifyTyping = useCallback(() => { if (!activeId) return; const now = Date.now(); if (now - lastTyping.current > 2000) { lastTyping.current = now; emit("chat:typing", activeId); } }, [activeId, emit]);
+  /** Forward a message into other conversations (A73). Returns how many actually took it. */
+  const forward = useCallback(async (messageId: string, conversationIds: string[]) => {
+    try {
+      const r = await api<{ sent: string[]; skipped: string[] }>("/api/chat/forward", { method: "POST", json: { messageId, conversationIds } });
+      toast.success(r.sent.length === 1 ? "Message forwarded" : `Forwarded to ${r.sent.length} chats`);
+      if (r.skipped.length) toast.error(`${r.skipped.length} chat${r.skipped.length === 1 ? "" : "s"} could not receive it`);
+      void loadConversations();
+      return true;
+    } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not forward"); return false; }
+  }, [loadConversations]);
+
   const openDm = useCallback(async (userId: string) => { try { const r = await api<{ id: string }>("/api/chat/conversations", { method: "POST", json: { userId } }); await loadConversations(); setActiveId(r.id); } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not open chat"); } }, [loadConversations]);
 
-  return { me, conversations, activeId, setActiveId, thread, loadingThread, typing, reads, send, sendFile, sendFiles, confirmDelivered, edit, remove, loadMore, notifyTyping, openDm, reloadConversations: loadConversations };
+  return { me, conversations, activeId, setActiveId, thread, loadingThread, typing, reads, send, sendFile, sendFiles, confirmDelivered, forward, edit, remove, loadMore, notifyTyping, openDm, reloadConversations: loadConversations };
 }

@@ -9,9 +9,9 @@ import { StatusDot } from "@/components/ui/badge";
 import { cn } from "@/lib/utils/cn";
 import type { ChatMessage, Member, useChat } from "@/hooks/useChat";
 import { docLook, fileKind, fileSize } from "./attachments";
+import { EmojiPicker } from "./emoji-picker";
 
 type Chat = ReturnType<typeof useChat>;
-const EMOJI = ["😀", "😂", "😊", "😍", "🥹", "🤔", "😅", "😎", "🙌", "👍", "👎", "👏", "🙏", "🔥", "✅", "❌", "🎉", "💯", "🚀", "⏰", "☕", "❤️", "👀", "💡", "📌", "🐛", "📎", "📈", "🤝", "😴", "🫡", "✨"];
 export const ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx,.pptx";
 const MAX_FILES = 10;
 
@@ -123,9 +123,11 @@ export function Composer({ chat, members, editing, replyTo, onClearEdit, onClear
         </div>
       )}
       {emojiOpen && (
-        <div className="absolute bottom-full right-2 z-20 mb-1 grid w-72 grid-cols-8 gap-0.5 rounded-2xl bg-card p-2 shadow-float ring-1 ring-border/60">
-          {EMOJI.map((e) => <button key={e} className="rounded-lg p-1 text-lg hover:bg-muted" onClick={() => { setText((t) => t + e); areaRef.current?.focus(); }}>{e}</button>)}
-        </div>
+        <EmojiPicker
+          className="absolute bottom-full right-2 mb-1"
+          onClose={() => setEmojiOpen(false)}
+          onPick={(e) => { setText((t) => t + e); areaRef.current?.focus(); }}
+        />
       )}
 
       <div className="flex items-end gap-1">

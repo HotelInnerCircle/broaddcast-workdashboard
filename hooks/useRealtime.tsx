@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import { api, apiCache } from "@/lib/api/client";
+import { playMessageChime, showDesktopAlert } from "@/lib/chat-sound";
 
 type Handler = (payload: unknown) => void;
 interface RealtimeApi {
@@ -11,6 +12,8 @@ interface RealtimeApi {
   /** Subscribe to a server event; returns an unsubscribe function. */
   subscribe: (event: string, handler: Handler) => () => void;
   emit: (event: string, payload?: unknown, ack?: (ok: boolean) => void) => void;
+  /** The conversation currently on screen: no chime for a message the user is already watching (A73). */
+  setMutedConversation: (id: string | null) => void;
   /** Room membership that survives reconnects: joins are queued until the socket is up and replayed on every (re)connect. */
   joinRoom: (conversationId: string) => void;
   leaveRoom: (conversationId: string) => void;
@@ -36,6 +39,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
+  const mutedRef = useRef<string | null>(null);
+  const setMutedConversation = useCallback((id: string | null) => { mutedRef.current = id; }, []);
 
   useEffect(() => {
     const socket = io({ path: "/socket.io", withCredentials: true, transports: ["websocket", "polling"] });
@@ -73,7 +78,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     });
     const offRead = subscribe("notification:read", (p) => setUnread((p as { unread: number }).unread));
     const offChat = subscribe("chat:activity", (p) => {
-      const m = p as { conversationId: string; preview: string; from: string };
+      const m = p as { conversationId: string; preview: string; from: string; messageId?: string };
+      // A73: the chime and the desktop banner fire wherever you are in the app. The conversation
+      // you already have open mutes itself, so watching a thread does not beep at you.
+      if (mutedRef.current !== m.conversationId) {
+        playMessageChime();
+        showDesktopAlert(m.from, m.preview, () => router.push(`/chat?c=${m.conversationId}`));
+      }
       if (pathRef.current.startsWith("/chat")) return;
       toast(`${m.from}`, { description: m.preview, action: { label: "Reply", onClick: () => router.push(`/chat?c=${m.conversationId}`) }, duration: 5000 });
     });
@@ -81,7 +92,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }, [subscribe, router]);
 
   // Memoised so consumers that depend on the api object do not re-run effects on every provider render.
-  const value = useMemo<RealtimeApi>(() => ({ connected, subscribe, emit, joinRoom, leaveRoom, unreadNotifications: unread, setUnreadNotifications: setUnread }), [connected, subscribe, emit, joinRoom, leaveRoom, unread]);
+  const value = useMemo<RealtimeApi>(() => ({ connected, subscribe, emit, joinRoom, leaveRoom, setMutedConversation, unreadNotifications: unread, setUnreadNotifications: setUnread }), [connected, subscribe, emit, joinRoom, leaveRoom, setMutedConversation, unread]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

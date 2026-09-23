@@ -8,6 +8,7 @@ import type { useChat, ChatMessage } from "@/hooks/useChat";
 import { Composer } from "./composer";
 import { MessageBubble } from "./message-bubble";
 import { Lightbox, type Attachment } from "./attachments";
+import { ForwardDialog } from "./forward-dialog";
 
 type Chat = ReturnType<typeof useChat>;
 
@@ -32,6 +33,7 @@ export function Thread({ chat, compact = false }: { chat: Chat; compact?: boolea
   const [editing, setEditing] = useState<ChatMessage | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [lightbox, setLightbox] = useState<{ images: Attachment[]; index: number } | null>(null);
+  const [forwarding, setForwarding] = useState<ChatMessage | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const messages = thread?.messages ?? [];
   const members = thread?.members ?? [];
@@ -94,6 +96,7 @@ export function Thread({ chat, compact = false }: { chat: Chat; compact?: boolea
                 message={m} mine={m.senderId === me.userId} head={head} tail={tail} showName={isGroup && head && m.senderId !== me.userId}
                 recipientIds={recipientIds} mentionNames={mentionNames} readOnly={compact || archived}
                 onReply={(x) => { setReplyTo(x); setEditing(null); }}
+                onForward={setForwarding}
                 onEdit={(x) => { setEditing(x); setReplyTo(null); }}
                 onDelete={(x) => { if (confirm("Delete this message for everyone?")) void chat.remove(x.id); }}
                 onOpenImage={(images, index) => setLightbox({ images, index })}
@@ -121,6 +124,7 @@ export function Thread({ chat, compact = false }: { chat: Chat; compact?: boolea
 
       <Composer chat={chat} members={members.filter((m) => m.id !== me.userId)} editing={editing} replyTo={replyTo} onClearEdit={() => setEditing(null)} onClearReply={() => setReplyTo(null)} compact={compact} disabled={archived} />
       {lightbox && <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox(null)} />}
+      <ForwardDialog message={forwarding} conversations={chat.conversations ?? []} onForward={chat.forward} onClose={() => setForwarding(null)} />
     </div>
   );
 }

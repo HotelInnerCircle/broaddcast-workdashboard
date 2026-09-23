@@ -7,7 +7,8 @@
     "build": "next build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/server.js",
     "start": "cross-env NODE_ENV=production node dist/server.js",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:emoji": "node scripts/build-emoji.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.9",
@@ -64,6 +65,7 @@
     "esbuild": "^0.25.12",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "unicode-emoji-json": "^0.9.0"
   }
 }

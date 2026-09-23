@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Hash, MessageSquare, MessageSquarePlus, Search, Settings2, Users, X } from "lucide-react";
+import { ArrowLeft, Hash, MessageSquare, MessageSquarePlus, Search, Settings2, Users, Volume2, VolumeX, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { api } from "@/lib/api/client";
 import { can } from "@/lib/permissions";
 import { relativeTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
+import { askDesktopPermission, playMessageChime, setSoundEnabled, soundEnabled } from "@/lib/chat-sound";
 import { ConversationList } from "./conversation-list";
 import { ChannelDialog } from "./channel-dialog";
 import { Thread } from "./thread";
@@ -33,6 +34,15 @@ export function ChatView() {
   // A62: chat-scoped people list so employees (who cannot list employees) can still start a DM.
   const [people, setPeople] = useState<Person[]>([]);
   const [personQ, setPersonQ] = useState("");
+  // Read from localStorage after mount so the server and the first client render agree (A73).
+  const [sound, setSound] = useState(true);
+  useEffect(() => { setSound(soundEnabled()); }, []);
+  const toggleSound = async () => {
+    const next = !sound;
+    setSound(next);
+    setSoundEnabled(next);
+    if (next) { playMessageChime(true); await askDesktopPermission(); }
+  };
 
   useEffect(() => { if (newDm) { setPersonQ(""); api<Person[]>("/api/chat/people").then(setPeople).catch(() => setPeople([])); } }, [newDm]);
   useEffect(() => { const c = params.get("c"); if (c) chat.setActiveId(c); const dm = params.get("dm"); if (dm) void chat.openDm(dm); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [params]);
@@ -54,6 +64,7 @@ export function ChatView() {
         <aside className={cn("w-full shrink-0 border-r border-border md:w-[21rem]", chat.activeId ? "hidden md:flex md:flex-col" : "flex flex-col")}>
           <div className="flex items-center gap-1 px-3 py-2.5">
             <h1 className="flex-1 text-lg font-semibold">Chats</h1>
+            <Button variant="ghost" size="icon" aria-pressed={sound} aria-label={sound ? "Turn message sound off" : "Turn message sound on"} title={sound ? "Message sound is on" : "Message sound is off"} onClick={toggleSound}>{sound ? <Volume2 /> : <VolumeX className="text-muted-foreground" />}</Button>
             <Button variant="ghost" size="icon" aria-label="New direct message" title="New direct message" onClick={() => setNewDm(true)}><MessageSquarePlus /></Button>
             {canManageChannels && <Button variant="ghost" size="icon" aria-label="New channel" title="New channel" onClick={() => setChannelDialog({ open: true, id: null })}><Users /></Button>}
           </div>

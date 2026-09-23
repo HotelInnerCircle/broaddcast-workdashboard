@@ -20,6 +20,8 @@ const MessageSchema = new Schema(
     /** Ticks (A72): `deliveredTo` is acknowledged by the recipient's browser, `readBy` when they open the chat. */
     deliveredTo: { type: [ReceiptSchema], default: [] },
     readBy: { type: [ReceiptSchema], default: [] },
+    /** Set on a forwarded copy so the bubble can show the "Forwarded" label (A73). */
+    forwarded: { type: Boolean, default: false },
     editedAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
   },

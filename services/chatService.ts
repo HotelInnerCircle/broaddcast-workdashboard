@@ -221,7 +221,7 @@ export async function serializeMessage(m: Record<string, unknown>) {
     id, conversationId: String(m.conversationId), sender: senderOf(m.senderId), senderId: m.senderId && typeof m.senderId === "object" && "_id" in (m.senderId as object) ? String((m.senderId as { _id: unknown })._id) : String(m.senderId),
     body: deleted ? "" : (m.body as string), deleted, attachments: deleted ? [] : attachments, mentions: ((m.mentions as unknown[]) ?? []).map(String),
     replyTo: reply ? { id: String(reply._id), body: reply.deletedAt ? "Message deleted" : reply.body.slice(0, 140), sender: senderOf(reply.senderId)?.name ?? null, attachmentCount: reply.deletedAt ? 0 : (reply.attachments ?? []).length } : null,
-    deliveredTo: deleted ? [] : receipts(m.deliveredTo), readBy: deleted ? [] : receipts(m.readBy),
+    deliveredTo: deleted ? [] : receipts(m.deliveredTo), readBy: deleted ? [] : receipts(m.readBy), forwarded: Boolean(m.forwarded) && !deleted,
     editedAt: (m.editedAt as Date | null) ?? null, createdAt: m.createdAt as Date,
   };
 }
@@ -298,6 +298,43 @@ export async function deleteMessage(ctx: CompanyContext, id: string) {
   return dto;
 }
 
+/**
+ * Forward a message into other conversations (A73). Each target gets its own message, and each
+ * attachment is copied to its own storage object - deleting the original later must not pull the
+ * file out from under the forward. Targets the caller cannot post to are skipped, not an error.
+ */
+export async function forwardMessage(ctx: CompanyContext, messageId: string, conversationIds: string[]) {
+  const source = await scoped(Message, ctx).findOne({ _id: isId(messageId) ? oid(messageId) : new Types.ObjectId(), deletedAt: null }).lean();
+  if (!source) throw Errors.notFound("Message");
+  await getAccessibleConversation(ctx, String(source.conversationId)); // must be able to see it to forward it
+  const files = (source.attachments as MessageAttachment[]) ?? [];
+  const sent: string[] = [];
+  const skipped: string[] = [];
+  for (const target of [...new Set(conversationIds)]) {
+    let conv: Conv;
+    try { conv = await getAccessibleConversation(ctx, target); } catch { skipped.push(target); continue; }
+    if (conv.archivedAt) { skipped.push(target); continue; }
+    const copies: { key: string; name: string; size: number; mime: string; width: number | null; height: number | null }[] = [];
+    try {
+      for (const [i, a] of files.entries()) {
+        const key = `companies/${ctx.companyId}/chat/${target}/${Date.now()}-${i}-${a.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        await storage().copy(a.key, key);
+        copies.push({ key, name: a.name, size: a.size, mime: a.mime, width: a.width ?? null, height: a.height ?? null });
+      }
+    } catch {
+      for (const c of copies) await storage().delete(c.key).catch(() => {});
+      skipped.push(target);
+      continue;
+    }
+    const dto = await sendMessage(ctx, { conversationId: target, body: source.body as string, attachments: copies });
+    await scoped(Message, ctx).updateOne({ _id: oid(dto.id) }, { $set: { forwarded: true } });
+    realtime().emitToRoom(ctx.companyId, conversationRoom(target), "chat:message-updated", { ...dto, forwarded: true });
+    sent.push(target);
+  }
+  if (sent.length === 0) throw Errors.bad("FORWARD_FAILED", "The message could not be forwarded to any of those chats");
+  return { sent, skipped };
+}
+
 /** One attachment, streamed through the app so access is checked and the browser gets a real filename (A72). */
 export async function attachmentDownload(ctx: CompanyContext, messageId: string, attachmentId: string) {
   const msg = await scoped(Message, ctx).findOne({ _id: isId(messageId) ? oid(messageId) : new Types.ObjectId(), deletedAt: null }).lean();
@@ -340,7 +377,12 @@ export async function markConversationRead(ctx: CompanyContext, conversationId: 
   // Reading implies delivery, so the second tick can never be missing under a blue one.
   await scoped(Message, ctx).updateMany({ conversationId: conv._id, senderId: { $ne: oid(ctx.userId) }, "deliveredTo.userId": { $ne: oid(ctx.userId) } }, { $push: { deliveredTo: { userId: oid(ctx.userId), at: now } } });
   await scoped(Message, ctx).updateMany({ conversationId: conv._id, senderId: { $ne: oid(ctx.userId) }, "readBy.userId": { $ne: oid(ctx.userId) } }, { $push: { readBy: { userId: oid(ctx.userId), at: now } } });
-  realtime().emitToRoom(ctx.companyId, conversationRoom(String(conv._id)), "chat:read", { conversationId: String(conv._id), userId: ctx.userId, name: ctx.name, at: now });
+  const payload = { conversationId: String(conv._id), userId: ctx.userId, name: ctx.name, at: now };
+  realtime().emitToRoom(ctx.companyId, conversationRoom(String(conv._id)), "chat:read", payload);
+  // A73: the conversation room only reaches people with this thread open, so the sender's ticks in
+  // the chat list stayed grey until a reload. Tell every member directly as well - that also clears
+  // the reader's own unread badge in their other tabs.
+  for (const m of await conversationMembers(ctx, conv)) realtime().emitToUser(m.id, "chat:read", payload);
   return { at: now };
 }
 

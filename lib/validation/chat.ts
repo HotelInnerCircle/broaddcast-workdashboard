@@ -27,6 +27,8 @@ export const channelMembersSchema = z.object({ add: z.array(objectId).max(500).o
 /** Delivery receipts the recipient's browser sends back for messages it has just received (A72). */
 export const deliveredSchema = z.object({ messageIds: z.array(objectId).min(1).max(200) });
 
+/** Forward one message into up to 10 other conversations (A73). */
+export const forwardSchema = z.object({ messageId: objectId, conversationIds: z.array(objectId).min(1, "Pick at least one chat").max(10) });
 export const editMessageSchema = z.object({ body: z.string().trim().min(1).max(4000) });
 export const openConversationSchema = z.object({ userId: objectId });
 export const messagesQuerySchema = z.object({ before: objectId.optional(), limit: z.coerce.number().int().min(1).max(100).optional() });

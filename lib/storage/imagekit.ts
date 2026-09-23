@@ -45,6 +45,19 @@ export function imagekitDriver(): StorageDriver {
     async getSignedUrl(key, expiresInSec = 3600) {
       return ik.url({ path: `/${key}`, signed: true, expireSeconds: expiresInSec });
     },
+    // ImageKit's own copyFile keeps the source filename, which would collide with an existing
+    // object in the destination folder. Re-uploading under the new key is deterministic, keeps the
+    // driver contract, and gives the forwarded copy its own object so deleting the original
+    // message cannot take the forward's file with it.
+    async copy(sourceKey, destinationKey) {
+      const { folder, name } = split(destinationKey);
+      const res = await fetch(ik.url({ path: `/${sourceKey}`, signed: true, expireSeconds: 300 }));
+      if (!res.ok) throw new Error(`Could not read ${sourceKey} to copy it (${res.status})`);
+      const body = Buffer.from(await res.arrayBuffer());
+      const up = await ik.upload({ file: body, fileName: name, folder, useUniqueFileName: false, isPrivateFile: true });
+      remember(destinationKey, up.fileId);
+      return { key: destinationKey };
+    },
     async delete(key) {
       const fileId = await findFileId(key).catch(() => null);
       ids.delete(key);

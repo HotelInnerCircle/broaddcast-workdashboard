@@ -1,5 +1,5 @@
 "use client";
-import { Check, CheckCheck, Clock, CornerUpLeft, Image as ImageIcon, MoreVertical, Paperclip, Pencil, Trash2, TriangleAlert } from "lucide-react";
+import { Check, CheckCheck, Clock, CornerUpLeft, Forward, Image as ImageIcon, MoreVertical, Paperclip, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatDateTime } from "@/lib/utils/dates";
@@ -47,12 +47,13 @@ interface Props {
   mentionNames: Set<string>;
   readOnly?: boolean;
   onReply: (m: ChatMessage) => void;
+  onForward: (m: ChatMessage) => void;
   onEdit: (m: ChatMessage) => void;
   onDelete: (m: ChatMessage) => void;
   onOpenImage: (images: Attachment[], index: number) => void;
 }
 
-export function MessageBubble({ message: m, mine, head, tail, showName, recipientIds, mentionNames, readOnly, onReply, onEdit, onDelete, onOpenImage }: Props) {
+export function MessageBubble({ message: m, mine, head, tail, showName, recipientIds, mentionNames, readOnly, onReply, onForward, onEdit, onDelete, onOpenImage }: Props) {
   const images = m.attachments.filter(isImage);
   const docs = m.attachments.filter((a) => !isImage(a));
   const textOnly = m.attachments.length === 0 && !m.deleted;
@@ -73,6 +74,7 @@ export function MessageBubble({ message: m, mine, head, tail, showName, recipien
           )}
         >
           {showName && !mine && <p className="mb-0.5 text-[12px] font-semibold text-primary">{m.sender?.name}</p>}
+          {m.forwarded && !m.deleted && <p className="mb-0.5 flex items-center gap-1 text-[11px] italic text-muted-foreground"><Forward className="size-3" />Forwarded</p>}
           {m.replyTo && (
             <div className={cn("mb-1 flex gap-1.5 rounded-lg border-l-2 border-info bg-foreground/5 px-2 py-1 text-xs")}>
               <span className="min-w-0 flex-1">
@@ -100,10 +102,12 @@ export function MessageBubble({ message: m, mine, head, tail, showName, recipien
         {!m.deleted && !readOnly && (
           <div className={cn("absolute top-0.5 flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-45", mine ? "right-full mr-0.5 flex-row-reverse" : "left-full ml-0.5")}>
             <button className="rounded-md p-1 text-muted-foreground hover:bg-muted" title="Reply" aria-label="Reply" onClick={() => onReply(m)}><CornerUpLeft className="size-3.5" /></button>
+            {!mine && <button className="rounded-md p-1 text-muted-foreground hover:bg-muted" title="Forward" aria-label="Forward" onClick={() => onForward(m)}><Forward className="size-3.5" /></button>}
             {mine && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><button className="rounded-md p-1 text-muted-foreground hover:bg-muted" title="More" aria-label="Message actions"><MoreVertical className="size-3.5" /></button></DropdownMenuTrigger>
                 <DropdownMenuContent align={mine ? "end" : "start"}>
+                  <DropdownMenuItem onClick={() => onForward(m)}><Forward className="size-4" />Forward</DropdownMenuItem>
                   {m.attachments.length === 0 && <DropdownMenuItem onClick={() => onEdit(m)}><Pencil className="size-4" />Edit</DropdownMenuItem>}
                   {m.attachments.length > 0 && <DropdownMenuItem asChild><a href={m.attachments[0].downloadUrl} download><Paperclip className="size-4" />Download attachment</a></DropdownMenuItem>}
                   <DropdownMenuItem onClick={() => onDelete(m)} className="text-danger"><Trash2 className="size-4" />Delete</DropdownMenuItem>
