@@ -8,7 +8,7 @@ import { playMessageChime, showDesktopAlert } from "@/lib/chat-sound";
 
 type Handler = (payload: unknown) => void;
 /** "socket" once a live Socket.IO connection is possible, "http" when this host has none (A75). */
-export type RealtimeMode = "probing" | "socket" | "http";
+export type RealtimeMode = "probing" | "ably" | "socket" | "http";
 interface RealtimeApi {
   connected: boolean;
   /** Lets features poll harder when there is no socket to push to them. */
@@ -18,9 +18,6 @@ interface RealtimeApi {
   emit: (event: string, payload?: unknown, ack?: (ok: boolean) => void) => void;
   /** The conversation currently on screen: no chime for a message the user is already watching (A73). */
   setMutedConversation: (id: string | null) => void;
-  /** Room membership that survives reconnects: joins are queued until the socket is up and replayed on every (re)connect. */
-  joinRoom: (conversationId: string) => void;
-  leaveRoom: (conversationId: string) => void;
   unreadNotifications: number;
   setUnreadNotifications: (n: number) => void;
 }
@@ -29,6 +26,91 @@ const Ctx = createContext<RealtimeApi | null>(null);
 const HEARTBEAT_MS = 30_000;
 /** Remembered per tab so the probe runs once, not on every client-side navigation. */
 const PROBE_KEY = "wp.realtime.socket";
+/** How long to give the hosted service before giving up on it and trying the next transport. */
+const CONNECT_TIMEOUT_MS = 8_000;
+
+/** The live Ably connection, or null when this deployment has no realtime service configured. */
+interface AblyHandle { close: () => void }
+
+/**
+ * Connect to the hosted realtime service, if there is one (A76).
+ *
+ * The browser asks the app for a short-lived token scoped to its own two channels; a 404 means no
+ * service is configured and the caller falls back to Socket.IO or polling. Everything the server
+ * addresses to this person arrives on `user:<id>`; company-wide events arrive on `company:<id>`,
+ * whose presence set doubles as the online list - entering it is what makes someone "online",
+ * and leaving is instant, so no heartbeat window is involved.
+ */
+async function connectAbly(dispatch: (event: string, payload: unknown) => void, setConnected: (v: boolean) => void): Promise<AblyHandle | null> {
+  let first: { provider: string | null; tokenRequest?: unknown; companyChannel?: string | null; userChannel?: string };
+  try {
+    const res = await fetch("/api/realtime/token", { cache: "no-store", credentials: "same-origin" });
+    if (!res.ok) return null;
+    first = (await res.json()).data;
+  } catch { return null; }
+  if (first.provider !== "ably" || !first.userChannel) return null;
+
+  try {
+    // `ably/modular` rather than `ably`: the default browser entry is a UMD bundle that webpack
+    // cannot parse, and the modular build only pulls in the transport and presence we actually use.
+    const { BaseRealtime, WebSocketTransport, XHRPolling, FetchRequest, RealtimePresence } = await import("ably/modular");
+    let pending: unknown = first.tokenRequest;
+    const realtime = new BaseRealtime({
+      plugins: { WebSocketTransport, XHRPolling, FetchRequest, RealtimePresence },
+      // The first token is already in hand; later renewals go back to the same endpoint.
+      authCallback: async (_params, cb) => {
+        if (pending) { const t = pending; pending = null; cb(null, t as never); return; }
+        try {
+          const res = await fetch("/api/realtime/token", { cache: "no-store", credentials: "same-origin" });
+          if (!res.ok) throw new Error(String(res.status));
+          cb(null, (await res.json()).data.tokenRequest);
+        } catch (e) { cb(e instanceof Error ? e.message : "token request failed", null); }
+      },
+    });
+
+    // Prove the connection works before committing to it: a wrong or revoked key must fall through
+    // to the other transports rather than leave chat quietly on the slow path.
+    const live = await new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => resolve(false), CONNECT_TIMEOUT_MS);
+      const done = (v: boolean) => { clearTimeout(timer); resolve(v); };
+      realtime.connection.once("connected", () => done(true));
+      realtime.connection.once("failed", () => done(false));
+      realtime.connection.once("suspended", () => done(false));
+    });
+    if (!live) { try { realtime.close(); } catch { /* ignore */ } return null; }
+
+    setConnected(true);
+    let everConnected = true;
+    realtime.connection.on("connected", () => {
+      setConnected(true);
+      if (everConnected) dispatch("realtime:reconnected", { at: Date.now() });
+      everConnected = true;
+    });
+    realtime.connection.on("disconnected", () => setConnected(false));
+    realtime.connection.on("suspended", () => setConnected(false));
+
+    const userCh = realtime.channels.get(first.userChannel!);
+    void userCh.subscribe((m) => dispatch(m.name ?? "", m.data));
+
+    if (first.companyChannel) {
+      const companyCh = realtime.channels.get(first.companyChannel);
+      void companyCh.subscribe((m) => dispatch(m.name ?? "", m.data));
+      // Presence: enter so others see us, then publish the whole set whenever it changes.
+      const syncPresence = async () => {
+        try {
+          const members = await companyCh.presence.get();
+          dispatch("presence:sync", { online: [...new Set(members.map((m) => m.clientId).filter(Boolean))] });
+        } catch { /* a presence read can fail mid-reconnect; the next change re-syncs */ }
+      };
+      void companyCh.presence.subscribe(["enter", "leave", "update", "present"], () => { void syncPresence(); });
+      void companyCh.presence.enter().then(syncPresence).catch(() => {});
+    }
+
+    return { close: () => { try { realtime.close(); } catch { /* already gone */ } } };
+  } catch {
+    return null; // the SDK failed to load or connect - fall through to the other transports
+  }
+}
 
 /**
  * Does this deployment actually have a Socket.IO server? (A75)
@@ -59,8 +141,8 @@ async function socketAvailable(): Promise<boolean> {
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
+  const ablyRef = useRef<AblyHandle | null>(null);
   const handlers = useRef<Map<string, Set<Handler>>>(new Map());
-  const rooms = useRef<Set<string>>(new Set());
   const dispatch = (event: string, payload: unknown) => { apiCache.clear(); handlers.current.get(event)?.forEach((h) => { try { h(payload); } catch { /* handler error */ } }); };
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState<RealtimeMode>("probing");
@@ -77,17 +159,36 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     let hb: ReturnType<typeof setInterval> | null = null;
 
-    /** HTTP beat: keeps presence fresh and pulls everyone else's state back (A74). */
-    const httpBeat = async () => {
+    /**
+     * HTTP beat: keeps `lastActiveAt` fresh so server-rendered pages know who is online (A74).
+     * `authoritative` is false under Ably, whose presence set is exact and instant - letting the
+     * 75s database view overwrite it would make dots flicker back to grey.
+     */
+    const httpBeat = async (authoritative = true) => {
       try {
         const r = await api<{ online: string[] }>("/api/me/presence", { method: "POST" });
-        dispatch("presence:sync", { online: r.online });
+        if (authoritative) dispatch("presence:sync", { online: r.online });
       } catch { /* offline or signed out - the next beat tries again */ }
       // Nothing pushes notification:new here, so the badge is refreshed on the same beat (A75).
       try { setUnread((await api<{ unread: number }>("/api/notifications?limit=1", { fresh: true })).unread); } catch { /* ignore */ }
     };
 
     (async () => {
+      /* 1. A hosted realtime service, if this deployment has one (A76). Works anywhere, including
+            serverless, because it is the browser that holds the connection, not the server. */
+      const ably = await connectAbly(dispatch, setConnected);
+      if (cancelled) { ably?.close(); return; }
+      if (ably) {
+        ablyRef.current = ably;
+        setMode("ably");
+        // The beat still writes lastActiveAt, so server-rendered pages know who is online too,
+        // but Ably presence stays the source of truth for the live dots.
+        void httpBeat(false);
+        hb = setInterval(() => { void httpBeat(false); }, HEARTBEAT_MS);
+        return;
+      }
+
+      /* 2. The custom server's own Socket.IO, when it is running. */
       const available = await socketAvailable();
       if (cancelled) return;
       setMode(available ? "socket" : "http");
@@ -105,8 +206,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       let everConnected = false;
       socket.on("connect", () => {
         setConnected(true);
-        // Rooms are server-side per socket: rejoin everything after a reconnect, then let subscribers catch up.
-        rooms.current.forEach((id) => socket!.emit("chat:join", id));
         if (everConnected) dispatch("realtime:reconnected", { at: Date.now() });
         everConnected = true;
       });
@@ -117,7 +216,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     })();
 
     api<{ unread: number }>("/api/notifications?limit=1").then((r) => setUnread(r.unread)).catch(() => {});
-    return () => { cancelled = true; if (hb) clearInterval(hb); socket?.disconnect(); socketRef.current = null; };
+    return () => {
+      cancelled = true;
+      if (hb) clearInterval(hb);
+      socket?.disconnect(); socketRef.current = null;
+      ablyRef.current?.close(); ablyRef.current = null;
+    };
   }, []);
 
   const subscribe = useCallback((event: string, handler: Handler) => {
@@ -126,8 +230,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     return () => { set.delete(handler); };
   }, []);
   const emit = useCallback((event: string, payload?: unknown, ack?: (ok: boolean) => void) => { socketRef.current?.emit(event, payload, ack); }, []);
-  const joinRoom = useCallback((id: string) => { rooms.current.add(id); if (socketRef.current?.connected) socketRef.current.emit("chat:join", id); }, []);
-  const leaveRoom = useCallback((id: string) => { rooms.current.delete(id); socketRef.current?.emit("chat:leave", id); }, []);
 
   // Notifications: bump the badge and toast (spec 12.16). Chat activity toasts when the user is not in the chat.
   useEffect(() => {
@@ -152,7 +254,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }, [subscribe, router]);
 
   // Memoised so consumers that depend on the api object do not re-run effects on every provider render.
-  const value = useMemo<RealtimeApi>(() => ({ connected, mode, subscribe, emit, joinRoom, leaveRoom, setMutedConversation, unreadNotifications: unread, setUnreadNotifications: setUnread }), [connected, mode, subscribe, emit, joinRoom, leaveRoom, setMutedConversation, unread]);
+  const value = useMemo<RealtimeApi>(() => ({ connected, mode, subscribe, emit, setMutedConversation, unreadNotifications: unread, setUnreadNotifications: setUnread }), [connected, mode, subscribe, emit, setMutedConversation, unread]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

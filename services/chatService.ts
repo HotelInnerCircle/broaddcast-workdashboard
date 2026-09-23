@@ -14,7 +14,15 @@ import { ROLE_LABEL } from "@/types";
 import { notify, notifyMany } from "./notificationService";
 import { projectScopeFilter } from "./scope";
 
-export const conversationRoom = (conversationId: string) => `conversation:${conversationId}`;
+/**
+ * Everyone who should receive this conversation's events (A76: fan-out replaced shared rooms).
+ * A DM and a hand-made channel already carry their member list, so routing needs no query at all -
+ * which matters because this runs on every message, receipt and tick.
+ */
+async function memberIdsOf(ctx: CompanyContext, conv: Conv): Promise<string[]> {
+  if (conv.type === "dm" || conv.type === "channel") return conv.participantIds.map(String);
+  return (await conversationMembers(ctx, conv)).map((m) => m.id);
+}
 const oid = (v: string) => new Types.ObjectId(v);
 const isId = (v: string) => Types.ObjectId.isValid(v);
 type Conv = ConversationDoc & { _id: Types.ObjectId };
@@ -151,7 +159,8 @@ export async function updateChannel(ctx: CompanyContext, id: string, input: { na
   if (input.archived !== undefined) set.archivedAt = input.archived ? new Date() : null;
   if (input.members) set.participantIds = await validMemberIds(ctx, [...input.members, String(conv.createdBy ?? ctx.userId)]);
   await scoped(Conversation, ctx).updateOne({ _id: conv._id }, { $set: set });
-  realtime().emitToRoom(ctx.companyId, conversationRoom(id), "chat:conversation-updated", { conversationId: id });
+  const touched = ((set.participantIds as Types.ObjectId[] | undefined) ?? conv.participantIds).map(String);
+  realtime().emitToUsers(touched, "chat:conversation-updated", { conversationId: id });
   for (const m of (set.participantIds as Types.ObjectId[] | undefined) ?? conv.participantIds) realtime().emitToUser(String(m), "chat:activity", { conversationId: id, preview: "Channel updated", from: ctx.name, at: new Date() });
   return { id };
 }
@@ -164,7 +173,7 @@ export async function setChannelMembers(ctx: CompanyContext, id: string, input: 
   for (const r of input.remove ?? []) if (r !== owner) current.delete(r); // the owner cannot be removed from their own channel
   const next = [...current].filter(isId).map(oid);
   await scoped(Conversation, ctx).updateOne({ _id: conv._id }, { $set: { participantIds: next } });
-  realtime().emitToRoom(ctx.companyId, conversationRoom(id), "chat:conversation-updated", { conversationId: id });
+  realtime().emitToUsers([...next.map(String), ...(input.remove ?? [])], "chat:conversation-updated", { conversationId: id });
   for (const m of [...next.map(String), ...(input.remove ?? [])]) realtime().emitToUser(m, "chat:activity", { conversationId: id, preview: "Channel members changed", from: ctx.name, at: new Date() });
   await notifyMany(ctx.companyId, (input.add ?? []).filter((m) => m !== ctx.userId), { type: "MESSAGE", title: `${ctx.name} added you to # ${conv.name}`, body: "", link: `/chat?c=${id}`, actorId: ctx.userId });
   return { id, memberCount: next.length };
@@ -265,7 +274,7 @@ export async function sendMessage(ctx: CompanyContext, input: { conversationId: 
   await scoped(Conversation, ctx).updateOne({ _id: conv._id }, { $push: { reads: { userId: oid(ctx.userId), at: now } } });
   const full = await scoped(Message, ctx).findById(String(created._id)).populate(MSG_POPULATE).lean();
   const dto = await serializeMessage(full as Record<string, unknown>);
-  realtime().emitToRoom(ctx.companyId, conversationRoom(String(conv._id)), "chat:message", dto);
+  realtime().emitToUsers(members.map((m) => m.id), "chat:message", dto);
   for (const m of members) if (m.id !== ctx.userId) realtime().emitToUser(m.id, "chat:activity", { conversationId: String(conv._id), preview, from: ctx.name, at: now, messageId: dto.id });
   const convLabel = conv.type === "dm" ? "" : ` in ${conv.type === "channel" ? `# ${conv.name}` : "a channel"}`;
   if (conv.type === "dm") {
@@ -283,7 +292,7 @@ export async function editMessage(ctx: CompanyContext, id: string, body: string)
   await msg.save();
   const full = await scoped(Message, ctx).findById(id).populate(MSG_POPULATE).lean();
   const dto = await serializeMessage(full as Record<string, unknown>);
-  realtime().emitToRoom(ctx.companyId, conversationRoom(String(msg.conversationId)), "chat:message-updated", dto);
+  realtime().emitToUsers(await memberIdsOf(ctx, await getAccessibleConversation(ctx, String(msg.conversationId))), "chat:message-updated", dto);
   return dto;
 }
 
@@ -294,7 +303,7 @@ export async function deleteMessage(ctx: CompanyContext, id: string) {
   msg.deletedAt = new Date(); msg.set("attachments", []);
   await msg.save();
   const dto = await serializeMessage({ ...msg.toObject(), senderId: { _id: msg.senderId, name: ctx.name } } as Record<string, unknown>);
-  realtime().emitToRoom(ctx.companyId, conversationRoom(String(msg.conversationId)), "chat:message-updated", dto);
+  realtime().emitToUsers(await memberIdsOf(ctx, await getAccessibleConversation(ctx, String(msg.conversationId))), "chat:message-updated", dto);
   return dto;
 }
 
@@ -328,7 +337,7 @@ export async function forwardMessage(ctx: CompanyContext, messageId: string, con
     }
     const dto = await sendMessage(ctx, { conversationId: target, body: source.body as string, attachments: copies });
     await scoped(Message, ctx).updateOne({ _id: oid(dto.id) }, { $set: { forwarded: true } });
-    realtime().emitToRoom(ctx.companyId, conversationRoom(target), "chat:message-updated", { ...dto, forwarded: true });
+    realtime().emitToUsers(await memberIdsOf(ctx, conv), "chat:message-updated", { ...dto, forwarded: true });
     sent.push(target);
   }
   if (sent.length === 0) throw Errors.bad("FORWARD_FAILED", "The message could not be forwarded to any of those chats");
@@ -356,14 +365,15 @@ export async function markDelivered(ctx: CompanyContext, messageIds: string[]) {
   const rows = await scoped(Message, ctx).find({ _id: { $in: ids }, senderId: { $ne: oid(ctx.userId) }, "deliveredTo.userId": { $ne: oid(ctx.userId) } }).select("_id conversationId").lean();
   if (rows.length === 0) return { at: now, conversationIds: [] };
   const allowed: string[] = [];
+  const convById = new Map<string, Conv>();
   for (const convId of [...new Set(rows.map((r) => String(r.conversationId)))]) {
-    try { await getAccessibleConversation(ctx, convId); allowed.push(convId); } catch { /* not ours - skip */ }
+    try { convById.set(convId, await getAccessibleConversation(ctx, convId)); allowed.push(convId); } catch { /* not ours - skip */ }
   }
   const mine = rows.filter((r) => allowed.includes(String(r.conversationId)));
   if (mine.length === 0) return { at: now, conversationIds: [] };
   await scoped(Message, ctx).updateMany({ _id: { $in: mine.map((r) => r._id) } }, { $push: { deliveredTo: { userId: oid(ctx.userId), at: now } } });
   for (const convId of allowed) {
-    realtime().emitToRoom(ctx.companyId, conversationRoom(convId), "chat:delivered", { conversationId: convId, userId: ctx.userId, at: now, messageIds: mine.filter((r) => String(r.conversationId) === convId).map((r) => String(r._id)) });
+    realtime().emitToUsers(await memberIdsOf(ctx, convById.get(convId)!), "chat:delivered", { conversationId: convId, userId: ctx.userId, at: now, messageIds: mine.filter((r) => String(r.conversationId) === convId).map((r) => String(r._id)) });
   }
   return { at: now, conversationIds: allowed };
 }
@@ -377,12 +387,9 @@ export async function markConversationRead(ctx: CompanyContext, conversationId: 
   // Reading implies delivery, so the second tick can never be missing under a blue one.
   await scoped(Message, ctx).updateMany({ conversationId: conv._id, senderId: { $ne: oid(ctx.userId) }, "deliveredTo.userId": { $ne: oid(ctx.userId) } }, { $push: { deliveredTo: { userId: oid(ctx.userId), at: now } } });
   await scoped(Message, ctx).updateMany({ conversationId: conv._id, senderId: { $ne: oid(ctx.userId) }, "readBy.userId": { $ne: oid(ctx.userId) } }, { $push: { readBy: { userId: oid(ctx.userId), at: now } } });
-  const payload = { conversationId: String(conv._id), userId: ctx.userId, name: ctx.name, at: now };
-  realtime().emitToRoom(ctx.companyId, conversationRoom(String(conv._id)), "chat:read", payload);
-  // A73: the conversation room only reaches people with this thread open, so the sender's ticks in
-  // the chat list stayed grey until a reload. Tell every member directly as well - that also clears
-  // the reader's own unread badge in their other tabs.
-  for (const m of await conversationMembers(ctx, conv)) realtime().emitToUser(m.id, "chat:read", payload);
+  // A73/A76: every member hears it, whether or not they have this thread open - that is what keeps
+  // the sender's tick in the chat list correct and clears the reader's badge in their other tabs.
+  realtime().emitToUsers(await memberIdsOf(ctx, conv), "chat:read", { conversationId: String(conv._id), userId: ctx.userId, name: ctx.name, at: now });
   return { at: now };
 }
 
@@ -408,4 +415,15 @@ export async function totalUnread(ctx: CompanyContext) {
 export async function listChatPeople(ctx: CompanyContext) {
   const users = await scoped(User, ctx).find({ archivedAt: null, status: "active", _id: { $ne: oid(ctx.userId) } }).select("name avatarUrl role designation lastActiveAt").sort({ name: 1 }).lean();
   return users.map((u) => ({ id: String(u._id), name: u.name, avatarUrl: (u.avatarUrl as string | null) ?? null, roleLabel: ROLE_LABEL[u.role as keyof typeof ROLE_LABEL] ?? u.role, designation: (u.designation as string | null) ?? null, online: isOnlineUser(String(u._id), u.lastActiveAt as Date | null) }));
+}
+
+/**
+ * Relay a typing indicator to the other people in a conversation (A76). Throttled by the browser;
+ * the membership check here is what stops it being usable to probe other people's conversations.
+ */
+export async function notifyTyping(ctx: CompanyContext, conversationId: string) {
+  const conv = await getAccessibleConversation(ctx, conversationId);
+  const others = (await memberIdsOf(ctx, conv)).filter((id) => id !== ctx.userId);
+  realtime().emitToUsers(others, "chat:typing", { conversationId: String(conv._id), userId: ctx.userId, name: ctx.name, at: Date.now() });
+  return { ok: true };
 }

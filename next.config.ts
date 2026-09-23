@@ -15,7 +15,9 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${imagekit} https://*.razorpay.com`,
   "font-src 'self' data:",
-  "connect-src 'self' ws: wss: https://api.razorpay.com https://lumberjack.razorpay.com",
+  // Ably (A76) needs its realtime socket and its REST/SSE fallback hosts; without them the
+  // browser blocks the connection and chat silently drops back to polling.
+  "connect-src 'self' ws: wss: https://*.ably.net wss://*.ably.net https://*.ably.io wss://*.ably.io https://*.ably-realtime.com wss://*.ably-realtime.com https://api.razorpay.com https://lumberjack.razorpay.com",
   "frame-src https://api.razorpay.com https://checkout.razorpay.com",
   "object-src 'none'",
   "base-uri 'self'",

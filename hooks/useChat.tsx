@@ -40,7 +40,7 @@ interface ThreadState {
 export function useChat(initialConversationId?: string | null) {
   const me = useAuth();
   const rt = useRealtime();
-  const { subscribe, emit, joinRoom, leaveRoom, setMutedConversation, mode } = rt;
+  const { subscribe, setMutedConversation, mode } = rt;
   const [conversations, setConversations] = useState<ConversationRow[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialConversationId ?? null);
   const [thread, setThread] = useState<ThreadState | null>(null);
@@ -95,13 +95,12 @@ export function useChat(initialConversationId?: string | null) {
     })();
     return () => { cancelled = true; };
   }, [activeId, markRead]);
-  // Room membership is separate from fetching: joinRoom queues until the socket is up and is replayed after every reconnect.
+  // A76: there is nothing to join. Conversation events are addressed to the people in them, which
+  // is the one delivery path that works the same on Ably, on Socket.IO and on the polling fallback.
   useEffect(() => {
     setMutedConversation(activeId);
-    if (!activeId) return;
-    joinRoom(activeId);
-    return () => { leaveRoom(activeId); setMutedConversation(null); };
-  }, [activeId, joinRoom, leaveRoom, setMutedConversation]);
+    return () => setMutedConversation(null);
+  }, [activeId, setMutedConversation]);
 
   // Catch-up (A62): anything that arrived while the socket was down is fetched after a reconnect, and a
   // light poll every 15s backstops delivery even if an event is lost. Only messages newer than the last
@@ -265,7 +264,14 @@ export function useChat(initialConversationId?: string | null) {
     if (!activeId || !thread?.hasMore || thread.messages.length === 0) return;
     try { const t = await api<ThreadState>(`/api/chat/conversations/${activeId}/messages?limit=50&before=${thread.messages[0].id}`, { fresh: true }); setThread((cur) => (cur ? { ...cur, messages: [...t.messages, ...cur.messages], hasMore: t.hasMore } : cur)); } catch { /* ignore */ }
   }, [activeId, thread]);
-  const notifyTyping = useCallback(() => { if (!activeId) return; const now = Date.now(); if (now - lastTyping.current > 2000) { lastTyping.current = now; emit("chat:typing", activeId); } }, [activeId, emit]);
+  /** Throttled to once every 2s; the server decides who hears it (A76). */
+  const notifyTyping = useCallback(() => {
+    if (!activeId) return;
+    const now = Date.now();
+    if (now - lastTyping.current <= 2000) return;
+    lastTyping.current = now;
+    void api("/api/chat/typing", { method: "POST", json: { conversationId: activeId } }).catch(() => {});
+  }, [activeId]);
   /** Forward a message into other conversations (A73). Returns how many actually took it. */
   const forward = useCallback(async (messageId: string, conversationIds: string[]) => {
     try {

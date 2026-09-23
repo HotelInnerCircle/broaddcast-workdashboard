@@ -24,6 +24,8 @@ export const env = {
   get SUPERADMIN_PASSWORD() { return process.env.SUPERADMIN_PASSWORD ?? ""; },
   /** Firebase service-account JSON (raw or base64) for FCM push; empty = push disabled. */
   get FIREBASE_SERVICE_ACCOUNT() { return process.env.FIREBASE_SERVICE_ACCOUNT ?? ""; },
+  /** Ably realtime (A76). Empty = fall back to Socket.IO, or to HTTP polling when there is no socket either. */
+  get ABLY_API_KEY() { return process.env.ABLY_API_KEY ?? ""; },
   get RAZORPAY_KEY_ID() { return process.env.RAZORPAY_KEY_ID ?? ""; },
   get RAZORPAY_KEY_SECRET() { return process.env.RAZORPAY_KEY_SECRET ?? ""; },
   get RAZORPAY_WEBHOOK_SECRET() { return process.env.RAZORPAY_WEBHOOK_SECRET ?? ""; },

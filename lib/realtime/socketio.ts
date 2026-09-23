@@ -11,8 +11,9 @@ import type { SessionContext } from "../../types";
 
 /**
  * Socket.IO layer (spec 3.3, 7.6, 10). Sockets authenticate with the same session cookie as HTTP
- * and join company:{id} + user:{id}; conversation rooms are joined only after a membership check.
- * Every emit is addressed to a room inside one company, so nothing can cross tenants.
+ * and join company:{id} + user:{id}. Since A76 those are the only two rooms: conversation traffic
+ * is addressed to the members the server has already resolved, which is the one delivery path that
+ * works the same on Socket.IO and on Ably, and means a DM cannot be subscribed to by an outsider.
  */
 export function attachRealtime(io: SocketIOServer) {
   io.use(async (socket: Socket, next) => {
@@ -31,7 +32,7 @@ export function attachRealtime(io: SocketIOServer) {
   const adapter: RealtimeAdapter = {
     emitToCompany: (companyId, event, payload) => { io.to(rooms.company(companyId)).emit(event, payload); },
     emitToUser: (userId, event, payload) => { io.to(rooms.user(userId)).emit(event, payload); },
-    emitToRoom: (companyId, room, event, payload) => { io.to(rooms.scoped(companyId, room)).emit(event, payload); },
+    emitToUsers: (userIds, event, payload) => { for (const id of new Set(userIds)) io.to(rooms.user(id)).emit(event, payload); },
   };
   registerRealtime(adapter);
 
@@ -48,29 +49,6 @@ export function attachRealtime(io: SocketIOServer) {
     /** Client sends this every 30s (spec 7.6). */
     socket.on("presence:heartbeat", () => {
       if (presence.heartbeat(ctx.userId, ctx.companyId)) announce(ctx, true);
-    });
-
-    /** Join a conversation room after a server-side membership check; cross-tenant ids are simply not found. */
-    socket.on("chat:join", async (conversationId: unknown, ack?: (ok: boolean) => void) => {
-      try {
-        if (!ctx.companyId || typeof conversationId !== "string") throw new Error("bad request");
-        const { getAccessibleConversation } = await import("../../services/chatService");
-        await getAccessibleConversation(ctx as SessionContext & { companyId: string }, conversationId);
-        socket.join(rooms.scoped(ctx.companyId, `conversation:${conversationId}`));
-        ack?.(true);
-      } catch {
-        ack?.(false);
-      }
-    });
-    socket.on("chat:leave", (conversationId: unknown) => {
-      if (ctx.companyId && typeof conversationId === "string") socket.leave(rooms.scoped(ctx.companyId, `conversation:${conversationId}`));
-    });
-    /** Typing indicator relayed only inside a room the socket has joined. */
-    socket.on("chat:typing", (conversationId: unknown) => {
-      if (!ctx.companyId || typeof conversationId !== "string") return;
-      const room = rooms.scoped(ctx.companyId, `conversation:${conversationId}`);
-      if (!socket.rooms.has(room)) return;
-      socket.to(room).emit("chat:typing", { conversationId, userId: ctx.userId, name: ctx.name, at: Date.now() });
     });
 
     socket.on("disconnect", () => {
