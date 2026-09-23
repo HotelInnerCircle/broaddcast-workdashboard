@@ -5,6 +5,7 @@ import { api, ClientApiError } from "@/lib/api/client";
 import { showLimitError } from "@/lib/api/limit-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
+import { playMessageChime, showDesktopAlert } from "@/lib/chat-sound";
 
 export interface ChatAttachment { id: string; name: string; size: number; mime: string; width: number | null; height: number | null; url: string; downloadUrl: string }
 export interface Receipt { userId: string; at: string }
@@ -39,7 +40,7 @@ interface ThreadState {
 export function useChat(initialConversationId?: string | null) {
   const me = useAuth();
   const rt = useRealtime();
-  const { subscribe, emit, joinRoom, leaveRoom, setMutedConversation } = rt;
+  const { subscribe, emit, joinRoom, leaveRoom, setMutedConversation, mode } = rt;
   const [conversations, setConversations] = useState<ConversationRow[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialConversationId ?? null);
   const [thread, setThread] = useState<ThreadState | null>(null);
@@ -47,11 +48,30 @@ export function useChat(initialConversationId?: string | null) {
   const [typing, setTyping] = useState<Record<string, { name: string; at: number }>>({});
   const [reads, setReads] = useState<Record<string, string>>({});
   const activeRef = useRef(activeId); activeRef.current = activeId;
+  const modeRef = useRef(mode); modeRef.current = mode;
   const lastTyping = useRef(0);
   /** Message ids already confirmed as delivered this session, so the ack fires once each. */
   const acked = useRef<Set<string>>(new Set());
 
-  const loadConversations = useCallback(async () => { try { setConversations(await api<ConversationRow[]>("/api/chat/conversations")); } catch { setConversations([]); } }, []);
+  /** Unread per conversation at the last refresh, to spot arrivals found by polling (A75). */
+  const lastUnread = useRef<Map<string, number> | null>(null);
+  const loadConversations = useCallback(async () => {
+    try {
+      const rows = await api<ConversationRow[]>("/api/chat/conversations");
+      // With no socket nothing announces a new message, so the poll has to. Anything whose unread
+      // count went up since the last look gets the same chime and banner a pushed message would.
+      const before = lastUnread.current;
+      if (before && modeRef.current === "http") {
+        const arrived = rows.find((r) => r.unread > (before.get(r.id) ?? 0) && r.id !== activeRef.current);
+        if (arrived) {
+          playMessageChime();
+          showDesktopAlert(arrived.lastMessageSender ?? arrived.name.replace(/^# /, ""), arrived.lastMessagePreview ?? "New message");
+        }
+      }
+      lastUnread.current = new Map(rows.map((r) => [r.id, r.unread]));
+      setConversations(rows);
+    } catch { setConversations([]); }
+  }, []);
   useEffect(() => { void loadConversations(); }, [loadConversations]);
 
   const markRead = useCallback(async (id: string) => {
@@ -104,11 +124,26 @@ export function useChat(initialConversationId?: string | null) {
   }, []);
   useEffect(() => {
     const off = subscribe("realtime:reconnected", () => { void catchUp(); void loadConversations(); });
-    const poll = setInterval(() => { if (document.visibilityState === "visible") void catchUp(); }, 15_000);
+    // A75: with a socket, this is only a backstop for a lost event. Without one it is how messages
+    // arrive at all, so it runs far more often - and it also refreshes the list, since nothing else will.
+    const everyMs = mode === "http" ? 4_000 : 15_000;
+    let ticks = 0;
+    const poll = setInterval(() => {
+      ticks++;
+      if (document.visibilityState === "visible") {
+        void catchUp();
+        if (mode === "http" && ticks % 3 === 0) void loadConversations();
+        return;
+      }
+      // A background tab needs no polling when a socket can push to it. With no socket it still
+      // needs a slow watch, or a message arriving while the tab is behind another would never
+      // chime or raise a banner - which is exactly when you want it to.
+      if (mode === "http" && ticks % 4 === 0) void loadConversations();
+    }, everyMs);
     const onVisible = () => { if (document.visibilityState === "visible") void catchUp(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => { off(); clearInterval(poll); document.removeEventListener("visibilitychange", onVisible); };
-  }, [subscribe, catchUp, loadConversations]);
+  }, [subscribe, catchUp, loadConversations, mode]);
 
   // Realtime: new/updated messages, typing, delivery and read receipts, presence, list refresh on activity.
   useEffect(() => {
