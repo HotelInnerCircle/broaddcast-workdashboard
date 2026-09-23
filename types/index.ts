@@ -85,5 +85,5 @@ export type Presence = "working" | "break" | "online" | "offline";
 export const NOTIFICATION_TYPES = ["TASK_ASSIGNED", "TASK_COMPLETED", "TASK_OVERDUE", "TASK_COMMENT", "MENTION", "MESSAGE", "PROJECT_UPDATE", "DEADLINE", "TIMER", "ANNOUNCEMENT"] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
-export const CONVERSATION_TYPES = ["dm", "team", "project"] as const;
+export const CONVERSATION_TYPES = ["dm", "team", "project", "channel"] as const;
 export type ConversationType = (typeof CONVERSATION_TYPES)[number];

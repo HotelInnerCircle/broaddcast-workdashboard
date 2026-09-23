@@ -46,7 +46,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     liveStatus: g(["view"], "company"),
     timer: g(["view", "create", "update"], "own"),
     attendance: g(["view", "create", "update"], "company"),
-    chat: g(["view", "create"], "company"),
+    chat: g(["view", "create", "manage"], "company"), // manage = create/edit channels (A72)
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view", "create"], "company"),
     auditLog: g(["view"], "company"),
@@ -62,7 +62,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     liveStatus: g(["view"], "scope"),
     timer: g(["view", "create", "update"], "own"),
     attendance: g(["view", "create", "update"], "scope"),
-    chat: g(["view", "create"], "company"),
+    chat: g(["view", "create", "manage"], "company"), // manage = create/edit channels (A72)
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view", "create"], "company"),
     roles: g(["view"], "company"),
@@ -77,7 +77,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     liveStatus: g(["view"], "team"),
     timer: g(["view", "create", "update"], "own"),
     attendance: g(["view", "create"], "own"),
-    chat: g(["view", "create"], "company"),
+    chat: g(["view", "create", "manage"], "company"), // manage = create/edit channels for their team (A72)
     announcements: g(["view"], "company"),
     dailyReports: g(["view", "create"], "team"),
     roles: g(["view"], "company"),

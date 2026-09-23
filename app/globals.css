@@ -275,3 +275,26 @@
   .animate-in { animation: fade-in 0.2s ease-out; }
   @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 }
+
+@layer components {
+  /**
+   * Chat (A72). A very faint warm weave behind the thread separates the conversation from the rest
+   * of the page the way WhatsApp's wallpaper does, without competing with the bubbles.
+   */
+  .chat-wallpaper {
+    background-color: var(--background);
+    background-image:
+      radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--foreground) 5%, transparent) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .dark .chat-wallpaper {
+    background-image: radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--foreground) 8%, transparent) 1px, transparent 0);
+  }
+  /* The three-dot "typing" bubble. */
+  .typing-dot { animation: chat-typing 1.1s ease-in-out infinite; }
+  @keyframes chat-typing {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-2px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .typing-dot { animation: none; opacity: 0.6; } }
+}

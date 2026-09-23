@@ -2,7 +2,11 @@ import { Schema, Types, model, models, type InferSchemaType, type Model } from "
 import { tenantGuardPlugin } from "@/lib/db/tenant-plugin";
 import { CONVERSATION_TYPES } from "@/types";
 
-/** Chat conversations (spec 12.15): direct messages, team channels, project channels. */
+/**
+ * Chat conversations (spec 12.15): direct messages, automatic team and project channels, and
+ * `channel` - a named channel a Team Lead creates and manages by hand (A72). A channel carries its
+ * own `name`, `description` and explicit `participantIds`; only its members can see it.
+ */
 const ConversationSchema = new Schema(
   {
     type: { type: String, enum: CONVERSATION_TYPES, required: true },
@@ -11,6 +15,10 @@ const ConversationSchema = new Schema(
     dmKey: { type: String, default: null },
     teamId: { type: Schema.Types.ObjectId, ref: "Team", default: null },
     projectId: { type: Schema.Types.ObjectId, ref: "Project", default: null },
+    /** Channels only (A72). */
+    name: { type: String, default: null, trim: true, maxlength: 60 },
+    description: { type: String, default: null, trim: true, maxlength: 280 },
+    archivedAt: { type: Date, default: null },
     lastMessageAt: { type: Date, default: null },
     lastMessagePreview: { type: String, default: null },
     lastMessageSenderId: { type: Schema.Types.ObjectId, ref: "User", default: null },

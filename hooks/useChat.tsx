@@ -6,14 +6,33 @@ import { showLimitError } from "@/lib/api/limit-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
 
-export interface ConversationRow { id: string; type: "dm" | "team" | "project"; name: string; teamId: string | null; projectId: string | null; avatarUrl: string | null; otherUserId: string | null; online: boolean | null; lastMessageAt: string | null; lastMessagePreview: string | null; lastMessageSender: string | null; unread: number }
-export interface ChatMessage { id: string; conversationId: string; /** Optimistic local message not yet confirmed by the server (A62). */ pending?: boolean; failed?: boolean; sender: { id: string; name: string; avatarUrl: string | null } | null; senderId: string; body: string; deleted: boolean; attachments: { id: string; name: string; size: number; mime: string; url: string }[]; mentions: string[]; replyTo: { id: string; body: string; sender: string | null } | null; editedAt: string | null; createdAt: string }
+export interface ChatAttachment { id: string; name: string; size: number; mime: string; width: number | null; height: number | null; url: string; downloadUrl: string }
+export interface Receipt { userId: string; at: string }
+export interface ConversationRow {
+  id: string; type: "dm" | "team" | "project" | "channel"; name: string; description: string | null; teamId: string | null; projectId: string | null;
+  avatarUrl: string | null; otherUserId: string | null; online: boolean | null; memberCount: number | null; canManage: boolean;
+  lastMessageAt: string | null; lastMessagePreview: string | null; lastMessageSender: string | null; lastMessageSenderId: string | null; lastMessageRead: boolean | null; unread: number;
+}
+export interface ChatMessage {
+  id: string; conversationId: string;
+  /** Optimistic local message not yet confirmed by the server (A62). */
+  pending?: boolean; failed?: boolean;
+  sender: { id: string; name: string; avatarUrl: string | null } | null; senderId: string;
+  body: string; deleted: boolean; attachments: ChatAttachment[]; mentions: string[];
+  replyTo: { id: string; body: string; sender: string | null; attachmentCount: number } | null;
+  /** Tick state (A72): who has received the message, and who has opened the conversation since. */
+  deliveredTo: Receipt[]; readBy: Receipt[];
+  editedAt: string | null; createdAt: string;
+}
 export interface Member { id: string; name: string; avatarUrl: string | null; role: string; online: boolean }
-interface Thread { conversation: { id: string; type: string; reads: { userId: string; at: string }[] }; members: Member[]; messages: ChatMessage[]; hasMore: boolean }
+interface ThreadState {
+  conversation: { id: string; type: string; name: string | null; description: string | null; ownerId: string | null; canManage: boolean; archived?: boolean; reads: Receipt[] };
+  members: Member[]; messages: ChatMessage[]; hasMore: boolean;
+}
 
 /**
  * Chat state (spec 12.15): conversation list with unread counts, the open thread, socket room
- * membership, typing indicators, read receipts, send/edit/delete and attachments.
+ * membership, typing indicators, delivery and read receipts, send/edit/delete and attachments.
  */
 export function useChat(initialConversationId?: string | null) {
   const me = useAuth();
@@ -21,12 +40,14 @@ export function useChat(initialConversationId?: string | null) {
   const { subscribe, emit, joinRoom, leaveRoom } = rt;
   const [conversations, setConversations] = useState<ConversationRow[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(initialConversationId ?? null);
-  const [thread, setThread] = useState<Thread | null>(null);
+  const [thread, setThread] = useState<ThreadState | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const [typing, setTyping] = useState<Record<string, { name: string; at: number }>>({});
   const [reads, setReads] = useState<Record<string, string>>({});
   const activeRef = useRef(activeId); activeRef.current = activeId;
   const lastTyping = useRef(0);
+  /** Message ids already confirmed as delivered this session, so the ack fires once each. */
+  const acked = useRef<Set<string>>(new Set());
 
   const loadConversations = useCallback(async () => { try { setConversations(await api<ConversationRow[]>("/api/chat/conversations")); } catch { setConversations([]); } }, []);
   useEffect(() => { void loadConversations(); }, [loadConversations]);
@@ -42,7 +63,7 @@ export function useChat(initialConversationId?: string | null) {
     setLoadingThread(true);
     (async () => {
       try {
-        const t = await api<Thread>(`/api/chat/conversations/${activeId}/messages?limit=50`);
+        const t = await api<ThreadState>(`/api/chat/conversations/${activeId}/messages?limit=50`);
         if (cancelled) return;
         setThread(t);
         setReads(Object.fromEntries(t.conversation.reads.map((r) => [r.userId, r.at])));
@@ -66,14 +87,14 @@ export function useChat(initialConversationId?: string | null) {
     const id = activeRef.current;
     if (!id) return;
     try {
-      const t = await api<Thread>(`/api/chat/conversations/${id}/messages?limit=50`, { fresh: true });
+      const t = await api<ThreadState>(`/api/chat/conversations/${id}/messages?limit=50`, { fresh: true });
       if (activeRef.current !== id) return;
       setThread((cur) => {
         if (!cur) return t;
         const known = new Set(cur.messages.filter((m) => !m.pending).map((m) => m.id));
         const fresh = t.messages.filter((m) => !known.has(m.id));
         const updated = cur.messages.map((m) => t.messages.find((x) => x.id === m.id) ?? m);
-        return fresh.length || updated.some((m, i) => m !== cur.messages[i]) ? { ...cur, members: t.members, messages: [...updated, ...fresh].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) } : cur;
+        return fresh.length || updated.some((m, i) => m !== cur.messages[i]) ? { ...cur, conversation: t.conversation, members: t.members, messages: [...updated, ...fresh].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) } : cur;
       });
       setReads(Object.fromEntries(t.conversation.reads.map((r) => [r.userId, r.at])));
     } catch { /* keep what we have */ }
@@ -86,7 +107,7 @@ export function useChat(initialConversationId?: string | null) {
     return () => { off(); clearInterval(poll); document.removeEventListener("visibilitychange", onVisible); };
   }, [subscribe, catchUp, loadConversations]);
 
-  // Realtime: new/updated messages, typing, read receipts, presence, and list refresh on activity.
+  // Realtime: new/updated messages, typing, delivery and read receipts, presence, list refresh on activity.
   useEffect(() => {
     const offMsg = subscribe("chat:message", (p) => {
       const m = p as ChatMessage;
@@ -103,21 +124,51 @@ export function useChat(initialConversationId?: string | null) {
     });
     const offUpd = subscribe("chat:message-updated", (p) => { const m = p as ChatMessage; setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === m.id ? m : x)) } : t)); });
     const offTyping = subscribe("chat:typing", (p) => { const t = p as { conversationId: string; userId: string; name: string; at: number }; if (t.conversationId === activeRef.current && t.userId !== me.userId) setTyping((ty) => ({ ...ty, [t.userId]: { name: t.name, at: Date.now() } })); });
-    const offRead = subscribe("chat:read", (p) => { const r = p as { conversationId: string; userId: string; at: string }; if (r.conversationId === activeRef.current) setReads((rs) => ({ ...rs, [r.userId]: r.at })); });
+    // Second tick: stamp deliveredTo on the messages the recipient has just acknowledged.
+    const offDelivered = subscribe("chat:delivered", (p) => {
+      const d = p as { conversationId: string; userId: string; at: string; messageIds: string[] };
+      if (d.conversationId !== activeRef.current) return;
+      const ids = new Set(d.messageIds);
+      setThread((t) => (t ? { ...t, messages: t.messages.map((m) => (ids.has(m.id) && !m.deliveredTo.some((x) => x.userId === d.userId) ? { ...m, deliveredTo: [...m.deliveredTo, { userId: d.userId, at: d.at }] } : m)) } : t));
+    });
+    // Blue ticks: their read cursor moved, so everything of ours up to that moment is read.
+    const offRead = subscribe("chat:read", (p) => {
+      const r = p as { conversationId: string; userId: string; at: string };
+      if (r.conversationId !== activeRef.current) return;
+      setReads((rs) => ({ ...rs, [r.userId]: r.at }));
+      setThread((t) => (t ? {
+        ...t,
+        conversation: { ...t.conversation, reads: [...t.conversation.reads.filter((x) => x.userId !== r.userId), { userId: r.userId, at: r.at }] },
+        messages: t.messages.map((m) => (m.senderId !== r.userId && new Date(m.createdAt) <= new Date(r.at) && !m.readBy.some((x) => x.userId === r.userId)
+          ? { ...m, deliveredTo: m.deliveredTo.some((x) => x.userId === r.userId) ? m.deliveredTo : [...m.deliveredTo, { userId: r.userId, at: r.at }], readBy: [...m.readBy, { userId: r.userId, at: r.at }] }
+          : m)),
+      } : t));
+    });
     const offActivity = subscribe("chat:activity", () => void loadConversations());
+    const offConv = subscribe("chat:conversation-updated", () => { void loadConversations(); void catchUp(); });
     const offPresence = subscribe("presence:update", (p) => {
       const u = p as { userId: string; online: boolean };
       setConversations((cs) => cs?.map((c) => (c.otherUserId === u.userId ? { ...c, online: u.online } : c)) ?? cs);
       setThread((t) => (t ? { ...t, members: t.members.map((m) => (m.id === u.userId ? { ...m, online: u.online } : m)) } : t));
     });
     const sweep = setInterval(() => setTyping((ty) => Object.fromEntries(Object.entries(ty).filter(([, v]) => Date.now() - v.at < 4000))), 1500);
-    return () => { offMsg(); offUpd(); offTyping(); offRead(); offActivity(); offPresence(); clearInterval(sweep); };
-  }, [subscribe, me.userId, markRead, loadConversations]);
+    return () => { offMsg(); offUpd(); offTyping(); offDelivered(); offRead(); offActivity(); offConv(); offPresence(); clearInterval(sweep); };
+  }, [subscribe, me.userId, markRead, loadConversations, catchUp]);
+
+  /** Tell the server we have these messages on screen - this is what turns one tick into two (A72). */
+  const confirmDelivered = useCallback(async (messageIds: string[]) => {
+    const fresh = messageIds.filter((id) => !id.startsWith("tmp-") && !acked.current.has(id));
+    if (fresh.length === 0) return;
+    fresh.forEach((id) => acked.current.add(id));
+    try { await api("/api/chat/delivered", { method: "POST", json: { messageIds: fresh } }); }
+    catch { fresh.forEach((id) => acked.current.delete(id)); }
+  }, []);
 
   const send = useCallback(async (body: string, opts: { mentions?: string[]; replyTo?: string | null } = {}) => {
     if (!activeId) return false;
     const tempId = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const optimistic: ChatMessage = { id: tempId, conversationId: activeId, sender: { id: me.userId, name: me.name, avatarUrl: me.avatarUrl ?? null }, senderId: me.userId, body, deleted: false, attachments: [], mentions: opts.mentions ?? [], replyTo: null, editedAt: null, createdAt: new Date().toISOString(), pending: true };
+    const now = new Date().toISOString();
+    const optimistic: ChatMessage = { id: tempId, conversationId: activeId, sender: { id: me.userId, name: me.name, avatarUrl: me.avatarUrl ?? null }, senderId: me.userId, body, deleted: false, attachments: [], mentions: opts.mentions ?? [], replyTo: null, deliveredTo: [{ userId: me.userId, at: now }], readBy: [{ userId: me.userId, at: now }], editedAt: null, createdAt: now, pending: true };
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t));
     try {
       const m = await api<ChatMessage>("/api/chat/messages", { method: "POST", json: { conversationId: activeId, body, mentions: opts.mentions ?? [], replyTo: opts.replyTo ?? null } });
@@ -135,21 +186,34 @@ export function useChat(initialConversationId?: string | null) {
     }
   }, [activeId, loadConversations, me.userId, me.name, me.avatarUrl]);
 
-  const sendFile = useCallback(async (file: File, body = "") => {
-    if (!activeId) return;
-    const fd = new FormData(); fd.append("file", file); fd.append("body", body);
-    try { const m = await api<ChatMessage>(`/api/chat/conversations/${activeId}/attachments`, { method: "POST", body: fd }); setThread((t) => (t && !t.messages.some((x) => x.id === m.id) ? { ...t, messages: [...t.messages, m] } : t)); void loadConversations(); }
-    catch (e) { if (!showLimitError(e)) toast.error(e instanceof ClientApiError ? e.message : "Upload failed"); }
+  /** Several photos or documents plus an optional caption, sent as one message (A72). */
+  const sendFiles = useCallback(async (files: File[], body = "", replyTo: string | null = null) => {
+    if (!activeId || files.length === 0) return false;
+    const fd = new FormData();
+    for (const f of files) fd.append("files", f);
+    fd.append("body", body);
+    if (replyTo) fd.append("replyTo", replyTo);
+    try {
+      const m = await api<ChatMessage>(`/api/chat/conversations/${activeId}/attachments`, { method: "POST", body: fd });
+      setThread((t) => (t && !t.messages.some((x) => x.id === m.id) ? { ...t, messages: [...t.messages, m] } : t));
+      void loadConversations();
+      return true;
+    } catch (e) {
+      if (!showLimitError(e)) toast.error(e instanceof ClientApiError ? e.message : "Upload failed");
+      return false;
+    }
   }, [activeId, loadConversations]);
+  /** Single-file convenience kept for older callers. */
+  const sendFile = useCallback((file: File, body = "") => sendFiles([file], body), [sendFiles]);
 
   const edit = useCallback(async (id: string, body: string) => { try { const m = await api<ChatMessage>(`/api/chat/messages/${id}`, { method: "PATCH", json: { body } }); setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === id ? m : x)) } : t)); } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not edit"); } }, []);
   const remove = useCallback(async (id: string) => { try { const m = await api<ChatMessage>(`/api/chat/messages/${id}`, { method: "DELETE" }); setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === id ? m : x)) } : t)); } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not delete"); } }, []);
   const loadMore = useCallback(async () => {
     if (!activeId || !thread?.hasMore || thread.messages.length === 0) return;
-    try { const t = await api<Thread>(`/api/chat/conversations/${activeId}/messages?limit=50&before=${thread.messages[0].id}`, { fresh: true }); setThread((cur) => (cur ? { ...cur, messages: [...t.messages, ...cur.messages], hasMore: t.hasMore } : cur)); } catch { /* ignore */ }
+    try { const t = await api<ThreadState>(`/api/chat/conversations/${activeId}/messages?limit=50&before=${thread.messages[0].id}`, { fresh: true }); setThread((cur) => (cur ? { ...cur, messages: [...t.messages, ...cur.messages], hasMore: t.hasMore } : cur)); } catch { /* ignore */ }
   }, [activeId, thread]);
   const notifyTyping = useCallback(() => { if (!activeId) return; const now = Date.now(); if (now - lastTyping.current > 2000) { lastTyping.current = now; emit("chat:typing", activeId); } }, [activeId, emit]);
   const openDm = useCallback(async (userId: string) => { try { const r = await api<{ id: string }>("/api/chat/conversations", { method: "POST", json: { userId } }); await loadConversations(); setActiveId(r.id); } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not open chat"); } }, [loadConversations]);
 
-  return { me, conversations, activeId, setActiveId, thread, loadingThread, typing, reads, send, sendFile, edit, remove, loadMore, notifyTyping, openDm, reloadConversations: loadConversations };
+  return { me, conversations, activeId, setActiveId, thread, loadingThread, typing, reads, send, sendFile, sendFiles, confirmDelivered, edit, remove, loadMore, notifyTyping, openDm, reloadConversations: loadConversations };
 }

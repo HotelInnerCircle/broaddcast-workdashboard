@@ -4,7 +4,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useChat } from "@/hooks/useChat";
-import { ConversationList } from "./chat-view";
+import { ConversationList } from "./conversation-list";
 import { Thread } from "./thread";
 
 /** Dashboard chat widget (spec 12.15): reply without leaving the dashboard. */
