@@ -7,6 +7,7 @@ import { workKpis } from "@/services/dashboardService";
 import { ProjectStatusBadge } from "@/components/ui/status-badge";
 import { Greeting } from "@/components/dashboard/greeting";
 import { MobileHome } from "@/components/dashboard/mobile-home";
+import { QuickTiles, type LauncherTile } from "@/components/dashboard/tiles";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { ActivityList } from "@/components/dashboard/activity-list";
 import { ComingSoon } from "@/components/dashboard/coming-soon";
@@ -21,25 +22,30 @@ export default async function AdminDashboardPage() {
   await connectDB();
   const [stats, kpi] = await Promise.all([adminDashboardStats(ctx), workKpis(ctx)]);
   const limit = stats.usage.plan?.limits?.users ?? null;
+  // A81: the launcher, filtered by role and menu visibility inside the tile components.
+  const tiles: LauncherTile[] = [
+    { href: "/employees", label: "People", icon: "people", tone: "work", hint: `${stats.headcount} people${limit ? ` of ${limit}` : ""}` },
+    { href: "/teams", label: "Teams", icon: "teams", tone: "work-2", hint: "who reports to whom" },
+    { href: "/clients", label: "Clients", icon: "clients", tone: "work-3", hint: "and their services" },
+    { href: "/projects", label: "Projects", icon: "projects", tone: "time-2", hint: `${kpi.projects.active} active` },
+    { href: "/tasks", label: "Tasks", icon: "tasks", tone: "time", badge: kpi.tasks.overdue, hint: `${kpi.tasks.pending} open` },
+    { href: "/attendance", label: "Attendance", icon: "attendance", tone: "time-3", hint: `${stats.activeToday} active today` },
+    { href: "/reports/daily", label: "Daily reports", icon: "report", tone: "admin", hint: "what everyone did" },
+    { href: "/reports", label: "Reports", icon: "reports", tone: "admin-2", hint: "hours and output" },
+    { href: "/chat", label: "Chat", icon: "chat", tone: "muted", hint: "your team" },
+    { href: "/settings", label: "Settings", icon: "settings", tone: "muted", hint: "company setup" },
+  ];
 
   return (
     <>
       <MobileHome
-        greeting={`Hi, ${ctx.name.split(" ")[0]}`}
-        stats={[
-          { label: "Headcount", value: String(stats.headcount), hint: `${stats.activeToday} active today` },
-          { label: "Overdue", value: String(kpi.tasks.overdue), hint: `${kpi.projects.active} active projects`, tone: kpi.tasks.overdue > 0 ? "danger" : undefined },
-        ]}
-        items={[
-          { id: "employees", href: "/employees", title: "Employees", meta: `${stats.headcount} people${limit ? ` of ${limit} seats` : ""}`, tone: "info" as const },
-          { id: "projects", href: "/projects", title: "Projects", meta: `${kpi.projects.active} active, ${kpi.projects.total} total`, tone: "muted" as const },
-          { id: "reports", href: "/reports", title: "Reports", meta: "Hours, tasks, attendance", tone: "success" as const },
-        ]}
-        itemsTitle="Manage"
-        itemsHref="/employees"
+        tiles={tiles}
+        timezone={ctx.company!.timezone}
+        alert={kpi.tasks.overdue > 0 ? { href: "/tasks", text: `${kpi.tasks.overdue} task${kpi.tasks.overdue === 1 ? "" : "s"} overdue across the company`, tone: "danger" } : null}
       />
       <div className="hidden md:block">
       <Greeting name={ctx.name} timezone={ctx.company!.timezone} subtitle={ctx.company!.name} />
+      <QuickTiles tiles={tiles} className="mb-6 mt-5" />
       {!ctx.company!.setupCompleted && <SetupBanner />}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatsCard label="Headcount" value={stats.headcount} hint="active accounts" icon={Users} />

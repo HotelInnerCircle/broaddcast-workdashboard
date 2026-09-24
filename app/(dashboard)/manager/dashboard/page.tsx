@@ -4,7 +4,9 @@ import { requirePageRole, type CompanyContext } from "@/lib/auth/context";
 import { connectDB } from "@/lib/db/connect";
 import { scopeCounts, teamStatusRows, workKpis } from "@/services/dashboardService";
 import { Greeting } from "@/components/dashboard/greeting";
-import { MobileHome, type MobileItem } from "@/components/dashboard/mobile-home";
+import { MobileHome } from "@/components/dashboard/mobile-home";
+import { DayHero } from "@/components/dashboard/day-hero";
+import { QuickTiles, type LauncherTile } from "@/components/dashboard/tiles";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { LiveStatus } from "@/components/dashboard/live-status";
 import { LiveActivity } from "@/components/dashboard/live-activity";
@@ -27,22 +29,30 @@ export default async function ManagerDashboardPage() {
   const online = rows.filter((r) => r.presence === "online").length;
   const overdue = JSON.parse(JSON.stringify((await listTasks(ctx, { overdue: "true", page: 1, limit: 8, sort: "dueDate" })).data));
 
-  const mobileItems: MobileItem[] = (overdue as { id: string; title: string; project?: { name?: string } | null; assignee?: { name?: string } | null }[]).slice(0, 5)
-    .map((t) => ({ id: t.id, href: `/tasks/${t.id}`, title: t.title, meta: [t.project?.name, t.assignee?.name].filter(Boolean).join(" \u00b7 "), tone: "danger" as const, badge: "late" }));
+  // A81: one launcher list for both the phone grid and the desktop row.
+  const managerTiles: LauncherTile[] = [
+    { href: "/employees", label: "People", icon: "people", tone: "work", hint: `${working} working, ${online} online` },
+    { href: "/tasks", label: "Tasks", icon: "tasks", tone: "work-2", badge: kpi.tasks.overdue, hint: `${kpi.tasks.pending} open` },
+    { href: "/projects", label: "Projects", icon: "projects", tone: "work-3", hint: `${kpi.projects.active} active` },
+    { href: "/clients", label: "Clients", icon: "clients", tone: "time-2", hint: "yours and shared" },
+    { href: "/timer", label: "Timer", icon: "timer", tone: "time", hint: "track your own time" },
+    { href: "/attendance", label: "Attendance", icon: "attendance", tone: "time-3", hint: "who is in today" },
+    { href: "/reports/daily", label: "Daily reports", icon: "report", tone: "admin", hint: "what your people did" },
+    { href: "/reports", label: "Reports", icon: "reports", tone: "admin-2", hint: "hours and output" },
+    { href: "/chat", label: "Chat", icon: "chat", tone: "muted", hint: "your team" },
+  ];
 
   return (
     <>
       <MobileHome
-        greeting={`Hi, ${ctx.name.split(" ")[0]}`}
-        stats={[
-          { label: "Working now", value: `${working}/${rows.length}`, hint: `${onBreak} on break, ${online} online` },
-          { label: "Overdue", value: String(kpi.tasks.overdue), hint: `${kpi.tasks.pending} pending`, tone: kpi.tasks.overdue > 0 ? "danger" : undefined },
-        ]}
-        items={mobileItems}
-        itemsTitle="Needs attention"
+        tiles={managerTiles}
+        timezone={ctx.company!.timezone}
+        alert={kpi.tasks.overdue > 0 ? { href: "/tasks", text: `${kpi.tasks.overdue} task${kpi.tasks.overdue === 1 ? "" : "s"} overdue in your scope`, tone: "danger" } : null}
       />
       <div className="hidden md:block">
       <Greeting name={ctx.name} timezone={ctx.company!.timezone} />
+      <div className="mb-4 mt-5"><DayHero /></div>
+      <QuickTiles tiles={managerTiles} className="mb-6" />
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         <StatsCard label="Total employees" value={counts.total} hint="in your scope" icon={Users} />
         <StatsCard label="Currently working" value={working} hint="timer running" icon={Activity} tone="success" />

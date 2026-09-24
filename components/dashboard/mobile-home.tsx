@@ -1,136 +1,163 @@
 "use client";
 import Link from "next/link";
-import { Coffee, LogIn, LogOut, Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
+import { ChevronRight, Coffee, LogIn, LogOut, Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTimer, formatHMS, formatHM } from "@/hooks/useTimer";
 import { entryHref, entrySubtitle, entryTitle } from "@/components/timer/mini-timer";
+import { formatDate } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
+import { TILE_FILL, TILE_ICONS, TileBadge, visibleTiles, type LauncherTile } from "./tiles";
 
-export interface MobileStat { label: string; value: string; hint?: string; progress?: number; tone?: "default" | "danger" | "success" }
-export interface MobileItem { id: string; href: string; title: string; meta: string; tone: "danger" | "info" | "success" | "muted"; badge?: string }
-
-const TONE: Record<MobileItem["tone"], string> = {
-  danger: "bg-danger-soft text-danger",
-  info: "bg-info-soft text-info",
-  success: "bg-success-soft text-success",
-  muted: "bg-muted text-muted-foreground",
-};
+/** One line under the grid: what is wrong today, or nothing at all. */
+export interface MobileAlert { href: string; text: string; tone: "danger" | "warning" }
 
 /**
- * Mobile home screen ("Focus" direction, A66): a dark rounded hero owned by the running timer,
- * two soft stat sheets, then an "up next" list. Phones only - `md:hidden` in the pages that use it,
- * where the existing desktop dashboard is unchanged. All timer state comes from the shared
- * `useTimer` context, so start/pause/stop behave exactly as elsewhere.
+ * Phone home (A81): the launcher direction the owner picked - a cocoa header carrying the
+ * greeting, the running timer lifted over it as a card, then a grid of tiles and one line saying
+ * whether anything needs attention. Phones only (`md:hidden`); the desktop dashboard is separate.
+ *
+ * Every piece of timer and attendance state comes from the shared `useTimer` context, so start,
+ * pause, break, clock in and clock out behave exactly as they do everywhere else.
  */
-export function MobileHome({ greeting, stats, items, itemsTitle = "Up next", itemsHref = "/tasks" }: { greeting: string; stats: MobileStat[]; items: MobileItem[]; itemsTitle?: string; itemsHref?: string }) {
+export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; alert?: MobileAlert | null; timezone?: string }) {
   const me = useAuth();
   const t = useTimer();
   const running = t.entry?.status === "RUNNING";
   const onBreak = Boolean(t.break);
   const att = t.summary?.attendance ?? null;
   const clockedIn = Boolean(att?.clockIn && !att.clockOut);
+  const initials = me.name.split(" ").map((p) => p[0]).slice(0, 2).join("");
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="md:hidden">
-      {/* Hero: full-bleed within the page padding, rounded at the bottom */}
-      <div className="relative -mx-4 -mt-5 overflow-hidden rounded-b-[30px] bg-sidebar px-5 pb-7 pt-5 text-white">
-        <span aria-hidden className="pointer-events-none absolute -right-14 -top-16 size-56 rounded-full bg-primary opacity-20" />
+      {/* Header: full-bleed inside the page padding */}
+      <div className="relative -mx-4 -mt-5 overflow-hidden bg-[#7a4e33] px-5 pb-20 pt-4 text-white">
+        <span aria-hidden className="pointer-events-none absolute -right-20 -top-28 size-72 rounded-full bg-white/[0.07]" />
+        <span aria-hidden className="pointer-events-none absolute -bottom-28 -left-16 size-60 rounded-full bg-white/[0.05]" />
 
-        <div className="relative flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-bold">
-            {me.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold">{greeting}</p>
-            <p className="truncate text-[11px] text-white/60">{me.company?.name ?? ""}</p>
+        <div className="relative mt-1 flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xl font-bold leading-tight">Hi {me.name.split(" ")[0]}</p>
+            <p className="mt-0.5 truncate text-[12.5px] text-white/75">{me.company?.name ?? ""}</p>
+            <p className="mt-2.5 font-display text-[29px] leading-tight">{greeting}</p>
           </div>
-        </div>
-
-        {onBreak ? (
-          <div className="relative mt-6 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-warning">&bull; On a break</p>
-            <p className="mt-2 font-mono text-[56px] font-light leading-none tracking-tight tabular-nums">{formatHMS(t.breakElapsed)}</p>
-            {t.entry && <p className="mt-1.5 text-[13px] text-white/70">&ldquo;{entryTitle(t.entry)}&rdquo; is paused</p>}
-            <button type="button" onClick={() => void t.endBreak()} className="mt-5 h-12 rounded-full bg-primary px-8 text-sm font-bold text-primary-foreground">End break</button>
+          <div className="shrink-0 text-center">
+            <span className="flex size-[68px] items-center justify-center rounded-full border-[3px] border-white/35 bg-[#d4a27e] text-[23px] font-bold text-[#2a2620]">{initials}</span>
+            <p className="mt-1.5 text-[11.5px] font-medium text-white/80">{formatDate(new Date(), timezone)}</p>
           </div>
-        ) : t.entry ? (
-          <div className="relative mt-6 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">{running ? "● Running" : "Paused"} &middot; {t.entry.client?.name ?? ""}</p>
-            <p className="mt-2 font-mono text-[56px] font-light leading-none tracking-tight tabular-nums">{formatHMS(t.elapsed)}</p>
-            <Link href={entryHref(t.entry)} className="mt-1.5 block truncate text-[13px] text-white/70">{entrySubtitle(t.entry) || entryTitle(t.entry)}</Link>
-            <div className="mt-5 flex justify-center gap-2.5">
-              {running ? (
-                <button type="button" onClick={() => void t.pause()} className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 px-6 text-sm font-semibold"><Pause className="size-4" />Pause</button>
-              ) : (
-                <button type="button" onClick={() => void t.resume()} className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 px-6 text-sm font-semibold"><Play className="size-4" />Resume</button>
-              )}
-              <button type="button" onClick={() => void t.startBreak()} aria-label="Take a break" className="inline-flex size-12 items-center justify-center rounded-full border border-white/25"><Coffee className="size-4" /></button>
-              <button type="button" onClick={() => void t.stop()} className="inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 text-sm font-bold text-primary-foreground"><Square className="size-3.5" />Stop</button>
-            </div>
-          </div>
-        ) : (
-          <div className="relative mt-6 text-center">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/50">No timer running</p>
-            <p className="mt-2 font-mono text-[56px] font-light leading-none tracking-tight tabular-nums text-white/35">00:00:00</p>
-            <p className="mt-1.5 text-[13px] text-white/60">Pick a client and start tracking</p>
-            <div className="mt-5 flex justify-center gap-2.5">
-              <Link href="/timer" className="inline-flex h-12 items-center gap-2 rounded-full bg-primary px-7 text-sm font-bold text-primary-foreground"><TimerIcon className="size-4" />Start timer</Link>
-              <button type="button" onClick={() => void t.startBreak()} className="inline-flex h-12 items-center gap-2 rounded-full border border-white/25 px-5 text-sm font-semibold"><Coffee className="size-4" />Break</button>
-            </div>
-          </div>
-        )}
-
-        {/* attendance line */}
-        <div className="relative mt-6 flex items-center justify-center gap-3 border-t border-white/10 pt-4 text-[11px] text-white/60">
-          <span>Today <strong className="font-semibold text-white">{formatHM(t.summary?.workSeconds ?? 0)}</strong></span>
-          <span className="text-white/25">|</span>
-          <span>Break <strong className="font-semibold text-white">{formatHM(t.summary?.breakSeconds ?? 0)}</strong></span>
-          <span className="text-white/25">|</span>
-          {clockedIn ? (
-            <button type="button" onClick={() => void t.clockOut()} className="inline-flex items-center gap-1.5 font-semibold text-white"><LogOut className="size-3.5" />Clock out</button>
-          ) : att?.clockOut ? (
-            <span className="font-semibold text-white">Day complete</span>
-          ) : (
-            <button type="button" onClick={() => void t.clockIn()} className="inline-flex items-center gap-1.5 font-semibold text-white"><LogIn className="size-3.5" />Clock in</button>
-          )}
         </div>
       </div>
 
-      {/* Two soft stat sheets */}
-      {stats.length > 0 && (
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          {stats.slice(0, 4).map((s) => (
-            <div key={s.label} className="rounded-2xl bg-card p-4 shadow-card ring-1 ring-border/60">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{s.label}</p>
-              <p className={cn("mt-1.5 font-display text-[30px] leading-none tabular-nums", s.tone === "danger" && "text-danger", s.tone === "success" && "text-success")}>{s.value}</p>
-              {typeof s.progress === "number" ? (
-                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-muted"><div className="h-1 rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, s.progress))}%` }} /></div>
-              ) : s.hint ? (
-                <p className="mt-2.5 text-[11px] font-medium text-muted-foreground">{s.hint}</p>
-              ) : null}
+      {/* The running timer, lifted over the header */}
+      <div className="relative -mt-14 rounded-3xl bg-card p-4 shadow-float">
+        {onBreak ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="size-2 rounded-full bg-warning" />
+              <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.09em] text-warning">On a break</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">{formatHM(t.summary?.workSeconds ?? 0)} today</span>
             </div>
-          ))}
-        </div>
+            <div className="mt-1.5 flex items-end gap-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-[42px] leading-none tabular-nums">{formatHMS(t.breakElapsed)}</p>
+                {t.entry && <p className="mt-1.5 truncate text-xs text-muted-foreground">&ldquo;{entryTitle(t.entry)}&rdquo; is paused</p>}
+              </div>
+              <button type="button" onClick={() => void t.endBreak()} className="h-[46px] shrink-0 rounded-full bg-primary px-6 text-sm font-bold text-primary-foreground">End break</button>
+            </div>
+          </>
+        ) : t.entry ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className={cn("size-2 rounded-full", running ? "bg-success" : "bg-muted-foreground")} />
+              <span className={cn("flex-1 text-[11px] font-bold uppercase tracking-[0.09em]", running ? "text-success" : "text-muted-foreground")}>{running ? "Running" : "Paused"}</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">{formatHM(t.summary?.workSeconds ?? 0)} today</span>
+            </div>
+            <div className="mt-1.5 flex items-end gap-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-[42px] leading-none tabular-nums">{formatHMS(t.elapsed)}</p>
+                <Link href={entryHref(t.entry)} className="mt-1.5 block truncate text-xs text-muted-foreground">{entrySubtitle(t.entry) || entryTitle(t.entry)}</Link>
+              </div>
+              {running ? (
+                <button type="button" onClick={() => void t.pause()} aria-label="Pause timer" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Pause className="size-[18px]" /></button>
+              ) : (
+                <button type="button" onClick={() => void t.resume()} aria-label="Resume timer" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Play className="size-[18px]" /></button>
+              )}
+              <button type="button" onClick={() => void t.startBreak()} aria-label="Take a break" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-muted text-foreground"><Coffee className="size-[17px]" /></button>
+              <button type="button" onClick={() => void t.stop()} aria-label="Stop timer" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-sidebar text-white"><Square className="size-4" /></button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="size-2 rounded-full bg-border" />
+              <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">No timer running</span>
+              <span className="text-[11.5px] font-semibold text-muted-foreground">{formatHM(t.summary?.workSeconds ?? 0)} today</span>
+            </div>
+            <div className="mt-1.5 flex items-end gap-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-[42px] leading-none tabular-nums text-muted-foreground/50">00:00:00</p>
+                <p className="mt-1.5 truncate text-xs text-muted-foreground">Pick a client and start tracking</p>
+              </div>
+              <Link href="/timer" className="inline-flex h-[46px] shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground"><TimerIcon className="size-4" />Start</Link>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* The launcher grid */}
+      <div className="mt-5 flex items-baseline gap-2 px-1">
+        <h2 className="flex-1 font-display text-[21px]">Quick actions</h2>
+        <span className="text-[11.5px] font-semibold text-muted-foreground">
+          {clockedIn ? `In at ${att!.clockIn!.slice(11, 16)}` : att?.clockOut ? "Day complete" : "Not clocked in"}
+        </span>
+      </div>
+      <div className="mt-2.5 grid grid-cols-3 gap-2.5">
+        {visibleTiles(me.role, me.company?.hiddenNav ?? [], tiles).map((tile) => {
+          const Icon = TILE_ICONS[tile.icon];
+          return (
+            <Link key={tile.href + tile.label} href={tile.href} className="flex flex-col items-center gap-2 rounded-[18px] bg-card px-1.5 pb-3 pt-3.5 shadow-card ring-1 ring-border/50">
+              <span className={cn("relative flex size-[46px] items-center justify-center rounded-full text-white", TILE_FILL[tile.tone])}>
+                <Icon className="size-[22px]" strokeWidth={2} />
+                <TileBadge badge={tile.badge} />
+              </span>
+              <span className="text-center text-[11.5px] font-semibold leading-tight">{tile.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* One line: is anything wrong today? */}
+      {alert && (
+        <Link
+          href={alert.href}
+          className={cn(
+            "mt-3 flex items-center gap-3 rounded-[18px] px-4 py-3",
+            alert.tone === "danger" ? "bg-danger-soft text-tile-danger-fg" : "bg-warning-soft text-tile-warning-fg",
+          )}
+        >
+          <span className={cn("size-2.5 shrink-0 rounded-full", alert.tone === "danger" ? "bg-danger" : "bg-warning")} />
+          <span className="min-w-0 flex-1 text-[13px] font-semibold">{alert.text}</span>
+          <ChevronRight className="size-4 shrink-0" />
+        </Link>
       )}
 
-      {/* Up next */}
-      <div className="mt-6 flex items-baseline justify-between px-0.5">
-        <h2 className="font-display text-[21px]">{itemsTitle}</h2>
-        <Link href={itemsHref} className="text-[12.5px] font-semibold text-primary">See all</Link>
-      </div>
-      <div className="mt-2.5 rounded-2xl bg-card px-4 shadow-card ring-1 ring-border/60">
-        {items.length === 0 ? (
-          <p className="py-5 text-sm text-muted-foreground">Nothing needs your attention right now.</p>
-        ) : items.slice(0, 5).map((it, i) => (
-          <Link key={it.id} href={it.href} className={cn("flex items-center gap-3 py-3.5", i < Math.min(items.length, 5) - 1 && "border-b border-border")}>
-            <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold", TONE[it.tone])}>{it.title.slice(0, 2).toUpperCase()}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">{it.title}</span>
-              <span className="block truncate text-[11.5px] text-muted-foreground">{it.meta}</span>
-            </span>
-            {it.badge && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">{it.badge}</span>}
-          </Link>
-        ))}
+      {/* Clock in / out, where the reference app puts its one big action */}
+      <div className="mt-3">
+        {clockedIn ? (
+          <button type="button" onClick={() => void t.clockOut()} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-sidebar text-[15.5px] font-bold text-white">
+            <LogOut className="size-5" />Clock out for the day
+          </button>
+        ) : att?.clockOut ? (
+          <p className="rounded-full bg-muted py-3.5 text-center text-sm font-medium text-muted-foreground">
+            Clocked out at {att.clockOut.slice(11, 16)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked
+          </p>
+        ) : (
+          <button type="button" onClick={() => void t.clockIn()} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-success text-[15.5px] font-bold text-white">
+            <LogIn className="size-5" />Clock in
+          </button>
+        )}
       </div>
     </div>
   );
