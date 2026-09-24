@@ -98,11 +98,16 @@ jobs:
   release:
     name: Publish the release
     needs: [android, windows]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Publish whatever built. The download page is per-platform, so one working app should reach
+    # people rather than waiting for the other one to be fixed.
+    if: >-
+      ${{ always() && startsWith(github.ref, 'refs/tags/v')
+      && (needs.android.result == 'success' || needs.windows.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with: { path: files }
+        continue-on-error: true
       - run: ls -R files
 
       # The download page reads these assets through the API and redirects to a signed URL, so a
@@ -113,3 +118,4 @@ jobs:
             files/**/*.apk
             files/**/*.exe
           generate_release_notes: true
+          fail_on_unmatched_files: false
