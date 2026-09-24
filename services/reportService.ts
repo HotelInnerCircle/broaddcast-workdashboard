@@ -219,6 +219,60 @@ export function attendanceReportTable(r: Awaited<ReturnType<typeof attendanceRep
 
 // --------------------------------------------------------- Daily report view
 /** Manager view (spec 12.17): each employee's report beside their tracked hours and per-client split. */
+/**
+ * Daily reports over a date range (A79), grouped by day, newest first.
+ *
+ * Everything is fetched once for the whole window rather than per day: a fortnight used to mean a
+ * fortnight of round-trips. Days are listed even when nobody submitted, because "nobody filed on
+ * the 12th" is exactly what a lead opens this page to find out.
+ */
+export async function dailyReportsForRange(ctx: CompanyContext, from: string, to: string, q: { userId?: string; teamId?: string; status?: "submitted" | "missing" }) {
+  const clock = await companyClock(ctx.companyId);
+  const [users, base, reports] = await Promise.all([
+    scopedUsers(ctx, q),
+    listTimeEntries(ctx, { from, to, userId: q.userId, teamId: q.teamId }),
+    scoped(DailyReport, ctx).find({ date: { $gte: from, $lte: to }, ...(q.userId ? { userId: new Types.ObjectId(q.userId) } : {}) }).lean(),
+  ]);
+
+  const reportBy = new Map(reports.map((r) => [String(r.userId) + "|" + r.date, r]));
+  const secondsBy = new Map<string, number>();
+  const clientsBy = new Map<string, Record<string, number>>();
+  for (const e of base.entries) {
+    const k = e.userId + "|" + e.date;
+    secondsBy.set(k, (secondsBy.get(k) ?? 0) + e.elapsedSeconds);
+    if (e.client?.name) {
+      const split = clientsBy.get(k) ?? {};
+      split[e.client.name] = (split[e.client.name] ?? 0) + e.elapsedSeconds;
+      clientsBy.set(k, split);
+    }
+  }
+
+  const days = clock.days(from, to).reverse().map((date) => {
+    const rows = users.map((u) => {
+      const k = u.id + "|" + date;
+      const r = reportBy.get(k);
+      return {
+        user: { id: u.id, name: u.name, avatarUrl: u.avatarUrl, team: u.team },
+        trackedSeconds: secondsBy.get(k) ?? 0,
+        byClient: Object.entries(clientsBy.get(k) ?? {}).map(([name, seconds]) => ({ name, seconds })).sort((a, b) => b.seconds - a.seconds),
+        report: r ? { id: String(r._id), completed: r.completed as string, submittedAt: r.submittedAt as Date } : null,
+      };
+    });
+    const submitted = rows.filter((r) => r.report).length;
+    // The status filter narrows what is shown, never the counts - "3 of 9" has to stay honest.
+    const shown = q.status === "submitted" ? rows.filter((r) => r.report) : q.status === "missing" ? rows.filter((r) => !r.report) : rows;
+    return { date, rows: shown, submitted, total: rows.length, isWorkingDay: clock.isWorkingDay(date) };
+  });
+
+  return {
+    from, to, days,
+    submitted: days.reduce((n, d) => n + d.submitted, 0),
+    total: days.reduce((n, d) => n + d.total, 0),
+    trackedSeconds: base.entries.reduce((n, e) => n + e.elapsedSeconds, 0),
+    people: users.length,
+  };
+}
+
 export async function dailyReportsForDay(ctx: CompanyContext, date: string, q: { userId?: string; teamId?: string }) {
   const [users, base, reports] = await Promise.all([
     scopedUsers(ctx, q),

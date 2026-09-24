@@ -1,12 +1,13 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { addDays, format } from "date-fns";
+import { addDays, format, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, FileText, CheckCircle2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
+import { usePickers } from "@/hooks/usePickers";
 import { Field } from "@/components/ui/label";
 import { Avatar } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/ui/page-header";
@@ -21,7 +22,9 @@ import type { TeamOption } from "@/components/employees/types";
 const key = (d: Date) => format(d, "yyyy-MM-dd");
 interface Report { id: string; date: string; completed: string; submittedAt: string }
 interface DayRow { user: { id: string; name: string; avatarUrl: string | null; team: string | null }; trackedSeconds: number; byClient: { name: string; seconds: number }[]; report: Report | null }
-interface DayData { date: string; rows: DayRow[]; submitted: number; total: number }
+interface DayGroup { date: string; rows: DayRow[]; submitted: number; total: number; isWorkingDay: boolean }
+interface RangeData { from: string; to: string; days: DayGroup[]; submitted: number; total: number; trackedSeconds: number; people: number }
+export interface DailyFilters { from: string; to: string; userId: string; teamId: string; status: "" | "submitted" | "missing" }
 
 /** One question (A68): the other four were removed at the owner's request. */
 const QUESTIONS: { key: "completed"; label: string; placeholder: string }[] = [
@@ -138,54 +141,148 @@ export function DailyReportForm() {
   );
 }
 
-/** Manager view at /reports/daily (spec 12.17): each employee's report beside tracked hours and per-client split. */
+/**
+ * Manager / team-lead view at /reports/daily (spec 12.17, filters added in A79).
+ *
+ * One filter row - date range with presets, team, person, submitted/missing - matching the other
+ * report pages, then a section per day newest first. The default is today, so the common "who has
+ * filed so far" glance is unchanged; widening the range is what lets someone follow one person
+ * over a fortnight.
+ */
 export function DailyReportsManagerView() {
   const me = useAuth();
-  // A77: the "X submitted their daily report" notification links to /reports/daily?date=..., so
-  // opening it must land on that day rather than always on today.
+  // The "X submitted their daily report" notification links to ?date=, which opens that one day.
   const params = useSearchParams();
-  const [date, setDate] = useState(params.get("date") ?? key(new Date()));
-  const [teamId, setTeamId] = useState("");
+  const linked = params.get("date");
+  const [filters, setFilters] = useState<DailyFilters>(() => ({ from: linked ?? key(new Date()), to: linked ?? key(new Date()), userId: "", teamId: "", status: "" }));
   const [teams, setTeams] = useState<TeamOption[]>([]);
-  const [data, setData] = useState<DayData | null>(null);
+  const { people } = usePickers({ people: true, clients: false, projects: false });
+  const [data, setData] = useState<RangeData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Changing a filter while one is still loading left the older, slower answer on screen. */
+  const request = useRef(0);
+
   useEffect(() => { if (me.role !== "TEAM_LEAD") api<TeamOption[]>("/api/teams").then(setTeams).catch(() => setTeams([])); }, [me.role]);
+
   const load = useCallback(async () => {
     setError(null);
-    try { setData(await api<DayData>(`/api/reports/daily?date=${date}${teamId ? `&teamId=${teamId}` : ""}`)); }
-    catch (e) { setError(e instanceof ClientApiError ? e.message : "Failed to load"); }
-  }, [date, teamId]);
+    setData(null);
+    const qs = new URLSearchParams({ from: filters.from, to: filters.to });
+    if (filters.userId) qs.set("userId", filters.userId);
+    if (filters.teamId) qs.set("teamId", filters.teamId);
+    if (filters.status) qs.set("status", filters.status);
+    const mine = ++request.current;
+    try {
+      const next = await api<RangeData>("/api/reports/daily?" + qs);
+      if (request.current === mine) setData(next);
+    } catch (e) { if (request.current === mine) setError(e instanceof ClientApiError ? e.message : "Failed to load"); }
+  }, [filters]);
   useEffect(() => { void load(); }, [load]);
-  const step = (n: number) => setDate((d) => key(addDays(new Date(`${d}T12:00:00`), n)));
+
+  const set = (patch: Partial<DailyFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const preset = (p: string) => {
+    const now = new Date();
+    if (p === "today") set({ from: key(now), to: key(now) });
+    else if (p === "yesterday") { const y = key(addDays(now, -1)); set({ from: y, to: y }); }
+    else if (p === "week") set({ from: key(startOfWeek(now, { weekStartsOn: 1 })), to: key(now) });
+    else if (p === "7d") set({ from: key(addDays(now, -6)), to: key(now) });
+    else if (p === "month") set({ from: key(startOfMonth(now)), to: key(now) });
+    else if (p === "30d") set({ from: key(addDays(now, -29)), to: key(now) });
+  };
+  const step = (n: number) => set({ from: key(addDays(new Date(filters.from + "T12:00:00"), n)), to: key(addDays(new Date(filters.to + "T12:00:00"), n)) });
+  const oneDay = filters.from === filters.to;
+  const chosen = people.find((x) => x.id === filters.userId);
+
   return (
     <>
-      <PageHeader title="Daily reports" description="What everyone completed, next to their tracked time." actions={
-        <div className="flex items-center gap-2">
-          {teams.length > 0 && <NativeSelect className="w-36" value={teamId} onChange={(e) => setTeamId(e.target.value)}><option value="">All teams</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</NativeSelect>}
-          <Button variant="outline" size="icon" onClick={() => step(-1)} aria-label="Previous day"><ChevronLeft /></Button>
-          <Input type="date" className="w-40" value={date} max={key(new Date())} onChange={(e) => setDate(e.target.value)} />
-          <Button variant="outline" size="icon" onClick={() => step(1)} disabled={date >= key(new Date())} aria-label="Next day"><ChevronRight /></Button>
-        </div>
-      } />
+      <PageHeader
+        title="Daily reports"
+        description={chosen ? chosen.name + " - what they completed, next to their tracked time." : "What everyone completed, next to their tracked time."}
+        actions={
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="icon" onClick={() => step(-1)} aria-label="Previous"><ChevronLeft /></Button>
+            <Button variant="outline" size="icon" onClick={() => step(1)} disabled={filters.to >= key(new Date())} aria-label="Next"><ChevronRight /></Button>
+          </div>
+        }
+      />
+
+      <Card className="mb-6">
+        <CardContent className="flex flex-wrap items-end gap-3 p-4">
+          <Field label="From" htmlFor="dr-from"><Input id="dr-from" type="date" max={filters.to} value={filters.from} onChange={(e) => set({ from: e.target.value })} /></Field>
+          <Field label="To" htmlFor="dr-to"><Input id="dr-to" type="date" min={filters.from} max={key(new Date())} value={filters.to} onChange={(e) => set({ to: e.target.value })} /></Field>
+          <div className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-0.5 scrollbar-none max-md:w-full">
+            {[["today", "Today"], ["yesterday", "Yesterday"], ["week", "This week"], ["7d", "7 days"], ["month", "This month"], ["30d", "30 days"]].map(([k2, l]) => (
+              <Button key={k2} variant="ghost" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => preset(k2)}>{l}</Button>
+            ))}
+          </div>
+          {me.role !== "TEAM_LEAD" && teams.length > 0 && (
+            <Field label="Team" htmlFor="dr-team">
+              <NativeSelect id="dr-team" className="w-36" value={filters.teamId} onChange={(e) => set({ teamId: e.target.value, userId: "" })}>
+                <option value="">All teams</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </NativeSelect>
+            </Field>
+          )}
+          <Field label="Employee" htmlFor="dr-user">
+            <NativeSelect id="dr-user" className="w-44" value={filters.userId} onChange={(e) => set({ userId: e.target.value })}>
+              <option value="">Everyone</option>
+              {people.filter((x) => !filters.teamId || x.team?.id === filters.teamId).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </NativeSelect>
+          </Field>
+          <Field label="Status" htmlFor="dr-status">
+            <NativeSelect id="dr-status" className="w-36" value={filters.status} onChange={(e) => set({ status: e.target.value as DailyFilters["status"] })}>
+              <option value="">All</option><option value="submitted">Submitted</option><option value="missing">Not submitted</option>
+            </NativeSelect>
+          </Field>
+          {(filters.userId || filters.teamId || filters.status || !oneDay) && (
+            <Button variant="ghost" size="sm" onClick={() => setFilters({ from: key(new Date()), to: key(new Date()), userId: "", teamId: "", status: "" })}>Clear</Button>
+          )}
+        </CardContent>
+      </Card>
+
       {error ? <ErrorState message={error} onRetry={load} /> : !data ? <Skeleton className="h-64" /> : (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <StatsCard label="Submitted" value={`${data.submitted} / ${data.total}`} icon={FileText} tone={data.submitted === data.total ? "success" : "warning"} />
-            <StatsCard label="Tracked" value={formatDuration(data.rows.reduce((s, r) => s + r.trackedSeconds, 0))} tone="info" />
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+            <StatsCard label={oneDay ? "Submitted" : "Reports filed"} value={data.submitted + " / " + data.total} icon={FileText} tone={data.submitted === data.total ? "success" : "warning"} />
+            <StatsCard label="Tracked" value={formatDuration(data.trackedSeconds)} tone="info" />
+            <StatsCard label={oneDay ? "People" : "Days"} value={oneDay ? data.people : data.days.length} tone="muted" className="max-lg:hidden" />
           </div>
-          {data.rows.length === 0 ? <Card><EmptyState icon={FileText} title="Nobody in scope" /></Card> : data.rows.map((r) => (
-            <Card key={r.user.id}>
-              <CardHeader className="flex-row items-start justify-between gap-4">
-                <div className="flex items-center gap-3"><Avatar name={r.user.name} src={r.user.avatarUrl} /><div><CardTitle>{r.user.name}</CardTitle><CardDescription>{r.user.team ?? ""}{r.report ? ` - submitted ${formatDateTime(r.report.submittedAt).split(", ")[1]}` : " - not submitted"}</CardDescription></div></div>
-                <div className="text-right text-sm"><p className="font-semibold tabular-nums">{formatDuration(r.trackedSeconds)}</p><p className="text-xs text-muted-foreground">{r.byClient.map((c) => `${c.name} ${formatDuration(c.seconds)}`).join(" - ") || "no time tracked"}</p></div>
-              </CardHeader>
-              {r.report && (
-                <CardContent className="pt-0 text-sm">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Completed today</p>
-                  <p className="mt-1 whitespace-pre-wrap">{r.report.completed || <span className="text-muted-foreground">-</span>}</p>
-                </CardContent>
-              )}
-            </Card>
+
+          {data.days.every((d) => d.rows.length === 0) ? (
+            <Card><EmptyState icon={FileText} title="Nothing to show" description="No reports match these filters. Try a wider date range, or clear the filters." /></Card>
+          ) : data.days.map((day) => (
+            day.rows.length === 0 ? null : (
+              <section key={day.date} className="space-y-3">
+                {!oneDay && (
+                  <div className="flex items-baseline justify-between gap-3 border-b border-border pb-1.5">
+                    <h2 className="text-sm font-semibold">{formatDate(day.date + "T12:00:00Z")}</h2>
+                    <p className="text-xs text-muted-foreground">{day.submitted} of {day.total} submitted{day.isWorkingDay ? "" : " (non-working day)"}</p>
+                  </div>
+                )}
+                {day.rows.map((r) => (
+                  <Card key={day.date + r.user.id}>
+                    <CardHeader className="flex-row items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={r.user.name} src={r.user.avatarUrl} />
+                        <div>
+                          <CardTitle>{r.user.name}</CardTitle>
+                          <CardDescription>{r.user.team ?? ""}{r.report ? " - submitted " + formatDateTime(r.report.submittedAt).split(", ")[1] : " - not submitted"}</CardDescription>
+                        </div>
+                      </div>
+                      <div className="text-right text-sm">
+                        <p className="font-semibold tabular-nums">{formatDuration(r.trackedSeconds)}</p>
+                        <p className="text-xs text-muted-foreground">{r.byClient.map((c) => c.name + " " + formatDuration(c.seconds)).join(" - ") || "no time tracked"}</p>
+                      </div>
+                    </CardHeader>
+                    {r.report && (
+                      <CardContent className="pt-0 text-sm">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Completed</p>
+                        <p className="mt-1 whitespace-pre-wrap break-words">{r.report.completed || <span className="text-muted-foreground">-</span>}</p>
+                      </CardContent>
+                    )}
+                  </Card>
+                ))}
+              </section>
+            )
           ))}
         </div>
       )}
