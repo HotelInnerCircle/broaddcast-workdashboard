@@ -1,0 +1,104 @@
+# Builds the installable apps (A82).
+#
+# Neither app can be built on the owner's PC: there is no JDK or Android SDK there, and Windows
+# refuses electron-builder's signing-tool unpack without Developer Mode. GitHub's runners have all
+# of it, and Actions is free for this repo, so the apps are built here instead.
+#
+# Run it from the Actions tab (Run workflow), or push a tag like v1.0.0 to also publish a release
+# with both files attached.
+name: Build apps
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm" }
+      - run: npm ci
+
+      - uses: actions/setup-java@v4
+        with: { distribution: "temurin", java-version: "21" }
+      - uses: android-actions/setup-android@v3
+
+      # Writes the native config from capacitor.config.ts (the URL the shell loads).
+      - run: npx cap sync android
+
+      # A signed release APK when the keystore secrets are set, otherwise a debug APK - which is
+      # still installable. An *unsigned* release APK is not, so debug is the right fallback.
+      - name: Restore the signing key
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/workpulse.keystore
+          cat > android/key.properties <<EOF
+          storeFile=workpulse.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ -f key.properties ]; then ./gradlew assembleRelease; else ./gradlew assembleDebug; fi
+
+      - name: Collect the APK
+        run: |
+          mkdir -p out
+          cp "$(find android/app/build/outputs/apk -name '*.apk' | head -1)" out/WorkPulse.apk
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WorkPulse-android
+          path: out/WorkPulse.apk
+          retention-days: 90
+
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+
+      - name: Build the installer
+        working-directory: desktop
+        run: |
+          npm ci
+          npx electron-builder --win --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WorkPulse-windows
+          path: desktop/dist/*.exe
+          retention-days: 90
+
+  release:
+    name: Publish the release
+    needs: [android, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: files }
+      - run: ls -R files
+
+      # Release assets on a *public* repo are downloadable by anyone with the link, with no sign-in.
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: files/**/*
+          generate_release_notes: true

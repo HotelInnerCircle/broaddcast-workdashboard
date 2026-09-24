@@ -5,7 +5,7 @@ import { sessionCookieName } from "@/lib/auth/cookies";
  * Edge gate (spec 6.5): cheap cookie-presence check. Real session validation and
  * role checks happen server-side in the (dashboard) layouts and every route handler.
  */
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/download"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

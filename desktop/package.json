@@ -1,0 +1,54 @@
+{
+  "name": "workpulse-desktop",
+  "productName": "WorkPulse",
+  "version": "0.1.0",
+  "description": "WorkPulse for Windows - a native window around the deployed web app.",
+  "private": true,
+  "main": "main.js",
+  "author": "Broaddcast",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win --dir"
+  },
+  "build": {
+    "appId": "com.broaddcast.workpulse",
+    "productName": "WorkPulse",
+    "copyright": "Copyright (c) Broaddcast",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "offline.html",
+      "build/icon.png"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "WorkPulse",
+      "artifactName": "WorkPulse-Setup-${version}.exe",
+      "uninstallDisplayName": "WorkPulse"
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^25.1.8"
+  }
+}

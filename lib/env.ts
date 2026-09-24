@@ -26,6 +26,10 @@ export const env = {
   get FIREBASE_SERVICE_ACCOUNT() { return process.env.FIREBASE_SERVICE_ACCOUNT ?? ""; },
   /** Ably realtime (A76). Empty = fall back to Socket.IO, or to HTTP polling when there is no socket either. */
   get ABLY_API_KEY() { return process.env.ABLY_API_KEY ?? ""; },
+  /** Where the built apps are hosted (A82). Empty = that platform shows as not published yet. */
+  get DOWNLOAD_ANDROID_URL() { return process.env.DOWNLOAD_ANDROID_URL ?? ""; },
+  get DOWNLOAD_WINDOWS_URL() { return process.env.DOWNLOAD_WINDOWS_URL ?? ""; },
+  get DOWNLOAD_VERSION() { return process.env.DOWNLOAD_VERSION ?? ""; },
   get RAZORPAY_KEY_ID() { return process.env.RAZORPAY_KEY_ID ?? ""; },
   get RAZORPAY_KEY_SECRET() { return process.env.RAZORPAY_KEY_SECRET ?? ""; },
   get RAZORPAY_WEBHOOK_SECRET() { return process.env.RAZORPAY_WEBHOOK_SECRET ?? ""; },
