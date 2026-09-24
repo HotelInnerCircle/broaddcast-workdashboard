@@ -20,6 +20,14 @@ jobs:
   android:
     name: Android APK
     runs-on: ubuntu-latest
+    # The signing secrets are lifted to the job so a step's `if` can test them: the `secrets`
+    # context is not available in `steps[*].if`, only `env` is. Using it there makes the whole
+    # workflow file invalid, which fails the run before a single step starts.
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,17 +45,15 @@ jobs:
       # A signed release APK when the keystore secrets are set, otherwise a debug APK - which is
       # still installable. An *unsigned* release APK is not, so debug is the right fallback.
       - name: Restore the signing key
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/workpulse.keystore
-          cat > android/key.properties <<EOF
-          storeFile=workpulse.keystore
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          EOF
+          {
+            echo "storeFile=workpulse.keystore"
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+          } > android/key.properties
 
       - name: Build
         working-directory: android
@@ -58,7 +64,9 @@ jobs:
       - name: Collect the APK
         run: |
           mkdir -p out
-          cp "$(find android/app/build/outputs/apk -name '*.apk' | head -1)" out/WorkPulse.apk
+          apk="$(find android/app/build/outputs/apk -name '*.apk' | head -1)"
+          if [ -z "$apk" ]; then echo "No APK was produced"; exit 1; fi
+          cp "$apk" out/WorkPulse.apk
           ls -lh out/
 
       - uses: actions/upload-artifact@v4
@@ -97,7 +105,8 @@ jobs:
         with: { path: files }
       - run: ls -R files
 
-      # Release assets on a *public* repo are downloadable by anyone with the link, with no sign-in.
+      # The download page reads these assets through the API and redirects to a signed URL, so a
+      # private repo still hands the files out without asking anyone to sign in.
       - uses: softprops/action-gh-release@v2
         with:
           files: |
