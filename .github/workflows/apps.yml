@@ -100,5 +100,7 @@ jobs:
       # Release assets on a *public* repo are downloadable by anyone with the link, with no sign-in.
       - uses: softprops/action-gh-release@v2
         with:
-          files: files/**/*
+          files: |
+            files/**/*.apk
+            files/**/*.exe
           generate_release_notes: true
