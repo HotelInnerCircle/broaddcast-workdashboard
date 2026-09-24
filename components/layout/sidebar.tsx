@@ -59,7 +59,7 @@ export function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNa
 
 /** Rail labels must fit ~60px: keep the first word, abbreviate the long ones. */
 function shortLabel(label: string) {
-  const map: Record<string, string> = { "Daily Report": "Report", "Time Reports": "Time", "Client Reports": "Clients", "Project Reports": "Projects", "Audit log": "Audit", Announcements: "News", Notifications: "Alerts", Subscription: "Plan", Attendance: "Attend", Timesheets: "Sheets", Employees: "People", "My Tasks": "Tasks" };
+  const map: Record<string, string> = { "Daily Report": "Report", "Daily Reports": "Daily", "Time Reports": "Time", "Client Reports": "Clients", "Project Reports": "Projects", "Audit log": "Audit", Announcements: "News", Notifications: "Alerts", Subscription: "Plan", Attendance: "Attend", Timesheets: "Sheets", Employees: "People", "My Tasks": "Tasks" };
   return map[label] ?? label.split(" ")[0];
 }
 

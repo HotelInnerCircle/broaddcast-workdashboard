@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, ListChecks, FolderKanban, Building2, CalendarDays, Timer, Table2, CalendarCheck, Users, UsersRound,
-  ShieldCheck, MessageSquare, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye,
+  ShieldCheck, MessageSquare, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
 } from "lucide-react";
 import { can, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
@@ -46,6 +46,9 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Employees", href: "/employees", icon: Users, permission: ["employees", "view"] },
       { label: "Teams", href: "/teams", icon: UsersRound, permission: ["teams", "view"] },
       { label: "Roles", href: "/roles", icon: ShieldCheck, permission: ["roles", "view"] },
+      // A78: the team's daily reports. Employees are excluded - "Daily Report" under TIME is their
+      // own submission, and this page would only ever show them their own row again.
+      { label: "Daily Reports", href: "/reports/daily", icon: ClipboardList, permission: ["dailyReports", "view"], roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD"] },
     ] },
     { label: "COMMUNICATION", items: [
       { label: "Chat", href: "/chat", icon: MessageSquare, permission: ["chat", "view"] },

@@ -78,6 +78,7 @@ Key rules: every tenant query goes through `scoped(Model, ctx)`; every mutation 
 - Settings -> Company -> Job designations: the admin maintains job titles (Web Developer, Designer, ...) that appear as a Designation dropdown when adding or editing people; separate from the fixed access roles. (A57)
 - Sidebar > ADMIN > Menu visibility: the admin switches sidebar items on or off per role while features are rolled out; hiding is menu-only (permissions are unchanged and a direct link still works) and one button shows everything again. (A71)
 - Managers and the Company Admin add clients: a manager's clients are visible to everyone who reports to them, an admin's to the whole company. (A61, A70)
+- Team Leads, Managers and Admins read their people's reports at Sidebar > TEAM > Daily Reports, beside each person's tracked hours and a submitted count. (A78)
 - Daily reports notify the employee's team lead when submitted, and lock at the end of their day: editable all through the day it covers, read-only afterwards, with past days listed by date only. (A77)
 - Real-time works on serverless hosts by setting ABLY_API_KEY: events go through Ably instead of Socket.IO, with presence, typing and instant delivery. Unset, or unreachable, it falls back to Socket.IO and then to polling. (A76)
 - On a host with no WebSocket server the app detects it once and runs on HTTP polling instead of retrying forever: no console errors, messages within a few seconds, chime and badge still work. Typing indicators and instant delivery need a persistent Node process. (A75)
