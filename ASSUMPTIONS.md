@@ -437,3 +437,9 @@ Every place where the specification (WorkPulse Build Spec v2.0) was silent or co
 - **Scoping is untouched:** an employee still only ever sees their own row, whatever `userId` they ask for, and a Team Lead still sees only their team.
 - **Verified:** 22 checks - a range returns one group per day newest first, the employee filter narrows to one person and the totals follow, `status=submitted` / `missing` filter the rows while the counts stay honest, `?date=` still returns a single day (the A77 notification link), a backwards range is corrected, an employee is still confined to themselves, every filter control renders, choosing a person drops the others from the page, and a 7-day range renders seven day headings with a "1 / 7" total.
 - **Where:** `services/reportService.ts` (`dailyReportsForRange`), `app/api/reports/daily/route.ts`, `lib/validation/reports.ts` (`status`), `components/reports/daily-views.tsx`.
+
+### A80. Past work reports show what was written, not just the date (owner change, 24 Sep 2026)
+- **What:** each row of the employee's "Past work reports" card now carries the report text underneath its date, clamped to three lines, with the lock icon and the "Today" marker still on the right. Opening a row still shows it in full in the read-only panel. The list scrolls once it is taller than the card.
+- **Why this reverses part of A77:** that entry said the history should show the date only. Seeing it in use, the owner asked for the content back - a column of bare dates says nothing about what the fortnight contained. The locking behaviour from A77 is untouched; this is only what the list displays.
+- **Verified:** 7 checks - every row shows its date, today's row shows what was just submitted, both seeded past days show what was written then, the lock and Today markers survive, and opening a past row still reads it in full and still says locked.
+- **Where:** `components/reports/daily-views.tsx`.

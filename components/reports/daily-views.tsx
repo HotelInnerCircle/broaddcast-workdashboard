@@ -114,21 +114,28 @@ export function DailyReportForm() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Past work reports</CardTitle><CardDescription>Last 30 days - open one to read it</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Past work reports</CardTitle><CardDescription>Last 30 days - what you wrote on each</CardDescription></CardHeader>
           <CardContent className="pt-0">
             {history === null ? <Skeleton className="h-32" /> : history.length === 0 ? <p className="text-sm text-muted-foreground">No reports yet.</p> : (
-              <ul className="divide-y divide-border text-sm">
+              // A80: the date alone was not much use - what was written that day sits under it.
+              // Long entries are clamped here and shown in full when the row is opened.
+              <ul className="max-h-[32rem] divide-y divide-border overflow-y-auto text-sm">
                 {history.map((r) => (
                   <li key={r.id}>
                     <button
                       onClick={() => setDate(r.date)}
                       aria-current={r.date === date ? "true" : undefined}
-                      className={"flex w-full items-center justify-between gap-2 py-2 text-left hover:text-primary " + (r.date === date ? "font-semibold text-primary" : "")}
+                      className={"w-full space-y-0.5 py-2.5 text-left " + (r.date === date ? "text-primary" : "hover:text-primary")}
                     >
-                      <span>{formatDate(r.date + "T12:00:00Z")}</span>
-                      {r.date === today
-                        ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="size-4" />Today</span>
-                        : <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+                      <span className="flex items-center justify-between gap-2">
+                        <span className={r.date === date ? "font-semibold" : "font-medium"}>{formatDate(r.date + "T12:00:00Z")}</span>
+                        {r.date === today
+                          ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="size-4" />Today</span>
+                          : <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+                      </span>
+                      <span className="block whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground line-clamp-3">
+                        {r.completed?.trim() || "No details given"}
+                      </span>
                     </button>
                   </li>
                 ))}
