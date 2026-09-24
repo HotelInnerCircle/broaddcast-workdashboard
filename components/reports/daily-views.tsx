@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { addDays, format } from "date-fns";
-import { ChevronLeft, ChevronRight, FileText, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileText, CheckCircle2, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { api, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
-import { formatDate, formatDateTime, formatDuration, relativeTime } from "@/lib/utils/dates";
+import { dayKey, formatDate, formatDateTime, formatDuration, relativeTime } from "@/lib/utils/dates";
 import type { TeamOption } from "@/components/employees/types";
 
 const key = (d: Date) => format(d, "yyyy-MM-dd");
@@ -27,43 +28,108 @@ const QUESTIONS: { key: "completed"; label: string; placeholder: string }[] = [
   { key: "completed", label: "What did you complete today?", placeholder: "Shipped the checkout prototype, reviewed Anil's tokens..." },
 ];
 
-/** Employee form (spec 12.17) with the five questions and a history of past reports. */
+/**
+ * Employee form (spec 12.17, locking added in A77).
+ *
+ * Today's report can be written and rewritten all day. Once the day is over it is read-only - the
+ * server enforces the same rule, so this is a matching UI, not the rule itself. "Today" is the
+ * company's timezone day, which is what the server compares against; using the browser's own day
+ * would show an editable box to someone in another timezone that the server then refuses.
+ */
 export function DailyReportForm() {
-  const [date, setDate] = useState(key(new Date()));
+  const me = useAuth();
+  const tz = me.company?.timezone;
+  const today = tz ? dayKey(new Date(), tz) : key(new Date());
+  const [date, setDate] = useState(today);
   const [form, setForm] = useState<Record<string, string>>({ completed: "" });
   const [history, setHistory] = useState<Report[] | null>(null);
   const [saving, setSaving] = useState(false);
+  const locked = date !== today;
+
   const load = useCallback(async () => {
     try {
-      const rows = await api<Report[]>(`/api/daily-reports?from=${key(addDays(new Date(), -30))}&to=${key(new Date())}`);
+      const rows = await api<Report[]>(`/api/daily-reports?from=${key(addDays(new Date(), -30))}&to=${today}`);
       setHistory(rows);
       const mine = rows.find((r) => r.date === date);
       setForm(mine ? { completed: mine.completed } : { completed: "" });
     } catch { setHistory([]); }
-  }, [date]);
+  }, [date, today]);
   useEffect(() => { void load(); }, [load]);
+
   const submit = async () => {
     setSaving(true);
-    try { await api("/api/daily-reports", { method: "POST", json: { date, ...form } }); toast.success("Daily report submitted"); void load(); }
-    catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not submit"); } finally { setSaving(false); }
+    try {
+      await api("/api/daily-reports", { method: "POST", json: { date: today, ...form } });
+      toast.success("Daily report submitted");
+      void load();
+    } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not submit"); }
+    finally { setSaving(false); }
   };
+
   const existing = history?.find((r) => r.date === date);
+  const lockedNote = existing
+    ? "Locked - submitted " + relativeTime(existing.submittedAt) + ". Reports can only be changed on the day itself."
+    : "Locked - nothing was submitted on this day.";
+  const openNote = existing
+    ? "Submitted " + relativeTime(existing.submittedAt) + ". You can keep editing it until the day ends."
+    : "Not submitted yet.";
+
   return (
     <>
-      <PageHeader title="Daily work report" description="One question. Your manager sees it next to your tracked hours." />
+      <PageHeader title="Daily work report" description="One question. Your team lead sees it next to your tracked hours." />
       <div className="grid gap-6 xl:grid-cols-3">
         <Card className="xl:col-span-2">
-          <CardHeader className="flex-row items-center justify-between"><div><CardTitle>{existing ? "Update report" : "Submit report"}</CardTitle><CardDescription>{existing ? `Submitted ${relativeTime(existing.submittedAt)}` : "Not submitted yet for this day."}</CardDescription></div><Input type="date" className="w-40" value={date} max={key(new Date())} onChange={(e) => setDate(e.target.value)} /></CardHeader>
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                {locked ? <><Lock className="size-4 shrink-0 text-muted-foreground" />{formatDate(date + "T12:00:00Z")}</> : existing ? "Update today's report" : "Submit today's report"}
+              </CardTitle>
+              <CardDescription>{locked ? lockedNote : openNote}</CardDescription>
+            </div>
+            {locked && <Button variant="outline" size="sm" onClick={() => setDate(today)}>Back to today</Button>}
+          </CardHeader>
           <CardContent className="space-y-4">
-            {QUESTIONS.map((q) => <Field key={q.key} label={q.label} htmlFor={`dr-${q.key}`}><Textarea id={`dr-${q.key}`} rows={6} value={form[q.key]} placeholder={q.placeholder} onChange={(e) => setForm((f) => ({ ...f, [q.key]: e.target.value }))} /></Field>)}
-            <div className="flex justify-end"><Button loading={saving} onClick={submit}><FileText />{existing ? "Update report" : "Submit report"}</Button></div>
+            {locked ? (
+              <div className="rounded-xl bg-muted p-4 text-sm">
+                {existing?.completed
+                  ? <p className="whitespace-pre-wrap break-words">{existing.completed}</p>
+                  : <p className="text-muted-foreground">No report was submitted for this day.</p>}
+              </div>
+            ) : (
+              <>
+                {QUESTIONS.map((q) => (
+                  <Field key={q.key} label={q.label} htmlFor={"dr-" + q.key}>
+                    <Textarea id={"dr-" + q.key} rows={6} value={form[q.key]} placeholder={q.placeholder} onChange={(e) => setForm((f) => ({ ...f, [q.key]: e.target.value }))} />
+                  </Field>
+                ))}
+                <div className="flex justify-end">
+                  <Button loading={saving} onClick={submit} disabled={!form.completed.trim()}><FileText />{existing ? "Update report" : "Submit report"}</Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
+
         <Card>
-          <CardHeader><CardTitle>Recent reports</CardTitle><CardDescription>Last 30 days</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Past work reports</CardTitle><CardDescription>Last 30 days - open one to read it</CardDescription></CardHeader>
           <CardContent className="pt-0">
             {history === null ? <Skeleton className="h-32" /> : history.length === 0 ? <p className="text-sm text-muted-foreground">No reports yet.</p> : (
-              <ul className="divide-y divide-border text-sm">{history.map((r) => <li key={r.id}><button className="flex w-full items-center justify-between py-2 text-left hover:text-primary" onClick={() => setDate(r.date)}><span>{formatDate(`${r.date}T12:00:00Z`)}</span><CheckCircle2 className="size-4 text-success" /></button></li>)}</ul>
+              <ul className="divide-y divide-border text-sm">
+                {history.map((r) => (
+                  <li key={r.id}>
+                    <button
+                      onClick={() => setDate(r.date)}
+                      aria-current={r.date === date ? "true" : undefined}
+                      className={"flex w-full items-center justify-between gap-2 py-2 text-left hover:text-primary " + (r.date === date ? "font-semibold text-primary" : "")}
+                    >
+                      <span>{formatDate(r.date + "T12:00:00Z")}</span>
+                      {r.date === today
+                        ? <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="size-4" />Today</span>
+                        : <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
@@ -75,7 +141,10 @@ export function DailyReportForm() {
 /** Manager view at /reports/daily (spec 12.17): each employee's report beside tracked hours and per-client split. */
 export function DailyReportsManagerView() {
   const me = useAuth();
-  const [date, setDate] = useState(key(new Date()));
+  // A77: the "X submitted their daily report" notification links to /reports/daily?date=..., so
+  // opening it must land on that day rather than always on today.
+  const params = useSearchParams();
+  const [date, setDate] = useState(params.get("date") ?? key(new Date()));
   const [teamId, setTeamId] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [data, setData] = useState<DayData | null>(null);

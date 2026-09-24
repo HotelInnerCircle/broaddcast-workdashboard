@@ -11,7 +11,7 @@ import { relativeTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
 export interface NotificationItem { id: string; type: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
-export const TYPE_ICON: Record<string, string> = { TASK_ASSIGNED: "bg-info", TASK_COMPLETED: "bg-success", TASK_OVERDUE: "bg-danger", TASK_COMMENT: "bg-primary", MENTION: "bg-primary", MESSAGE: "bg-chart-3", PROJECT_UPDATE: "bg-info", DEADLINE: "bg-warning", TIMER: "bg-warning", ANNOUNCEMENT: "bg-chart-7" };
+export const TYPE_ICON: Record<string, string> = { TASK_ASSIGNED: "bg-info", TASK_COMPLETED: "bg-success", TASK_OVERDUE: "bg-danger", TASK_COMMENT: "bg-primary", MENTION: "bg-primary", MESSAGE: "bg-chart-3", PROJECT_UPDATE: "bg-info", DEADLINE: "bg-warning", TIMER: "bg-warning", ANNOUNCEMENT: "bg-chart-7", DAILY_REPORT: "bg-chart-2" };
 
 /** Bell dropdown (spec 12.16): unread visually distinct, mark one / all as read. */
 export function NotificationBell() {

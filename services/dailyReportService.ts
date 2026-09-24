@@ -5,6 +5,26 @@ import { companyClock } from "@/lib/time/company-clock";
 import { audit } from "@/lib/audit";
 import type { CompanyContext } from "@/lib/auth/context";
 import { scopedUsers } from "./timesheetService";
+import { notify } from "./notificationService";
+import { User } from "@/models/User";
+import { Team } from "@/models/Team";
+
+/**
+ * Who reviews this person's daily report (A77): the lead of the team they belong to. Falls back to
+ * their manager when the team has no lead (or they have no team), so a report is never submitted
+ * into silence. Returns null for someone with neither - and never the author themselves.
+ */
+async function reportReviewerId(ctx: CompanyContext): Promise<string | null> {
+  const me = await scoped(User, ctx).findById(ctx.userId).select("teamId managerId").lean();
+  if (!me) return null;
+  if (me.teamId) {
+    const team = await scoped(Team, ctx).findById(String(me.teamId)).select("leadId managerId").lean();
+    for (const candidate of [team?.leadId, team?.managerId]) {
+      if (candidate && String(candidate) !== ctx.userId) return String(candidate);
+    }
+  }
+  return me.managerId && String(me.managerId) !== ctx.userId ? String(me.managerId) : null;
+}
 
 export function serializeDailyReport(r: Record<string, unknown>) {
   const u = r.userId;
@@ -21,12 +41,34 @@ export async function submitDailyReport(ctx: CompanyContext, input: { date?: str
   const clock = await companyClock(ctx.companyId);
   const today = clock.dayOf(new Date());
   const date = input.date ?? today;
-  if (date > today) throw (await import("@/lib/api/errors")).Errors.bad("FUTURE_DATE", "Daily reports cannot be submitted for a future date");
+  // A77: a report belongs to its own day. It can be written and rewritten all through that day and
+  // is locked the moment the day is over - which also means no back-filling yesterday, or the lock
+  // would be a formality. "Today" is the company's timezone day, not the server's.
+  if (date !== today) {
+    const { Errors } = await import("@/lib/api/errors");
+    throw date > today
+      ? Errors.bad("FUTURE_DATE", "Daily reports cannot be submitted for a future date")
+      : Errors.bad("REPORT_LOCKED", `The report for ${date} is locked. Daily reports can only be written on the day itself.`);
+  }
   const { date: _d, ...fields } = input;
   void _d;
   const existing = await scoped(DailyReport, ctx).findOne({ userId: new Types.ObjectId(ctx.userId), date });
   const rec = await scoped(DailyReport, ctx).findOneAndUpdate({ userId: new Types.ObjectId(ctx.userId), date }, { $set: { ...fields, submittedAt: new Date() } }, { upsert: true });
   await audit({ ctx, companyId: ctx.companyId, entity: "dailyReport", entityId: rec!._id, action: existing ? "daily_report.updated" : "daily_report.submitted", summary: `${ctx.name} ${existing ? "updated" : "submitted"} their daily report for ${date}`, after: { date }, ip });
+  // The lead is told once, when the report first lands. Same-day edits stay quiet on purpose -
+  // people revise their own wording through the day and a ping per keystroke-save is noise.
+  if (!existing) {
+    const reviewerId = await reportReviewerId(ctx);
+    if (reviewerId) {
+      const preview = (input.completed ?? "").trim();
+      await notify(ctx.companyId, {
+        userId: reviewerId, type: "DAILY_REPORT",
+        title: `${ctx.name} submitted their daily report`,
+        body: preview.length > 140 ? `${preview.slice(0, 137)}...` : preview || "No details given",
+        link: `/reports/daily?date=${date}`, actorId: ctx.userId,
+      });
+    }
+  }
   return serializeDailyReport(rec!.toObject() as Record<string, unknown>);
 }
 
