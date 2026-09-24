@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Apple, Download, Globe, Monitor, Smartphone, ShieldAlert } from "lucide-react";
 import { brand } from "@/config/brand";
 import { env } from "@/lib/env";
+import { sessionCookieName } from "@/lib/auth/cookies";
 import { latestRelease, type Platform } from "@/lib/releases";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,18 +35,24 @@ export default async function DownloadPage() {
   const version = env.DOWNLOAD_VERSION || release?.tag || "";
   const published = release?.publishedAt ? new Date(release.publishedAt) : null;
 
+  // Somebody already signed in must not be sent to /login - middleware would bounce them straight
+  // back to their dashboard, which looks like the download page refusing to open. Cookie presence
+  // is enough here; this only decides where a link points.
+  const signedIn = (await cookies()).has(sessionCookieName());
+  const appHref = signedIn ? "/" : "/login";
+
   return (
     <main className="min-h-dvh px-4 py-10 sm:py-16">
       <div className="mx-auto w-full max-w-3xl">
         <div className="flex items-center justify-between gap-4">
           <BrandMark />
-          <Link href="/login" className="text-sm font-semibold text-primary hover:underline">Sign in</Link>
+          <Link href={appHref} className="text-sm font-semibold text-primary hover:underline">{signedIn ? `Open ${brand.name}` : "Sign in"}</Link>
         </div>
 
         <h1 className="mt-10 font-display text-[38px] leading-[1.08] sm:text-[46px]">Get {brand.name}</h1>
         <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          The apps are the same {brand.name} you use in the browser, in their own window. Sign in with
-          the account you already have{version ? ` · ${version}` : ""}{published ? ` · published ${published.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
+          The apps are the same {brand.name} you use in the browser, in their own window.{" "}
+          {signedIn ? "You are signed in already" : "Sign in with the account you already have"}{version ? ` · ${version}` : ""}{published ? ` · published ${published.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -80,7 +88,7 @@ export default async function DownloadPage() {
                 On a computer, open it in Chrome or Edge and click the <b>Install</b> icon in the address bar.
                 You get the same app in its own window, and it updates by itself.
               </p>
-              <Link href="/login" className="mt-2.5 inline-block text-[13.5px] font-semibold text-primary hover:underline">
+              <Link href={appHref} className="mt-2.5 inline-block text-[13.5px] font-semibold text-primary hover:underline">
                 Open {brand.name} in this browser
               </Link>
             </div>
