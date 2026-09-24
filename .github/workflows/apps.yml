@@ -45,6 +45,20 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
+      - name: Record the toolchain
+        if: always()
+        run: |
+          {
+            echo "### Toolchain"
+            echo '```'
+            echo "node    $(node -v)"
+            echo "java    $(java -version 2>&1 | head -1)"
+            echo "sdk     ${ANDROID_HOME:-unset}"
+            echo "platforms: $(ls "$ANDROID_HOME/platforms" 2>/dev/null | xargs)"
+            echo "build-tools: $(ls "$ANDROID_HOME/build-tools" 2>/dev/null | xargs)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # Writes the native config from capacitor.config.ts (the URL the shell loads).
       - run: npx cap sync android
 
@@ -64,8 +78,22 @@ jobs:
       - name: Build
         working-directory: android
         run: |
+          set -o pipefail
           chmod +x gradlew
-          if [ -f key.properties ]; then ./gradlew assembleRelease; else ./gradlew assembleDebug; fi
+          if [ -f key.properties ]; then task=assembleRelease; else task=assembleDebug; fi
+          ./gradlew "$task" --no-daemon --stacktrace 2>&1 | tee ../gradle.log
+
+      # Put the error on the run's Summary page: reading it should not mean hunting through logs.
+      - name: Show what failed
+        if: failure()
+        run: |
+          {
+            echo "### Android build failed"
+            echo '```'
+            if [ -s gradle.log ]; then tail -n 60 gradle.log
+            else echo "Gradle produced no output - the failure is in a step before the build."; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Collect the APK
         run: |
