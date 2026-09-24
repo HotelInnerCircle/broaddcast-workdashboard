@@ -26,7 +26,11 @@ export const env = {
   get FIREBASE_SERVICE_ACCOUNT() { return process.env.FIREBASE_SERVICE_ACCOUNT ?? ""; },
   /** Ably realtime (A76). Empty = fall back to Socket.IO, or to HTTP polling when there is no socket either. */
   get ABLY_API_KEY() { return process.env.ABLY_API_KEY ?? ""; },
-  /** Where the built apps are hosted (A82). Empty = that platform shows as not published yet. */
+  /** The repo whose GitHub releases hold the built apps (A82), as "owner/name". */
+  get GITHUB_RELEASES_REPO() { return process.env.GITHUB_RELEASES_REPO ?? ""; },
+  /** Token with Contents: read on that repo, so its private release assets can be handed out. */
+  get GITHUB_RELEASES_TOKEN() { return process.env.GITHUB_RELEASES_TOKEN ?? ""; },
+  /** Overrides, if the files are ever hosted somewhere other than the release. */
   get DOWNLOAD_ANDROID_URL() { return process.env.DOWNLOAD_ANDROID_URL ?? ""; },
   get DOWNLOAD_WINDOWS_URL() { return process.env.DOWNLOAD_WINDOWS_URL ?? ""; },
   get DOWNLOAD_VERSION() { return process.env.DOWNLOAD_VERSION ?? ""; },

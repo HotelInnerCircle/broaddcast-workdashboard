@@ -72,6 +72,25 @@ builds up over time). The `/download` page tells people what to expect.
 Android APK and the Windows installer, and also explains installing straight from the browser
 (and from Safari on iPhone, where Apple allows nothing else).
 
-The page reads `DOWNLOAD_ANDROID_URL`, `DOWNLOAD_WINDOWS_URL` and `DOWNLOAD_VERSION` from the
-environment, so where the files are hosted can change without touching the code. A platform whose
-URL is empty reads *"Not published yet"* rather than offering a link that 404s.
+The files themselves stay in this repository's GitHub releases. Because the repo is private they
+cannot be linked to directly - GitHub would ask for a sign-in - so `/download/android` and
+`/download/windows` ask the API for a short-lived signed URL and redirect to it. The file never
+passes through the server, so there is no bandwidth cost and nothing to time out.
+
+**To switch it on, once:**
+
+1. Create a fine-grained personal access token at <https://github.com/settings/tokens?type=beta>,
+   scoped to this repository, with **Contents: read**. Give it a long expiry, or a reminder to
+   renew it.
+2. In Vercel → Settings → Environment Variables, add:
+   - `GITHUB_RELEASES_REPO` = `HotelInnerCircle/broaddcast-workdashboard`
+   - `GITHUB_RELEASES_TOKEN` = the token
+3. Redeploy.
+
+After that, every release publishes itself: tag a commit (`git tag v1.0.0 && git push --tags`),
+the workflow builds both apps and attaches them, and `/download` picks them up within five
+minutes - the page lists whatever the latest release actually contains, with each file's size.
+
+`DOWNLOAD_ANDROID_URL`, `DOWNLOAD_WINDOWS_URL` and `DOWNLOAD_VERSION` remain as overrides for the
+day the files are hosted somewhere else. A platform with neither a release asset nor an override
+reads *"Not published yet"* rather than offering a link that 404s.

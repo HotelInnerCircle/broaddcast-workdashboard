@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Apple, Download, Globe, Monitor, Smartphone, ShieldAlert } from "lucide-react";
 import { brand } from "@/config/brand";
 import { env } from "@/lib/env";
+import { latestRelease, type Platform } from "@/lib/releases";
 import { BrandMark } from "@/components/layout/brand-mark";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -21,10 +22,16 @@ export const metadata = {
  * change (a GitHub release, object storage, this domain) without touching the page. Unset means the
  * platform simply says it is not published yet, instead of offering a link that 404s.
  */
-export default function DownloadPage() {
-  const android = env.DOWNLOAD_ANDROID_URL;
-  const windows = env.DOWNLOAD_WINDOWS_URL;
-  const version = env.DOWNLOAD_VERSION;
+export default async function DownloadPage() {
+  // Normally the files come from the latest release, reached through /download/<platform>. The
+  // env vars stay as an override, for the day they are hosted somewhere else.
+  const release = await latestRelease();
+  const asset = (platform: Platform) => release?.assets.find((a) => a.platform === platform);
+  const link = (platform: Platform, override: string) => override || (asset(platform) ? `/download/${platform}` : "");
+  const android = link("android", env.DOWNLOAD_ANDROID_URL);
+  const windows = link("windows", env.DOWNLOAD_WINDOWS_URL);
+  const version = env.DOWNLOAD_VERSION || release?.tag || "";
+  const published = release?.publishedAt ? new Date(release.publishedAt) : null;
 
   return (
     <main className="min-h-dvh px-4 py-10 sm:py-16">
@@ -37,7 +44,7 @@ export default function DownloadPage() {
         <h1 className="mt-10 font-display text-[38px] leading-[1.08] sm:text-[46px]">Get {brand.name}</h1>
         <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
           The apps are the same {brand.name} you use in the browser, in their own window. Sign in with
-          the account you already have{version ? ` \u00b7 version ${version}` : ""}.
+          the account you already have{version ? ` · ${version}` : ""}{published ? ` · published ${published.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
         </p>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -45,7 +52,7 @@ export default function DownloadPage() {
             tone="bg-[#2f6b3a]"
             icon={<Smartphone className="size-[22px]" />}
             title="Android"
-            detail="Phone or tablet, Android 7 and up"
+            detail={["Phone or tablet, Android 7 and up", fileSize(asset("android")?.size)].filter(Boolean).join(" - ")}
             href={android}
             cta="Download APK"
             note="Your phone will ask you to allow installing from this source - that is expected for an app you install directly rather than from the Play Store."
@@ -54,7 +61,7 @@ export default function DownloadPage() {
             tone="bg-[#4f5d7a]"
             icon={<Monitor className="size-[22px]" />}
             title="Windows"
-            detail="Windows 10 and 11, 64-bit"
+            detail={["Windows 10 and 11, 64-bit", fileSize(asset("windows")?.size)].filter(Boolean).join(" - ")}
             href={windows}
             cta="Download installer"
             note="Windows may show a blue &ldquo;Windows protected your PC&rdquo; screen. Choose More info, then Run anyway."
@@ -94,6 +101,12 @@ export default function DownloadPage() {
       </div>
     </main>
   );
+}
+
+/** Bytes as something a person reads, e.g. "92 MB". Absent size simply drops off the line. */
+function fileSize(bytes?: number): string {
+  if (!bytes) return "";
+  return bytes >= 1024 * 1024 ? `${Math.round(bytes / (1024 * 1024))} MB` : `${Math.round(bytes / 1024)} KB`;
 }
 
 function PlatformCard({ tone, icon, title, detail, href, cta, note }: {
