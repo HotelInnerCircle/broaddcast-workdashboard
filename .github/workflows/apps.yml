@@ -37,7 +37,13 @@ jobs:
 
       - uses: actions/setup-java@v4
         with: { distribution: "temurin", java-version: "21" }
-      - uses: android-actions/setup-android@v3
+      # v3 still asked for the obsolete `tools` package, which Google no longer serves - sdkmanager
+      # exits 1 with "Failed to find package 'tools'" and the job dies before Gradle ever starts.
+      # v4 dropped it from the defaults; the platform this build compiles against is named outright
+      # so it does not depend on what the runner image happens to ship.
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       # Writes the native config from capacitor.config.ts (the URL the shell loads).
       - run: npx cap sync android
