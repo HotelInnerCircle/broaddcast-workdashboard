@@ -24,7 +24,7 @@ export const metadata = {
  * change (a GitHub release, object storage, this domain) without touching the page. Unset means the
  * platform simply says it is not published yet, instead of offering a link that 404s.
  */
-export default async function DownloadPage() {
+export default async function DownloadPage({ searchParams }: { searchParams: Promise<{ unavailable?: string }> }) {
   // Normally the files come from the latest release, reached through /download/<platform>. The
   // env vars stay as an override, for the day they are hosted somewhere else.
   const release = await latestRelease();
@@ -39,6 +39,10 @@ export default async function DownloadPage() {
   // back to their dashboard, which looks like the download page refusing to open. Cookie presence
   // is enough here; this only decides where a link points.
   const signedIn = (await cookies()).has(sessionCookieName());
+
+  // Somebody followed /download/<platform> before that app was published.
+  const asked = (await searchParams).unavailable;
+  const unavailable = asked === "android" ? "Android" : asked === "windows" ? "Windows" : null;
   const appHref = signedIn ? "/" : "/login";
 
   return (
@@ -54,6 +58,13 @@ export default async function DownloadPage() {
           The apps are the same {brand.name} you use in the browser, in their own window.{" "}
           {signedIn ? "You are signed in already" : "Sign in with the account you already have"}{version ? ` · ${version}` : ""}{published ? ` · published ${published.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}.
         </p>
+
+        {unavailable && (
+          <p className="mt-6 flex items-start gap-3 rounded-2xl bg-warning-soft px-5 py-4 text-[13.5px] leading-relaxed text-tile-warning-fg">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+            <span>The {unavailable} app has not been published yet. It will appear here as soon as it is built.</span>
+          </p>
+        )}
 
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <PlatformCard
