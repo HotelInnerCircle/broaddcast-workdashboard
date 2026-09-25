@@ -36,7 +36,12 @@ function generatePassword() {
  */
 export function InviteDialog({ open, onOpenChange, teams, managers, onInvited }: { open: boolean; onOpenChange: (o: boolean) => void; teams: TeamOption[]; managers: EmployeeRow[]; onInvited: () => void }) {
   const me = useAuth();
-  const roles: CompanyRole[] = me.role === "COMPANY_ADMIN" ? ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "COMPANY_ADMIN"] : ["EMPLOYEE", "TEAM_LEAD"];
+  // A83: HR is here too. HR itself may add people up to Manager, but never another HR or an admin.
+  const roles: CompanyRole[] = me.role === "COMPANY_ADMIN"
+    ? ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "HR", "COMPANY_ADMIN"]
+    : me.role === "HR"
+      ? ["EMPLOYEE", "TEAM_LEAD", "MANAGER"]
+      : ["EMPLOYEE", "TEAM_LEAD"];
   const [mode, setMode] = useState<Mode>("create");
   const [done, setDone] = useState<Credentials | null>(null);
   const [copied, setCopied] = useState(false);
