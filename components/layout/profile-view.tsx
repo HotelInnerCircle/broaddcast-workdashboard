@@ -1,4 +1,5 @@
 "use client";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -8,6 +9,9 @@ import { navigationFor } from "@/config/navigation";
 import { unregisterPushDevice } from "@/lib/native";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "./theme-toggle";
+import { api } from "@/lib/api/client";
+import { ProfileDetails, type Profile, type ReportingItem } from "@/components/profile/profile-details";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ROLE_LABEL } from "@/types";
 
 /**
@@ -21,6 +25,14 @@ export function ProfileView() {
   const me = useAuth();
   const router = useRouter();
   const groups = navigationFor(me.role, me.company?.hiddenNav ?? []);
+  const [data, setData] = useState<{ profile: Profile; reporting: ReportingItem[] } | null>(null);
+
+  const load = useCallback(() => {
+    void api<{ profile: Profile; reporting: ReportingItem[] }>("/api/me/profile", { fresh: true })
+      .then(setData)
+      .catch(() => setData(null));
+  }, []);
+  useEffect(load, [load]);
 
   const leave = async () => {
     await unregisterPushDevice();
@@ -31,16 +43,14 @@ export function ProfileView() {
 
   return (
     <div className="mx-auto w-full max-w-lg space-y-5 pb-4">
-      <div className="flex items-center gap-4 rounded-2xl bg-card p-4 shadow-card ring-1 ring-border/50">
-        <Avatar name={me.name} src={me.avatarUrl} className="size-14" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[16px] font-semibold">{me.name}</p>
-          <p className="truncate text-[12.5px] text-muted-foreground">{me.email}</p>
-          <p className="mt-1 inline-block rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-bold text-muted-foreground">
-            {ROLE_LABEL[me.role]}{me.company?.name ? ` - ${me.company.name}` : ""}
-          </p>
-        </div>
-      </div>
+      {data
+        ? <ProfileDetails profile={data.profile} reporting={data.reporting} onChanged={load} />
+        : (
+          <div className="space-y-3">
+            <Skeleton className="h-24 rounded-2xl" />
+            <Skeleton className="h-40 rounded-2xl" />
+          </div>
+        )}
 
       <div className="flex items-center justify-between rounded-2xl bg-card px-4 py-3 shadow-card ring-1 ring-border/50">
         <span className="text-[14px] font-medium">Appearance</span>

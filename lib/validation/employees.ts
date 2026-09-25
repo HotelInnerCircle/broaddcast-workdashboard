@@ -20,6 +20,8 @@ export const updateEmployeeSchema = z.object({
   role: z.enum(COMPANY_ROLES).optional(),
   /** A90: the working pattern this person is on; null puts them back on the company hours. */
   shiftId: objectId.nullable().optional(),
+  /** A93: which office or site this person belongs to. */
+  branch: z.string().trim().max(80).nullable().optional(),
   teamId: objectId.nullable().optional(),
   managerId: objectId.nullable().optional(),
   phone: z.string().trim().max(30).nullable().optional(),

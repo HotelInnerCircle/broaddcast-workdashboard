@@ -19,11 +19,32 @@ const UserSchema = new Schema(
     shiftId: { type: Schema.Types.ObjectId, ref: "Shift", default: null },
     managerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     avatarUrl: { type: String, default: null },
+    /** Storage key behind avatarUrl (A93), kept so the old object can be removed on replacement. */
+    avatarKey: { type: String, default: null },
     phone: { type: String, default: null },
     department: { type: String, default: null },
     /** One of Company.designations (A57); free text is kept if the list changes later. */
     designation: { type: String, default: null },
     joiningDate: { type: Date, default: null },
+
+    /* Personal details (A93). All optional: a profile is filled in over time, not at creation. */
+    gender: { type: String, enum: ["male", "female", "other", "prefer_not_to_say", null], default: null },
+    maritalStatus: { type: String, enum: ["single", "married", "other", "prefer_not_to_say", null], default: null },
+    /** A date of birth is a calendar date, so it is stored at midday UTC to survive timezones. */
+    dateOfBirth: { type: Date, default: null },
+    branch: { type: String, default: null, maxlength: 80 },
+    address: { type: String, default: null, maxlength: 400 },
+    emergencyContact: {
+      name: { type: String, default: null },
+      relation: { type: String, default: null },
+      phone: { type: String, default: null },
+    },
+    /**
+     * What someone wants changed on a profile they cannot edit themselves. HR sees it, acts on it
+     * and clears it - a one-line request rather than a whole ticketing system.
+     */
+    updateRequest: { type: String, default: null, maxlength: 500 },
+    updateRequestAt: { type: Date, default: null },
     status: { type: String, enum: USER_STATUSES, default: "active", index: true },
     lastActiveAt: { type: Date, default: null },
     notificationPrefs: {

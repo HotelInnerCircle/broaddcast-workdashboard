@@ -23,9 +23,26 @@ export const updateCompanySchema = z.object({
 });
 export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
 
+/**
+ * What a person may change about themselves (A93).
+ *
+ * Deliberately excludes designation, department, branch and joining date: those are employment
+ * facts HR owns, and someone editing their own job title is not a feature. `updateRequest` is how
+ * they ask for one of those to be corrected.
+ */
 export const updateProfileSchema = z.object({
   name: personName.optional(),
   phone: z.string().trim().max(30).nullable().optional(),
+  gender: z.enum(["male", "female", "other", "prefer_not_to_say"]).nullable().optional(),
+  maritalStatus: z.enum(["single", "married", "other", "prefer_not_to_say"]).nullable().optional(),
+  dateOfBirth: z.string().regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "Pick a date").nullable().optional(),
+  address: z.string().trim().max(400).nullable().optional(),
+  emergencyContact: z.object({
+    name: z.string().trim().max(120).nullable().optional(),
+    relation: z.string().trim().max(60).nullable().optional(),
+    phone: z.string().trim().max(30).nullable().optional(),
+  }).optional(),
+  updateRequest: z.string().trim().max(500).nullable().optional(),
   notificationPrefs: z.object({ email: z.boolean(), inApp: z.boolean() }).partial().optional(),
 });
 

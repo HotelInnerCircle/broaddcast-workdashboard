@@ -24,6 +24,7 @@ const schema = z.object({
   shiftId: z.string().nullable(),
   managerId: z.string().nullable(),
   department: z.string().max(80).nullable(),
+  branch: z.string().max(80).nullable(),
   designation: z.string().max(60).nullable(),
   phone: z.string().max(30).nullable(),
 });
@@ -40,12 +41,12 @@ export function EmployeeSheet({ employee, teams, managers, onClose, onSaved }: {
   const designations = useDesignations(Boolean(employee));
 
   useEffect(() => {
-    if (employee) reset({ name: employee.name, role: employee.role as CompanyRole, teamId: employee.team?.id ?? null, shiftId: employee.shiftId ?? null, managerId: employee.manager?.id ?? null, department: employee.department, designation: employee.designation, phone: employee.phone });
+    if (employee) reset({ name: employee.name, role: employee.role as CompanyRole, teamId: employee.team?.id ?? null, shiftId: employee.shiftId ?? null, managerId: employee.manager?.id ?? null, department: employee.department, branch: employee.branch ?? null, designation: employee.designation, phone: employee.phone });
   }, [employee, reset]);
 
   const save = async (values: Input) => {
     if (!employee) return;
-    const body: Record<string, unknown> = { name: values.name, teamId: values.teamId || null, shiftId: values.shiftId || null, department: values.department || null, designation: values.designation || null, phone: values.phone || null };
+    const body: Record<string, unknown> = { name: values.name, teamId: values.teamId || null, shiftId: values.shiftId || null, department: values.department || null, branch: values.branch || null, designation: values.designation || null, phone: values.phone || null };
     if (values.role !== employee.role) body.role = values.role;
     if (isAdmin) body.managerId = values.managerId || null;
     try {
@@ -93,6 +94,7 @@ export function EmployeeSheet({ employee, teams, managers, onClose, onSaved }: {
                 {shifts.map((sh) => <option key={sh.id} value={sh.id}>{sh.name} ({sh.startTime}-{sh.endTime})</option>)}
               </NativeSelect>
             </Field>
+            <Field label="Branch" htmlFor="emp-branch" hint="Which office or site."><Input id="emp-branch" {...register("branch")} /></Field>
             <Field label="Team" htmlFor="emp-team"><NativeSelect id="emp-team" {...register("teamId")}><option value="">No team</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</NativeSelect></Field>
             {isAdmin && (
               <Field label="Reports to" htmlFor="emp-manager"><NativeSelect id="emp-manager" {...register("managerId")}><option value="">No manager</option>{managers.filter((m) => m.id !== employee.id).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.roleLabel})</option>)}</NativeSelect></Field>

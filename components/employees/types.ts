@@ -1,6 +1,8 @@
 export interface EmployeeRow {
   /** A90: the shift this person is on, or null for the company hours. */
   shiftId: string | null;
+  /** A93: office or site. */
+  branch: string | null;
   id: string; name: string; email: string; role: string; roleLabel: string; status: string; avatarUrl: string | null;
   phone: string | null; department: string | null; designation: string | null; joiningDate: string | null; lastActiveAt: string | null;
   team: { id: string; name: string } | null; manager: { id: string; name: string } | null; createdAt: string;

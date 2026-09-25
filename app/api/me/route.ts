@@ -17,6 +17,20 @@ export const PATCH = route(async (req) => {
   const $set: Record<string, unknown> = {};
   if (input.name !== undefined) $set.name = input.name;
   if (input.phone !== undefined) $set.phone = input.phone;
+  // A93: the personal details someone owns about themselves. Employment facts are not here.
+  for (const k of ["gender", "maritalStatus", "address", "updateRequest"] as const) {
+    if (input[k] !== undefined) $set[k] = input[k];
+  }
+  if (input.dateOfBirth !== undefined) {
+    // Midday UTC: a birthday is a calendar date and must not slide a day either way.
+    $set.dateOfBirth = input.dateOfBirth ? new Date(`${input.dateOfBirth}T12:00:00Z`) : null;
+  }
+  if (input.emergencyContact) {
+    for (const k of ["name", "relation", "phone"] as const) {
+      if (input.emergencyContact[k] !== undefined) $set[`emergencyContact.${k}`] = input.emergencyContact[k];
+    }
+  }
+  if (input.updateRequest !== undefined) $set.updateRequestAt = input.updateRequest ? new Date() : null;
   if (input.notificationPrefs?.email !== undefined) $set["notificationPrefs.email"] = input.notificationPrefs.email;
   if (input.notificationPrefs?.inApp !== undefined) $set["notificationPrefs.inApp"] = input.notificationPrefs.inApp;
   await User.updateOne({ _id: new Types.ObjectId(ctx.userId) }, { $set });
