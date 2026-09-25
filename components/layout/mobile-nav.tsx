@@ -19,7 +19,7 @@ import { BrandMark } from "./brand-mark";
  * Order: Home, Timer, [Swipe], Chat, Profile. Tabs the admin has hidden for this role (A71) drop
  * out of the bar, and the grid narrows to match.
  */
-export function MobileBottomNav({ onMore }: { onMore: () => void }) {
+export function MobileBottomNav({ onMore, onSwipe }: { onMore: () => void; onSwipe: () => void }) {
   const me = useAuth();
   const pathname = usePathname();
   const { entry, break: onBreak, unread } = useBottomNavState();
@@ -42,13 +42,14 @@ export function MobileBottomNav({ onMore }: { onMore: () => void }) {
       className="fixed inset-x-0 bottom-0 z-30 grid items-end rounded-t-[26px] bg-card px-3 pb-[max(16px,env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-10px_30px_-22px_rgb(42_38_32/0.7)] ring-1 ring-border/60 md:hidden">
       {side.slice(0, left).map((i) => <NavTab key={i.label} {...i} active={isActive(i.href!)} />)}
 
+      {/* A88: this opens the camera in the same tap, rather than navigating to a screen first. */}
       {showSwipe && (
-      <Link href="/swipe" aria-label="Swipe attendance" className="flex flex-col items-center gap-1">
+      <button type="button" onClick={onSwipe} aria-label="Swipe attendance" className="flex flex-col items-center gap-1">
         <span className={cn("-mt-7 flex size-14 items-center justify-center rounded-full border-4 border-card shadow-[0_10px_22px_-10px_rgb(42_38_32/0.55)] transition-colors", swipeActive ? "bg-foreground text-background" : "bg-primary text-primary-foreground")}>
           <Fingerprint className="size-6" strokeWidth={2.2} />
         </span>
         <span className={cn("text-[10px] font-bold", swipeActive ? "text-foreground" : "text-muted-foreground")}>Swipe</span>
-      </Link>
+      </button>
       )}
 
       {side.slice(left).map((i) => (

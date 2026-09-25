@@ -515,3 +515,12 @@ Every place where the specification (WorkPulse Build Spec v2.0) was silent or co
 - **Start again moves to the group** and starts from its most recent session, so the client, project and task come from the block you actually worked last.
 - **Verified:** 8 checks - the API still stores each session separately, the same job renders as exactly one line, a different description keeps its own line, the line carries the combined total and a "2 sessions" chip, and opening it lists each session's own times.
 - **Where:** `components/timer/timer-page.tsx`.
+
+### A88. Tap the swipe button, get the camera (owner change, 25 Sep 2026)
+- **What:** the Swipe button in the phone's bottom bar now opens the camera immediately, instead of navigating to a screen where you then press another button. When the photo comes back, a sheet asks the only things left: an optional note, and **one** action - **Off duty** if you are already on duty, **On duty** if you are not. Never both.
+- **How the camera can open at all:** the file input is clicked inside the same tap that triggered it. A click fired after a route change is not a user gesture any more and browsers refuse it, which is why this is a sheet over the current page rather than a redirect to `/swipe`.
+- **Duty state comes from today's swipes:** the newest one that was not rejected. A rejected swipe never puts anyone on duty, and scoping to the day means a forgotten on-duty from yesterday cannot leave someone unable to start today.
+- **The location fix and the duty lookup start on the tap,** not when the photo returns, so the fix is usually ready by the time the person has taken their selfie.
+- **`/swipe` still exists** for desktop and for anyone following a link, and was rewritten onto the same hook so the two paths cannot drift apart - same order, same single action, same note.
+- **Verified:** 11 checks - the tap opens a file chooser (proving the gesture survives), the sheet appears with the photo, the note field and where you are, exactly one action is offered, swiping on duty is accepted, tapping again then offers Off duty and titles the sheet accordingly, and after going off duty it offers On duty again.
+- **Where:** `components/attendance/{use-swipe.ts,swipe-sheet.tsx,swipe-view.tsx}`, `components/layout/{app-shell,mobile-nav}.tsx`.
