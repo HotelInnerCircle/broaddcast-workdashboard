@@ -13,6 +13,7 @@ import { env } from "@/lib/env";
 import { hashPassword } from "@/lib/auth/password";
 import { generateToken, hashToken } from "@/lib/utils/tokens";
 import { ROLE_LABEL } from "@/types";
+import { nextEmployeeCode, assertCodeFree } from "@/services/employeeCodeService";
 import type { CompanyContext } from "@/lib/auth/context";
 import type { CreateInviteInput, CreateEmployeeInput } from "@/lib/validation/employees";
 import { manageableTeamIds } from "./scope";
@@ -62,13 +63,26 @@ async function validatePlacement(ctx: CompanyContext, input: CreateInviteInput) 
 }
 
 /**
+ * The code this person will be known by (A95): the one HR typed, or the next in sequence. A typed
+ * one is checked for a clash first, so a migration from an old system cannot create two of the same.
+ */
+async function codeFor(ctx: CompanyContext, asked?: string | null): Promise<string> {
+  const wanted = asked?.trim();
+  if (!wanted) return nextEmployeeCode(ctx.companyId);
+  await assertCodeFree(ctx, wanted);
+  return wanted;
+}
+
+/**
  * Direct creation (A56): the account is active immediately with the password the admin typed; the
  * admin hands the credentials over. Same placement rules, plan limit and audit as an invite.
  */
 export async function createEmployee(ctx: CompanyContext, input: CreateEmployeeInput, ip: string | null) {
   const { managerId } = await validatePlacement(ctx, input);
+  const employeeCode = await codeFor(ctx, input.employeeCode);
   const user = await scoped(User, ctx).create({
     name: input.name, email: input.email, role: input.role, teamId: oid(input.teamId), managerId, designation: input.designation ?? null,
+    employeeCode,
     passwordHash: await hashPassword(input.password), status: "active", joiningDate: new Date(),
   });
   await audit({ ctx, companyId: ctx.companyId, entity: "user", entityId: user._id, action: "user.created", summary: `${ctx.name} created an account for ${input.name} (${ROLE_LABEL[input.role]})`, after: { email: input.email, role: input.role, teamId: input.teamId ?? null, method: "direct" }, ip });
@@ -78,9 +92,10 @@ export async function createEmployee(ctx: CompanyContext, input: CreateEmployeeI
 /** Admin (any role/team) or Manager (TEAM_LEAD/EMPLOYEE, own teams only) invites by email (spec 6.2). */
 export async function createInvite(ctx: CompanyContext, input: CreateInviteInput, ip: string | null) {
   const { managerId } = await validatePlacement(ctx, input);
+  const employeeCode = await codeFor(ctx, input.employeeCode);
   const user = await scoped(User, ctx).create({
     name: input.email.split("@")[0], email: input.email, role: input.role, teamId: oid(input.teamId),
-    managerId, designation: input.designation ?? null, status: "invited",
+    managerId, designation: input.designation ?? null, employeeCode, status: "invited",
   });
   const invite = await scoped(Invite, ctx).create({
     email: input.email, role: input.role, teamId: oid(input.teamId), managerId, userId: user._id,

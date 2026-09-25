@@ -10,6 +10,9 @@ export const updateCompanySchema = z.object({
   workingDays: z.array(z.enum(WEEKDAYS)).min(1).optional(),
   lateThresholdMinutes: z.number().int().min(0).max(240).optional(),
   defaultTaskStatus: z.string().trim().max(40).optional(),
+  /** A95: how employee codes are built. Changing these affects the next one issued, not past ones. */
+  employeeCodePrefix: z.string().trim().max(8).optional(),
+  employeeCodePadding: z.number().int().min(1).max(8).optional(),
   designations: z.array(z.string().trim().min(1, "Designation cannot be empty").max(60)).max(100).optional(),
   services: z.array(z.string().trim().min(1, "Service cannot be empty").max(60)).max(100).optional(),
   hiddenNav: z.object({

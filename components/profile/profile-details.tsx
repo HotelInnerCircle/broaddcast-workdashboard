@@ -11,6 +11,7 @@ export interface Profile {
   id: string; name: string; email: string; role: string; roleLabel: string;
   avatarUrl: string | null; phone: string | null;
   gender: string | null; maritalStatus: string | null; dateOfBirth: string | null; joiningDate: string | null;
+  employeeCode: string | null;
   companyName: string | null; designation: string | null; department: string | null; branch: string | null;
   teamName: string | null; managerName: string | null;
   address: string | null;
@@ -152,6 +153,7 @@ export function ProfileDetails({ profile, reporting, onChanged }: { profile: Pro
       </Section>
 
       <Section title="EMPLOYMENT">
+        <Row k="Employee code" v={profile.employeeCode} />
         <Row k="Company" v={profile.companyName} />
         <Row k="Designation" v={profile.designation} />
         <Row k="Department" v={profile.department} />

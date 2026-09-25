@@ -4,6 +4,8 @@ import { email, objectId, password, personName } from "./common";
 
 export const createInviteSchema = z.object({
   email,
+  /** A95: leave it out and the next code in sequence is used. */
+  employeeCode: z.string().trim().max(24).nullable().optional(),
   role: z.enum(COMPANY_ROLES),
   teamId: objectId.nullable().optional(),
   managerId: objectId.nullable().optional(),
@@ -22,6 +24,7 @@ export const updateEmployeeSchema = z.object({
   shiftId: objectId.nullable().optional(),
   /** A93: which office or site this person belongs to. */
   branch: z.string().trim().max(80).nullable().optional(),
+  employeeCode: z.string().trim().max(24).nullable().optional(),
   teamId: objectId.nullable().optional(),
   managerId: objectId.nullable().optional(),
   phone: z.string().trim().max(30).nullable().optional(),

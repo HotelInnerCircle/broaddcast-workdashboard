@@ -25,6 +25,8 @@ const UserSchema = new Schema(
     department: { type: String, default: null },
     /** One of Company.designations (A57); free text is kept if the list changes later. */
     designation: { type: String, default: null },
+    /** A95: the code people are known by - EMP001, or whatever HR set. Unique inside a company. */
+    employeeCode: { type: String, default: null },
     joiningDate: { type: Date, default: null },
 
     /* Personal details (A93). All optional: a profile is filled in over time, not at creation. */
@@ -56,6 +58,12 @@ const UserSchema = new Schema(
   { timestamps: true },
 );
 
+// Unique per company, but only over documents that actually have one: a partial index lets the
+// super admin and anyone not yet assigned a code coexist without colliding on null.
+UserSchema.index(
+  { companyId: 1, employeeCode: 1 },
+  { unique: true, partialFilterExpression: { employeeCode: { $type: "string" } } },
+);
 UserSchema.index({ companyId: 1, status: 1 });
 UserSchema.index({ companyId: 1, teamId: 1 });
 UserSchema.index({ companyId: 1, managerId: 1 });

@@ -12,6 +12,7 @@ import type { CompanyContext } from "@/lib/auth/context";
 
 export interface ProfileDto {
   id: string; name: string; email: string; role: Role; roleLabel: string;
+  employeeCode: string | null;
   avatarUrl: string | null; phone: string | null;
   gender: string | null; maritalStatus: string | null; dateOfBirth: string | null;
   joiningDate: string | null;
@@ -42,6 +43,7 @@ export async function getProfile(ctx: CompanyContext, userId?: string): Promise<
     email: u.email as string,
     role: u.role as Role,
     roleLabel: ROLE_LABEL[u.role as Role],
+    employeeCode: (u.employeeCode as string | null) ?? null,
     avatarUrl: (u.avatarUrl as string | null) ?? null,
     phone: (u.phone as string | null) ?? null,
     gender: (u.gender as string | null) ?? null,

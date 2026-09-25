@@ -15,6 +15,14 @@ const CompanySchema = new Schema(
     workingDays: { type: [String], enum: WEEKDAYS, default: ["mon", "tue", "wed", "thu", "fri"] },
     lateThresholdMinutes: { type: Number, default: 15, min: 0, max: 240 },
     defaultTaskStatus: { type: String, default: "To Do" },
+
+    /*
+     * Employee codes (A95). The next number is held here and handed out with an atomic $inc, so
+     * two people added at the same moment cannot receive the same code.
+     */
+    employeeCodePrefix: { type: String, default: "EMP", maxlength: 8 },
+    employeeCodePadding: { type: Number, default: 3, min: 1, max: 8 },
+    employeeCodeNext: { type: Number, default: 1, min: 1 },
     /** Job designations the admin maintains (A57), e.g. "Web Developer"; picked when adding/editing people. */
     designations: { type: [String], default: [] },
     /** Services the company sells (A69), e.g. "Meta Ads"; ticked per client. */

@@ -4,6 +4,7 @@ import { User } from "@/models/User";
 import { Team } from "@/models/Team";
 import { Errors } from "@/lib/api/errors";
 import { audit } from "@/lib/audit";
+import { assertCodeFree } from "@/services/employeeCodeService";
 import { invalidateUserSessions } from "@/lib/auth/session-service";
 import { paginationSchema, toSort, skipFor, meta as pageMeta } from "@/lib/api/pagination";
 import { ROLE_LABEL } from "@/types";
@@ -20,6 +21,7 @@ export function serializeEmployee(u: Record<string, unknown>) {
     id: String(u._id), name: u.name as string, email: u.email as string, role: u.role as string, roleLabel: ROLE_LABEL[u.role as keyof typeof ROLE_LABEL],
     shiftId: u.shiftId ? String(u.shiftId) : null,
     branch: (u.branch as string | null) ?? null,
+    employeeCode: (u.employeeCode as string | null) ?? null,
     status: u.status as string, avatarUrl: (u.avatarUrl as string | null) ?? null, phone: (u.phone as string | null) ?? null,
     department: (u.department as string | null) ?? null, designation: (u.designation as string | null) ?? null, joiningDate: (u.joiningDate as Date | null) ?? null,
     lastActiveAt: (u.lastActiveAt as Date | null) ?? null, team: ref(u.teamId), manager: ref(u.managerId), createdAt: u.createdAt as Date,
@@ -80,6 +82,13 @@ export async function updateEmployee(ctx: CompanyContext, id: string, input: Upd
   // A90: null is meaningful here - it puts the person back on the company hours.
   if (input.shiftId !== undefined) user.set("shiftId", input.shiftId ? new Types.ObjectId(input.shiftId) : null);
   if (input.branch !== undefined) user.set("branch", input.branch);
+  if (input.employeeCode !== undefined) {
+    const code = input.employeeCode?.trim() || null;
+    // Checked against everyone else before it is written: the index would reject a clash anyway,
+    // but a plain conflict message beats a duplicate-key error surfacing as a 500.
+    if (code) await assertCodeFree(ctx, code, String(user._id));
+    user.set("employeeCode", code);
+  }
   if (input.teamId !== undefined) user.teamId = oid(input.teamId);
   if (input.managerId !== undefined) user.managerId = oid(input.managerId);
   if (input.phone !== undefined) user.phone = input.phone ?? null;
