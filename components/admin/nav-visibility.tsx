@@ -11,7 +11,7 @@ import { navigationFor } from "@/config/navigation";
 import { cn } from "@/lib/utils/cn";
 import { ROLE_LABEL, type CompanyRole } from "@/types";
 
-const ROLES: CompanyRole[] = ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "COMPANY_ADMIN"];
+const ROLES: CompanyRole[] = ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "HR", "COMPANY_ADMIN"];
 export type HiddenNav = Record<CompanyRole, string[]>;
 
 /**
@@ -46,7 +46,7 @@ export function NavVisibility({ initial }: { initial: HiddenNav }) {
     } finally { setSaving(false); }
   };
   const showEverything = () => {
-    const cleared = { EMPLOYEE: [], TEAM_LEAD: [], MANAGER: [], COMPANY_ADMIN: [] } as HiddenNav;
+    const cleared = { EMPLOYEE: [], TEAM_LEAD: [], MANAGER: [], HR: [], COMPANY_ADMIN: [] } as HiddenNav;
     setHidden(cleared);
     void save(cleared);
   };

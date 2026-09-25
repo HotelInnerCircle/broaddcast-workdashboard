@@ -6,7 +6,7 @@ import type { CompanyContext } from "@/lib/auth/context";
 
 /**
  * Visibility scope for people-related data (spec section 5 cardinality):
- *  - COMPANY_ADMIN: whole company
+ *  - COMPANY_ADMIN / HR: whole company
  *  - MANAGER: direct reports + members of teams they manage (+ themselves)
  *  - TEAM_LEAD: their own team
  *  - EMPLOYEE: themselves only
@@ -16,6 +16,7 @@ export async function employeeScopeFilter(ctx: CompanyContext): Promise<QueryFil
   const me = new Types.ObjectId(ctx.userId);
   switch (ctx.role) {
     case "COMPANY_ADMIN":
+    case "HR":
       return {};
     case "MANAGER": {
       const teams = await scoped(Team, ctx).find({ managerId: me, archivedAt: null }).select("_id").lean();
@@ -31,7 +32,7 @@ export async function employeeScopeFilter(ctx: CompanyContext): Promise<QueryFil
 
 /** Team ids a manager may invite into / assign. Admins may use any team. */
 export async function manageableTeamIds(ctx: CompanyContext): Promise<Types.ObjectId[] | "all"> {
-  if (ctx.role === "COMPANY_ADMIN") return "all";
+  if (ctx.role === "COMPANY_ADMIN" || ctx.role === "HR") return "all";
   if (ctx.role === "MANAGER") {
     const teams = await scoped(Team, ctx).find({ managerId: new Types.ObjectId(ctx.userId), archivedAt: null }).select("_id").lean();
     return teams.map((t) => t._id);

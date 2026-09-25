@@ -1,6 +1,6 @@
-export const ROLES = ["SUPER_ADMIN", "COMPANY_ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"] as const;
+export const ROLES = ["SUPER_ADMIN", "COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD", "EMPLOYEE"] as const;
 export type Role = (typeof ROLES)[number];
-export const COMPANY_ROLES = ["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"] as const;
+export const COMPANY_ROLES = ["COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD", "EMPLOYEE"] as const;
 export type CompanyRole = (typeof COMPANY_ROLES)[number];
 
 export const USER_STATUSES = ["active", "invited", "deactivated"] as const;
@@ -44,6 +44,7 @@ export interface SessionContext {
 export const ROLE_HOME: Record<Role, string> = {
   SUPER_ADMIN: "/super-admin/dashboard",
   COMPANY_ADMIN: "/admin/dashboard",
+  HR: "/hr/dashboard",
   MANAGER: "/manager/dashboard",
   TEAM_LEAD: "/team/dashboard",
   EMPLOYEE: "/employee/dashboard",
@@ -52,6 +53,7 @@ export const ROLE_HOME: Record<Role, string> = {
 export const ROLE_LABEL: Record<Role, string> = {
   SUPER_ADMIN: "Super Admin",
   COMPANY_ADMIN: "Company Admin",
+  HR: "HR",
   MANAGER: "Manager",
   TEAM_LEAD: "Team Lead",
   EMPLOYEE: "Employee",

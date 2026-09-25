@@ -13,7 +13,7 @@ import type { Role } from "@/types";
 export const RESOURCES = [
   "companies", "systemAnalytics", "companySettings", "billing", "employees", "teams", "clients",
   "projects", "tasks", "reports", "liveStatus", "timer", "attendance", "chat", "announcements",
-  "dailyReports", "auditLog", "roles",
+  "dailyReports", "auditLog", "roles", "workSites",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -46,10 +46,30 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     liveStatus: g(["view"], "company"),
     timer: g(["view", "create", "update"], "own"),
     attendance: g(["view", "create", "update"], "company"),
+    workSites: g(ALL, "company"),
     chat: g(["view", "create", "manage"], "company"), // manage = create/edit channels (A72)
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view", "create"], "company"),
     auditLog: g(["view"], "company"),
+    roles: g(["view"], "company"),
+  },
+  /**
+   * HR (A83): people and attendance across the whole company, and the only role besides the
+   * Company Admin that defines the work sites a swipe is measured against. Deliberately has no
+   * grant over clients, projects or tasks - that is not what HR is for, and the default scope
+   * elsewhere keeps them out of it.
+   */
+  HR: {
+    employees: g(["view", "invite", "update"], "company"),
+    teams: g(["view"], "company"),
+    reports: g(["view"], "company"),
+    liveStatus: g(["view"], "company"),
+    timer: g(["view", "create", "update"], "own"),
+    attendance: g(["view", "create", "update"], "company"),
+    workSites: g(ALL, "company"),
+    chat: g(["view", "create"], "company"),
+    announcements: g(["view", "create"], "company"),
+    dailyReports: g(["view"], "company"),
     roles: g(["view"], "company"),
   },
   MANAGER: {
@@ -124,6 +144,7 @@ export const RESOURCE_LABEL: Record<Resource, string> = {
   dailyReports: "Daily work reports",
   auditLog: "Audit log",
   roles: "Roles matrix",
+  workSites: "Work sites (attendance geofence)",
 };
 
 export const SCOPE_LABEL: Record<Scope, string> = {

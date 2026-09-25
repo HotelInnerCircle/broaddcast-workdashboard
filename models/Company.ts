@@ -22,6 +22,7 @@ const CompanySchema = new Schema(
     /** Menu items hidden per role (A71), keyed by role, values are nav hrefs. Empty = everything visible. */
     hiddenNav: {
       COMPANY_ADMIN: { type: [String], default: [] },
+      HR: { type: [String], default: [] },
       MANAGER: { type: [String], default: [] },
       TEAM_LEAD: { type: [String], default: [] },
       EMPLOYEE: { type: [String], default: [] },

@@ -36,10 +36,17 @@ async function deliver(ctx: CompanyContext, email: string, role: string, token: 
   await sendMail({ to: email, ...inviteEmail({ companyName: company?.name ?? "your company", inviterName: ctx.name, role: ROLE_LABEL[role as keyof typeof ROLE_LABEL], link, expiresInDays: INVITE_TTL_DAYS }) });
 }
 
-/** Placement rules shared by invites and direct creation: Admin any role/team; Manager only TEAM_LEAD/EMPLOYEE into own teams. */
+/**
+ * Placement rules shared by invites and direct creation: Admin any role/team; Manager only
+ * TEAM_LEAD/EMPLOYEE into own teams; HR anyone below HR, company-wide (A83) - HR hires people, but
+ * cannot appoint another HR or a Company Admin, which stays the account owner's decision.
+ */
 async function validatePlacement(ctx: CompanyContext, input: CreateInviteInput) {
   if (ctx.role === "MANAGER" && !["TEAM_LEAD", "EMPLOYEE"].includes(input.role)) {
     throw Errors.forbidden("Managers can only add team leads and employees");
+  }
+  if (ctx.role === "HR" && !["MANAGER", "TEAM_LEAD", "EMPLOYEE"].includes(input.role)) {
+    throw Errors.forbidden("HR cannot appoint another HR or a company admin");
   }
   const allowedTeams = await manageableTeamIds(ctx);
   if (input.teamId) {

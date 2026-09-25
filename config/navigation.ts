@@ -48,7 +48,7 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Roles", href: "/roles", icon: ShieldCheck, permission: ["roles", "view"] },
       // A78: the team's daily reports. Employees are excluded - "Daily Report" under TIME is their
       // own submission, and this page would only ever show them their own row again.
-      { label: "Daily Reports", href: "/reports/daily", icon: ClipboardList, permission: ["dailyReports", "view"], roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD"] },
+      { label: "Daily Reports", href: "/reports/daily", icon: ClipboardList, permission: ["dailyReports", "view"], roles: ["COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD"] },
     ] },
     { label: "COMMUNICATION", items: [
       { label: "Chat", href: "/chat", icon: MessageSquare, permission: ["chat", "view"] },

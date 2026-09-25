@@ -18,6 +18,7 @@ export function serializeCompany(c: Record<string, unknown>) {
     lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []), services: ((c.services as string[] | undefined) ?? []),
     hiddenNav: {
       COMPANY_ADMIN: ((c.hiddenNav as Record<string, string[]> | undefined)?.COMPANY_ADMIN ?? []),
+      HR: ((c.hiddenNav as Record<string, string[]> | undefined)?.HR ?? []),
       MANAGER: ((c.hiddenNav as Record<string, string[]> | undefined)?.MANAGER ?? []),
       TEAM_LEAD: ((c.hiddenNav as Record<string, string[]> | undefined)?.TEAM_LEAD ?? []),
       EMPLOYEE: ((c.hiddenNav as Record<string, string[]> | undefined)?.EMPLOYEE ?? []),

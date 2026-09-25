@@ -14,12 +14,12 @@ import { api, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDesignations } from "@/hooks/usePickers";
 import { formatDate, relativeTime } from "@/lib/utils/dates";
-import { ROLE_LABEL, type CompanyRole } from "@/types";
+import { COMPANY_ROLES, ROLE_LABEL, type CompanyRole } from "@/types";
 import type { EmployeeRow, TeamOption } from "./types";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
-  role: z.enum(["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"]),
+  role: z.enum(COMPANY_ROLES),
   teamId: z.string().nullable(),
   managerId: z.string().nullable(),
   department: z.string().max(80).nullable(),
@@ -31,7 +31,7 @@ type Input = z.infer<typeof schema>;
 export function EmployeeSheet({ employee, teams, managers, onClose, onSaved }: { employee: EmployeeRow | null; teams: TeamOption[]; managers: EmployeeRow[]; onClose: () => void; onSaved: () => void }) {
   const me = useAuth();
   const isAdmin = me.role === "COMPANY_ADMIN";
-  const roles: CompanyRole[] = isAdmin ? ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "COMPANY_ADMIN"] : ["EMPLOYEE", "TEAM_LEAD"];
+  const roles: CompanyRole[] = isAdmin ? ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "HR", "COMPANY_ADMIN"] : ["EMPLOYEE", "TEAM_LEAD"];
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<Input>({ resolver: zodResolver(schema) });
   const designations = useDesignations(Boolean(employee));
 

@@ -53,6 +53,9 @@ export async function updateEmployee(ctx: CompanyContext, id: string, input: Upd
   const user = await scoped(User, ctx).findOne({ ...scope, _id: oid(id) ?? new Types.ObjectId(), archivedAt: null });
   if (!user) throw Errors.notFound("Employee");
   if (String(user._id) === ctx.userId && (input.role || input.status)) throw Errors.bad("SELF_EDIT", "You cannot change your own role or status");
+  if (ctx.role === "HR" && input.role && !["MANAGER", "TEAM_LEAD", "EMPLOYEE"].includes(input.role)) {
+    throw Errors.forbidden("HR cannot appoint another HR or a company admin");
+  }
   if (ctx.role === "MANAGER") {
     if (input.role && !["TEAM_LEAD", "EMPLOYEE"].includes(input.role)) throw Errors.forbidden("Managers can only assign team lead or employee roles");
     if (input.status) throw Errors.forbidden("Only a company admin can deactivate employees");
