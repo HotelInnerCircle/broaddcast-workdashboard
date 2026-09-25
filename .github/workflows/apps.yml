@@ -59,8 +59,35 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Firebase, or no push plugin at all - never one without the other.
+      #
+      # The push plugin's register() calls FirebaseMessaging.getInstance(). Without a
+      # google-services.json that throws, and Capacitor rethrows any plugin exception as a
+      # RuntimeException on the main handler (Bridge.callPluginMethod), which kills the app. An APK
+      # carrying the plugin but no Firebase config therefore closes itself seconds after launch.
+      - name: Firebase config, or build without push
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "Firebase configured - this build has push notifications"
+          else
+            npm uninstall --no-save @capacitor/push-notifications
+            echo "No GOOGLE_SERVICES_JSON secret - building without the push plugin"
+          fi
+
       # Writes the native config from capacitor.config.ts (the URL the shell loads).
       - run: npx cap sync android
+
+      - name: Record which plugins went in
+        run: |
+          {
+            echo "### Plugins in this build"
+            echo '```'
+            cat android/app/src/main/assets/capacitor.plugins.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # A signed release APK when the keystore secrets are set, otherwise a debug APK - which is
       # still installable. An *unsigned* release APK is not, so debug is the right fallback.

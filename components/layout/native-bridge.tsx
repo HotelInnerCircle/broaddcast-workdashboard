@@ -56,8 +56,17 @@ export function NativeBridge() {
         cleanups.push(() => void net.remove());
       } catch { /* ignore */ }
 
-      // Push notifications: register only after permission is granted; token goes to the server.
+      /**
+       * Push notifications, only when the build actually has them.
+       *
+       * This try/catch cannot save us on its own: `register()` reaches FirebaseMessaging, and
+       * Capacitor rethrows any plugin exception as a RuntimeException on the main handler
+       * (Bridge.callPluginMethod), which kills the process before the promise ever rejects. So the
+       * APK is built either with Firebase configured or without the plugin at all, and this asks
+       * first whether the plugin is present.
+       */
       try {
+        if (!Capacitor.isPluginAvailable("PushNotifications")) return;
         const { PushNotifications } = await import("@capacitor/push-notifications");
         const perm = await PushNotifications.checkPermissions();
         const granted = perm.receive === "granted" ? perm : await PushNotifications.requestPermissions();

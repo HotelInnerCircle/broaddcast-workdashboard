@@ -166,3 +166,30 @@ Only these, nothing else: `INTERNET`, `ACCESS_NETWORK_STATE`, `POST_NOTIFICATION
   offline page when there is none.
 - Because the shell loads the deployed site, **a bad deploy affects installed apps immediately** -
   the usual trade-off of remote-URL mode.
+
+---
+
+## Push notifications, and the launch crash they caused
+
+The first APK installed and then closed itself a few seconds after opening. The chain:
+
+1. `components/layout/native-bridge.tsx` calls `PushNotifications.register()` once permission is granted.
+2. That reaches `FirebaseMessaging.getInstance()` inside the Capacitor plugin.
+3. The APK had no `google-services.json` - the file is git-ignored, so CI never had one - so Firebase was never initialised and the call threw.
+4. Capacitor does not turn that into a rejected promise. `Bridge.callPluginMethod` catches any plugin exception and **rethrows it as a `RuntimeException` on the main handler**, uncaught, which kills the process.
+
+The JavaScript `try/catch` around the call could never have helped: the app dies before the promise settles.
+
+So the build now ships **Firebase or no push plugin, never one without the other**:
+
+- With a `GOOGLE_SERVICES_JSON` repository secret, the workflow writes `android/app/google-services.json` and the APK has working push.
+- Without it, the workflow removes `@capacitor/push-notifications` before `npx cap sync`, so the plugin is not in the APK at all. `Capacitor.isPluginAvailable("PushNotifications")` is then false, the web layer skips registration, and nothing can throw.
+
+Every run prints the plugins it included onto the Summary page, so which of the two you got is never a guess.
+
+### Turning push on later
+
+1. Create a Firebase project, add an Android app with package name `com.broaddcast.workpulse`, and download its `google-services.json`.
+2. Paste the whole file as a repository secret named `GOOGLE_SERVICES_JSON`.
+3. Set `FIREBASE_SERVICE_ACCOUNT` in Vercel so the server can actually send the messages.
+4. Tag a new version. Both halves must be in place - the app registers for a token, the server sends to it.
