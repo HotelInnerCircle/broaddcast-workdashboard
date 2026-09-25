@@ -125,15 +125,15 @@ export async function createSwipe(
   }
   const within = Boolean(nearest && best <= (nearest.radiusMeters as number));
 
-  const where = nearest
-    ? `${nearest.name} - ${within ? "inside" : "OUTSIDE"} (${best} m from centre)`
-    : "No work site configured";
-  const stamped = await stampPhoto(raw, [
-    `${ctx.name} - ${input.type === "ON_DUTY" ? "ON DUTY" : "OFF DUTY"}`,
-    `${formatInTimeZone(at, clock.timezone, "dd MMM yyyy, HH:mm:ss")} (${clock.timezone})`,
-    where,
-    `${input.lat.toFixed(6)}, ${input.lng.toFixed(6)}${input.accuracyMeters ? `  +/-${Math.round(input.accuracyMeters)} m` : ""}`,
-  ]);
+  const stamped = await stampPhoto(raw, {
+    brand: "WorkPulse",
+    title: `${ctx.name} - ${input.type === "ON_DUTY" ? "ON DUTY" : "OFF DUTY"}`,
+    when: formatInTimeZone(at, clock.timezone, "dd/MM/yyyy hh:mm:ss a"),
+    coords: `${input.lat.toFixed(6)}, ${input.lng.toFixed(6)}${input.accuracyMeters ? `  +/-${Math.round(input.accuracyMeters)} m` : ""}`,
+    place: nearest
+      ? `${nearest.name} - ${within ? "inside" : "OUTSIDE"} (${best} m from centre)`
+      : "No work site configured",
+  });
 
   const key = `companies/${ctx.companyId}/swipes/${date}/${crypto.randomUUID()}.jpg`;
   await storage().put({ key, body: stamped.buffer, contentType: stamped.contentType });
