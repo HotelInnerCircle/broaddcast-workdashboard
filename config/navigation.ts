@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, ListChecks, FolderKanban, Building2, CalendarDays, Timer, Table2, CalendarCheck, Users, UsersRound,
-  ShieldCheck, MessageSquare, Fingerprint, ClipboardCheck, MapPin, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
+  ShieldCheck, MessageSquare, Fingerprint, ClipboardCheck, MapPin, CalendarClock, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
 } from "lucide-react";
 import { can, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
@@ -66,6 +66,7 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Project Reports", href: "/reports/projects", icon: PieChart, permission: ["reports", "view"], roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD"] },
     ] },
     { label: "ADMIN", items: [
+      { label: "Shifts & holidays", href: "/scheduling", icon: CalendarClock, permission: ["scheduling", "manage"] },
       { label: "Work sites", href: "/work-sites", icon: MapPin, permission: ["workSites", "manage"] },
       { label: "Settings", href: "/settings", icon: Settings, permission: ["companySettings", "view"] },
       { label: "Subscription", href: "/settings?tab=subscription", icon: CreditCard, permission: ["billing", "view"] },

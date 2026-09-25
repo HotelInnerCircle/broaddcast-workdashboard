@@ -8,7 +8,7 @@ import { User } from "@/models/User";
 import { Company } from "@/models/Company";
 import { Errors, ApiError } from "@/lib/api/errors";
 import { audit } from "@/lib/audit";
-import { buildClock, companyClock, type CompanyClock } from "@/lib/time/company-clock";
+import { buildClock, companyClock, personClock, type CompanyClock } from "@/lib/time/company-clock";
 import type { CompanyContext } from "@/lib/auth/context";
 import type { AttendanceStatus } from "@/types";
 import { employeeScopeFilter } from "./scope";
@@ -48,7 +48,7 @@ async function closeRecord(companyId: Types.ObjectId, clock: CompanyClock, rec: 
 }
 
 export async function clockIn(ctx: CompanyContext, ip: string | null) {
-  const clock = await companyClock(ctx.companyId);
+  const clock = await personClock(ctx.companyId, ctx.userId);
   const now = new Date();
   const day = clock.dayOf(now);
   const uid = new Types.ObjectId(ctx.userId);
@@ -66,7 +66,7 @@ export async function clockIn(ctx: CompanyContext, ip: string | null) {
 
 /** Clock-out also stops a running timer and ends an open break: the working session is over. */
 export async function clockOut(ctx: CompanyContext, ip: string | null) {
-  const clock = await companyClock(ctx.companyId);
+  const clock = await personClock(ctx.companyId, ctx.userId);
   const now = new Date();
   const uid = new Types.ObjectId(ctx.userId);
   const rec = await scoped(Attendance, ctx).findOne({ userId: uid, clockIn: { $ne: null }, clockOut: null }).sort({ date: -1 });

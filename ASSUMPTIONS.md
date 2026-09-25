@@ -524,3 +524,20 @@ Every place where the specification (WorkPulse Build Spec v2.0) was silent or co
 - **`/swipe` still exists** for desktop and for anyone following a link, and was rewritten onto the same hook so the two paths cannot drift apart - same order, same single action, same note.
 - **Verified:** 11 checks - the tap opens a file chooser (proving the gesture survives), the sheet appears with the photo, the note field and where you are, exactly one action is offered, swiping on duty is accepted, tapping again then offers Off duty and titles the sheet accordingly, and after going off duty it offers On duty again.
 - **Where:** `components/attendance/{use-swipe.ts,swipe-sheet.tsx,swipe-view.tsx}`, `components/layout/{app-shell,mobile-nav}.tsx`.
+
+### A89. The phone's menu becomes a page (owner request, 25 Sep 2026)
+- **What:** tapping **Profile** used to slide a drawer over whatever you were looking at. It now opens `/profile`, a real page carrying everything the desktop sidebar holds: who you are, appearance, every navigation group the role can see, My profile, Company settings and Sign out.
+- **Why a page beats a drawer here:** back works, the browser remembers it, and it can be linked to. A drawer is something to dismiss; this is somewhere to be.
+- **The drawer is gone, not hidden.** Nothing opened it any more once the top bar went desktop-only (A84), so the component and its dead hamburger were removed rather than left to rot.
+- **Verified:** Profile is a link rather than a drawer trigger, no dialog is left in the page, the page carries the whole menu, shows who you are, can sign you out, and browser back returns to the dashboard.
+- **Where:** `components/layout/{profile-view.tsx,mobile-nav.tsx,app-shell.tsx,navbar.tsx}`, `app/(dashboard)/profile/page.tsx`.
+
+### A90. Shifts, timings and holidays (owner request, 25 Sep 2026)
+- **What:** HR gets **Shifts & holidays**. A shift is a name, a start and end time, which days count and how much lateness is tolerated; a holiday is a date nobody works. People are put on a shift from the employee form, where the choice is "Company hours" or one of the shifts.
+- **They actually change the numbers,** which is the point: `personClock` layers someone's shift over the company defaults, and clock-in and clock-out use it, so **Late** and **Half Day** are judged against the hours that person is really expected to work. A holiday stops a day counting as a working day, so nobody is marked absent for it.
+- **Overnight shifts were handled, not assumed away.** A shift ending before it starts crosses midnight; its length wraps instead of going negative, which a plain subtraction would have done silently.
+- **Deleting a shift moves its people back to the company hours** rather than leaving them pointing at something that no longer exists, and the response says how many were moved.
+- **A shift shows how many people are on it,** so HR can see what a change will affect before making it.
+- **Fixed in passing:** the collapsed sidebar shortens a label to its first word, so "Swipe approvals" rendered as a second "Swipe" right below the real one. Explicit short labels now give Approvals, Sites and Shifts.
+- **Verified:** 11 clock checks (a holiday stops a working day, other days are unaffected, an overnight shift is nine hours not minus fifteen, a shift can add Saturday) and 18 API/UI checks (HR creates a shift and an employee cannot, duplicate names and impossible times are refused, assigning works and the count follows, holidays refuse a repeated date and everyone can read them, deleting a shift moves its person back, and the employee form offers "Company hours" plus the shifts).
+- **Where:** `models/{Shift,Holiday}.ts`, `lib/time/company-clock.ts`, `lib/validation/scheduling.ts`, `services/{schedulingService,attendanceService,employeeService}.ts`, `app/api/{shifts,holidays}/**`, `components/scheduling/scheduling-view.tsx`, `components/employees/employee-sheet.tsx`, `app/(dashboard)/scheduling/page.tsx`, `lib/permissions.ts`, `config/navigation.ts`, `components/layout/sidebar.tsx`.

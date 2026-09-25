@@ -1,17 +1,16 @@
 "use client";
-import { Menu, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "./notification-bell";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
-export function Navbar({ onMenu }: { onMenu: () => void }) {
+export function Navbar() {
   const me = useAuth();
   const openSearch = () => window.dispatchEvent(new CustomEvent("wp:open-search"));
   return (
     <header className="sticky top-0 z-30 hidden h-16 items-center gap-3 bg-background/85 px-4 backdrop-blur md:top-4 md:flex md:h-14 md:rounded-2xl md:px-2">
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenu} aria-label="Open navigation"><Menu /></Button>
       <button
         type="button"
         onClick={openSearch}

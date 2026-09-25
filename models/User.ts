@@ -15,6 +15,8 @@ const UserSchema = new Schema(
     role: { type: String, enum: ROLES, required: true, index: true },
     companyId: { type: Schema.Types.ObjectId, ref: "Company", default: null, index: true },
     teamId: { type: Schema.Types.ObjectId, ref: "Team", default: null },
+    /** Working pattern (A90). Null means the company defaults in Settings apply. */
+    shiftId: { type: Schema.Types.ObjectId, ref: "Shift", default: null },
     managerId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     avatarUrl: { type: String, default: null },
     phone: { type: String, default: null },

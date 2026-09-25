@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ const schema = z.object({
   name: z.string().trim().min(2).max(120),
   role: z.enum(COMPANY_ROLES),
   teamId: z.string().nullable(),
+  shiftId: z.string().nullable(),
   managerId: z.string().nullable(),
   department: z.string().max(80).nullable(),
   designation: z.string().max(60).nullable(),
@@ -33,15 +34,18 @@ export function EmployeeSheet({ employee, teams, managers, onClose, onSaved }: {
   const isAdmin = me.role === "COMPANY_ADMIN";
   const roles: CompanyRole[] = isAdmin ? ["EMPLOYEE", "TEAM_LEAD", "MANAGER", "HR", "COMPANY_ADMIN"] : ["EMPLOYEE", "TEAM_LEAD"];
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<Input>({ resolver: zodResolver(schema) });
+  // A90: the working pattern this person is judged against. Empty means the company hours.
+  const [shifts, setShifts] = useState<Array<{ id: string; name: string; startTime: string; endTime: string }>>([]);
+  useEffect(() => { void api<typeof shifts>("/api/shifts").then(setShifts).catch(() => setShifts([])); }, []);
   const designations = useDesignations(Boolean(employee));
 
   useEffect(() => {
-    if (employee) reset({ name: employee.name, role: employee.role as CompanyRole, teamId: employee.team?.id ?? null, managerId: employee.manager?.id ?? null, department: employee.department, designation: employee.designation, phone: employee.phone });
+    if (employee) reset({ name: employee.name, role: employee.role as CompanyRole, teamId: employee.team?.id ?? null, shiftId: employee.shiftId ?? null, managerId: employee.manager?.id ?? null, department: employee.department, designation: employee.designation, phone: employee.phone });
   }, [employee, reset]);
 
   const save = async (values: Input) => {
     if (!employee) return;
-    const body: Record<string, unknown> = { name: values.name, teamId: values.teamId || null, department: values.department || null, designation: values.designation || null, phone: values.phone || null };
+    const body: Record<string, unknown> = { name: values.name, teamId: values.teamId || null, shiftId: values.shiftId || null, department: values.department || null, designation: values.designation || null, phone: values.phone || null };
     if (values.role !== employee.role) body.role = values.role;
     if (isAdmin) body.managerId = values.managerId || null;
     try {
@@ -82,6 +86,12 @@ export function EmployeeSheet({ employee, teams, managers, onClose, onSaved }: {
             <Field label="Name" htmlFor="emp-name" error={errors.name?.message}><Input id="emp-name" {...register("name")} /></Field>
             <Field label="Role" htmlFor="emp-role" hint={self ? "You cannot change your own role." : "Changing the role signs the person out everywhere."}>
               <NativeSelect id="emp-role" disabled={self} {...register("role")}>{roles.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}</NativeSelect>
+            </Field>
+            <Field label="Shift" htmlFor="emp-shift" hint={shifts.length === 0 ? "No shifts defined - everyone is on the company hours." : "Lateness and half days are judged against this."}>
+              <NativeSelect id="emp-shift" {...register("shiftId")}>
+                <option value="">Company hours</option>
+                {shifts.map((sh) => <option key={sh.id} value={sh.id}>{sh.name} ({sh.startTime}-{sh.endTime})</option>)}
+              </NativeSelect>
             </Field>
             <Field label="Team" htmlFor="emp-team"><NativeSelect id="emp-team" {...register("teamId")}><option value="">No team</option>{teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</NativeSelect></Field>
             {isAdmin && (

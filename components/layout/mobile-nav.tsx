@@ -2,14 +2,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Timer, MessageSquare, User, Fingerprint } from "lucide-react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils/cn";
 import { useAuth } from "@/hooks/useAuth";
 import { useTimerOptional } from "@/hooks/useTimer";
 import { useRealtimeOptional } from "@/hooks/useRealtime";
 import { ROLE_HOME } from "@/types";
-import { SidebarNav } from "./sidebar";
-import { BrandMark } from "./brand-mark";
 
 /**
  * Bottom navigation for phones ("Ribbon" direction, A66): a light rounded bar with a raised centre
@@ -19,7 +16,7 @@ import { BrandMark } from "./brand-mark";
  * Order: Home, Timer, [Swipe], Chat, Profile. Tabs the admin has hidden for this role (A71) drop
  * out of the bar, and the grid narrows to match.
  */
-export function MobileBottomNav({ onMore, onSwipe }: { onMore: () => void; onSwipe: () => void }) {
+export function MobileBottomNav({ onSwipe }: { onSwipe: () => void }) {
   const me = useAuth();
   const pathname = usePathname();
   const { entry, break: onBreak, unread } = useBottomNavState();
@@ -30,7 +27,8 @@ export function MobileBottomNav({ onMore, onSwipe }: { onMore: () => void; onSwi
     { label: "Home", href: ROLE_HOME[me.role], icon: Home },
     { label: "Timer", href: "/timer", icon: Timer, running },
     { label: "Chat", href: "/chat", icon: MessageSquare, badge: unread },
-    { label: "Profile", href: null, icon: User },
+    // A89: a page, not a drawer - back works and the browser remembers where you were.
+    { label: "Profile", href: "/profile", icon: User },
   ].filter((i) => !i.href || !hidden.includes(i.href));
   const showSwipe = !hidden.includes("/swipe");
   const left = Math.floor(side.length / 2);
@@ -52,11 +50,7 @@ export function MobileBottomNav({ onMore, onSwipe }: { onMore: () => void; onSwi
       </button>
       )}
 
-      {side.slice(left).map((i) => (
-        i.href
-          ? <NavTab key={i.label} {...i} active={isActive(i.href)} />
-          : <button key={i.label} type="button" onClick={onMore} aria-label="Profile and menu" className={cn("flex flex-col items-center gap-1 py-1 text-[10px] font-bold", pathname.startsWith("/settings") || pathname.startsWith("/notifications") ? "text-foreground" : "text-muted-foreground")}><i.icon className="size-[19px]" strokeWidth={2} />{i.label}</button>
-      ))}
+      {side.slice(left).map((i) => <NavTab key={i.label} {...i} active={isActive(i.href!)} />)}
     </nav>
   );
 }
@@ -80,19 +74,3 @@ function useBottomNavState() {
   return { entry: t?.entry ?? null, break: Boolean(t?.break), unread: rt?.unreadNotifications ?? 0 };
 }
 
-export function MobileDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const me = useAuth();
-  return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/40 md:hidden" />
-        <DialogPrimitive.Content className="fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-sidebar text-sidebar-foreground shadow-xl md:hidden">
-          <DialogPrimitive.Title className="sr-only">Navigation</DialogPrimitive.Title>
-          <DialogPrimitive.Description className="sr-only">Main navigation</DialogPrimitive.Description>
-          <div className="flex h-16 items-center px-4"><BrandMark wide companyName={me.company?.name} companyLogoUrl={me.company?.logoUrl} className="w-full text-white" /></div>
-          <SidebarNav collapsed={false} onNavigate={() => onOpenChange(false)} />
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
-}

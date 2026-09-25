@@ -18,6 +18,8 @@ export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export const updateEmployeeSchema = z.object({
   name: personName.optional(),
   role: z.enum(COMPANY_ROLES).optional(),
+  /** A90: the working pattern this person is on; null puts them back on the company hours. */
+  shiftId: objectId.nullable().optional(),
   teamId: objectId.nullable().optional(),
   managerId: objectId.nullable().optional(),
   phone: z.string().trim().max(30).nullable().optional(),

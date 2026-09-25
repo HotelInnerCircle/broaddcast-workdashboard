@@ -18,6 +18,7 @@ const ref = (v: unknown) => (v && typeof v === "object" && "name" in v ? { id: S
 export function serializeEmployee(u: Record<string, unknown>) {
   return {
     id: String(u._id), name: u.name as string, email: u.email as string, role: u.role as string, roleLabel: ROLE_LABEL[u.role as keyof typeof ROLE_LABEL],
+    shiftId: u.shiftId ? String(u.shiftId) : null,
     status: u.status as string, avatarUrl: (u.avatarUrl as string | null) ?? null, phone: (u.phone as string | null) ?? null,
     department: (u.department as string | null) ?? null, designation: (u.designation as string | null) ?? null, joiningDate: (u.joiningDate as Date | null) ?? null,
     lastActiveAt: (u.lastActiveAt as Date | null) ?? null, team: ref(u.teamId), manager: ref(u.managerId), createdAt: u.createdAt as Date,
@@ -75,6 +76,8 @@ export async function updateEmployee(ctx: CompanyContext, id: string, input: Upd
 
   if (input.name !== undefined) user.name = input.name;
   if (input.role !== undefined) user.role = input.role;
+  // A90: null is meaningful here - it puts the person back on the company hours.
+  if (input.shiftId !== undefined) user.set("shiftId", input.shiftId ? new Types.ObjectId(input.shiftId) : null);
   if (input.teamId !== undefined) user.teamId = oid(input.teamId);
   if (input.managerId !== undefined) user.managerId = oid(input.managerId);
   if (input.phone !== undefined) user.phone = input.phone ?? null;

@@ -23,3 +23,5 @@ export { Invoice, type InvoiceDoc } from "./Invoice";
 export { DeviceToken, type DeviceTokenDoc } from "./DeviceToken";
 export { WorkSite, type WorkSiteDoc } from "./WorkSite";
 export { AttendanceSwipe, type AttendanceSwipeDoc } from "./AttendanceSwipe";
+export { Shift, type ShiftDoc } from "./Shift";
+export { Holiday, type HolidayDoc } from "./Holiday";

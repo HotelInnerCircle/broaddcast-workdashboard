@@ -13,7 +13,7 @@ import type { Role } from "@/types";
 export const RESOURCES = [
   "companies", "systemAnalytics", "companySettings", "billing", "employees", "teams", "clients",
   "projects", "tasks", "reports", "liveStatus", "timer", "attendance", "chat", "announcements",
-  "dailyReports", "auditLog", "roles", "workSites",
+  "dailyReports", "auditLog", "roles", "workSites", "scheduling",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -47,6 +47,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     timer: g(["view", "create", "update"], "own"),
     attendance: g(["view", "create", "update"], "company"),
     workSites: g(ALL, "company"),
+    scheduling: g(ALL, "company"),
     chat: g(["view", "create", "manage"], "company"), // manage = create/edit channels (A72)
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view", "create"], "company"),
@@ -67,6 +68,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     timer: g(["view", "create", "update"], "own"),
     attendance: g(["view", "create", "update"], "company"),
     workSites: g(ALL, "company"),
+    scheduling: g(ALL, "company"),
     chat: g(["view", "create"], "company"),
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view"], "company"),
@@ -145,6 +147,7 @@ export const RESOURCE_LABEL: Record<Resource, string> = {
   auditLog: "Audit log",
   roles: "Roles matrix",
   workSites: "Work sites (attendance geofence)",
+  scheduling: "Shifts, timings and holidays",
 };
 
 export const SCOPE_LABEL: Record<Scope, string> = {
