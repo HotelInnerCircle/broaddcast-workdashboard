@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, ListChecks, FolderKanban, Building2, CalendarDays, Timer, Table2, CalendarCheck, Users, UsersRound,
-  ShieldCheck, MessageSquare, Fingerprint, ClipboardCheck, MapPin, CalendarClock, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
+  ShieldCheck, MessageSquare, Fingerprint, ClipboardCheck, MapPin, CalendarClock, Palmtree, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
 } from "lucide-react";
 import { can, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
@@ -43,6 +43,7 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       // A83: swiping is its own screen - it needs the camera and a location fix, which the
       // attendance table has no business asking for.
       { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"] },
+      { label: "Leave", href: "/leave", icon: Palmtree, permission: ["attendance", "create"] },
       { label: "Swipe approvals", href: "/attendance/swipes", icon: ClipboardCheck, permission: ["attendance", "view"], roles: ["COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD"] },
       { label: "Daily Report", href: "/daily-report", icon: FileText, permission: ["dailyReports", "create"] },
     ] },

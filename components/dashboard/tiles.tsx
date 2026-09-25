@@ -2,7 +2,7 @@
 import Link from "next/link";
 import {
   BarChart3, Building2, CalendarCheck, CalendarDays, FileText, FolderKanban, ListChecks,
-  MessageSquare, Settings, Table2, Timer, Users, UsersRound,
+  MessageSquare, Settings, Table2, Timer, Users, UsersRound, Palmtree, Fingerprint,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { navigationFor } from "@/config/navigation";
@@ -18,6 +18,7 @@ export const TILE_ICONS = {
   tasks: ListChecks, timer: Timer, timesheets: Table2, attendance: CalendarCheck,
   report: FileText, chat: MessageSquare, projects: FolderKanban, calendar: CalendarDays,
   reports: BarChart3, people: Users, teams: UsersRound, clients: Building2, settings: Settings,
+  leave: Palmtree, swipe: Fingerprint,
 } as const;
 export type TileIcon = keyof typeof TILE_ICONS;
 

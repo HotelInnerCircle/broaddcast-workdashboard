@@ -53,6 +53,8 @@ export default async function EmployeeDashboardPage() {
     { href: "/timer", label: "Timer", icon: "timer", tone: "time", hint: formatDuration(hours.todaySeconds) + " today" },
     { href: "/timesheets", label: "Timesheets", icon: "timesheets", tone: "time-2", hint: formatDuration(hours.weekSeconds) + " this week" },
     { href: "/attendance", label: "Attendance", icon: "attendance", tone: "time-3", hint: "clock in and out" },
+    { href: "/swipe", label: "Swipe", icon: "swipe", tone: "time-3", hint: "on and off duty" },
+    { href: "/leave", label: "Leave", icon: "leave", tone: "work-2", hint: "ask for time off" },
     { href: "/daily-report", label: "Daily report", icon: "report", tone: "admin", badge: reportDone ? undefined : true, hint: reportDone ? "submitted" : "not written" },
     { href: "/chat", label: "Chat", icon: "chat", tone: "work-3", hint: "your team" },
     { href: "/projects", label: "Projects", icon: "projects", tone: "work-2", hint: "what you are on" },

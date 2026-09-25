@@ -25,3 +25,5 @@ export { WorkSite, type WorkSiteDoc } from "./WorkSite";
 export { AttendanceSwipe, type AttendanceSwipeDoc } from "./AttendanceSwipe";
 export { Shift, type ShiftDoc } from "./Shift";
 export { Holiday, type HolidayDoc } from "./Holiday";
+export { LeaveRequest, type LeaveRequestDoc } from "./LeaveRequest";
+export { LeavePolicy, type LeavePolicyDoc } from "./LeavePolicy";

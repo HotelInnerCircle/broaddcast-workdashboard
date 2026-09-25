@@ -17,6 +17,7 @@ export interface Shift {
   lateThresholdMinutes: number; active: boolean; people: number; overnight: boolean;
 }
 export interface Holiday { id: string; date: string; name: string }
+export interface Policy { type: string; typeLabel: string; year: number; daysPerYear: number; monthlyAccrual: boolean }
 
 const DAY_LABEL: Record<string, string> = { mon: "M", tue: "T", wed: "W", thu: "T", fri: "F", sat: "S", sun: "S" };
 const BLANK = { name: "", startTime: "09:00", endTime: "18:00", lateThresholdMinutes: "10" };
@@ -29,11 +30,13 @@ export function SchedulingView() {
   const [form, setForm] = useState(BLANK);
   const [days, setDays] = useState<string[]>(["mon", "tue", "wed", "thu", "fri"]);
   const [hol, setHol] = useState({ date: "", name: "" });
+  const [policies, setPolicies] = useState<Policy[]>([]);
   const [busy, setBusy] = useState(false);
 
   const load = () => {
     void api<Shift[]>("/api/shifts", { fresh: true }).then(setShifts).catch(() => setShifts([]));
     void api<Holiday[]>("/api/holidays", { fresh: true }).then(setHolidays).catch(() => setHolidays([]));
+    void api<Policy[]>("/api/leave/policies", { fresh: true }).then(setPolicies).catch(() => setPolicies([]));
   };
   useEffect(load, []);
 
@@ -73,14 +76,26 @@ export function SchedulingView() {
     catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not remove it"); }
   };
 
+  const savePolicy = async (type: string, daysPerYear: number) => {
+    try {
+      const next = await api<Policy[]>("/api/leave/policies", { method: "PUT", json: { type, year: new Date().getFullYear(), daysPerYear } });
+      setPolicies(next);
+      toast.success("Allowance saved");
+    } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not save it"); }
+  };
+
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList><TabsTrigger value="shifts">Shifts</TabsTrigger><TabsTrigger value="holidays">Holidays</TabsTrigger></TabsList>
+        <TabsList>
+          <TabsTrigger value="shifts">Shifts</TabsTrigger>
+          <TabsTrigger value="holidays">Holidays</TabsTrigger>
+          <TabsTrigger value="leave">Leave allowance</TabsTrigger>
+        </TabsList>
       </Tabs>
-      {tab === "shifts"
-        ? <Shifts rows={shifts} form={form} setForm={setForm} days={days} setDays={setDays} busy={busy} onAdd={addShift} onRemove={removeShift} />
-        : <Holidays rows={holidays} hol={hol} setHol={setHol} busy={busy} onAdd={addHoliday} onRemove={removeHoliday} />}
+      {tab === "shifts" ? <Shifts rows={shifts} form={form} setForm={setForm} days={days} setDays={setDays} busy={busy} onAdd={addShift} onRemove={removeShift} />
+        : tab === "holidays" ? <Holidays rows={holidays} hol={hol} setHol={setHol} busy={busy} onAdd={addHoliday} onRemove={removeHoliday} />
+        : <Allowances rows={policies} onSave={savePolicy} />}
     </div>
   );
 }
@@ -201,5 +216,34 @@ function Holidays({ rows, hol, setHol, busy, onAdd, onRemove }: {
         </p>
       </CardContent></Card>
     </div>
+  );
+}
+
+/** How many days of each kind people get in a year (A91). Loss of pay and on duty have none. */
+function Allowances({ rows, onSave }: { rows: Policy[]; onSave: (type: string, days: number) => Promise<void> }) {
+  return (
+    <Card><CardContent className="p-0">
+      <ul className="divide-y divide-border">
+        {rows.map((r) => (
+          <li key={r.type} className="flex items-center gap-3 px-5 py-4">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{r.typeLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {r.daysPerYear} day(s) a year{r.monthlyAccrual ? ` · ${Math.round((r.daysPerYear / 12) * 10) / 10} a month as the year goes on` : " · all up front"}
+              </p>
+            </div>
+            <Input
+              aria-label={`Days per year for ${r.typeLabel}`} defaultValue={String(r.daysPerYear)} inputMode="numeric"
+              className="w-24 shrink-0"
+              onBlur={(e) => { const n = Number(e.target.value); if (!Number.isNaN(n) && n !== r.daysPerYear) void onSave(r.type, n); }}
+            />
+          </li>
+        ))}
+      </ul>
+      <p className="px-5 pb-4 text-[11.5px] leading-relaxed text-muted-foreground">
+        Earned month by month rather than granted on the first of January, so a balance in September
+        shows nine twelfths of the year. Loss of Pay and On Duty are recorded but never deducted.
+      </p>
+    </CardContent></Card>
   );
 }

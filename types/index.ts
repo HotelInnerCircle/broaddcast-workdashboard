@@ -59,6 +59,23 @@ export const ROLE_LABEL: Record<Role, string> = {
   EMPLOYEE: "Employee",
 };
 
+/** Leave plan (A91). The six kinds an Indian workplace actually uses. */
+export const LEAVE_TYPES = ["PL", "CL", "SL", "COMP_OFF", "LOP", "ON_DUTY"] as const;
+export type LeaveType = (typeof LEAVE_TYPES)[number];
+export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
+  PL: "Privilege Leave",
+  CL: "Casual Leave",
+  SL: "Sick Leave",
+  COMP_OFF: "Comp Off",
+  LOP: "Loss of Pay",
+  ON_DUTY: "On Duty",
+};
+/** Loss of pay and on duty are not drawn from a balance, so they have no entitlement. */
+export const LEAVE_TYPES_WITH_BALANCE: LeaveType[] = ["PL", "CL", "SL", "COMP_OFF"];
+
+export const LEAVE_STATUSES = ["PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
+export type LeaveStatus = (typeof LEAVE_STATUSES)[number];
+
 export const CLIENT_STATUSES = ["active", "inactive"] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
 
