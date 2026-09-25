@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { entryHref, entrySubtitle, entryTitle } from "./mini-timer";
 import Link from "next/link";
-import { Play, Pause, Square, Coffee, LogIn, LogOut, Clock, Timer as TimerIcon } from "lucide-react";
+import { Play, Pause, Square, Coffee, LogIn, LogOut, Clock, RotateCcw, Timer as TimerIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NativeSelect, Textarea } from "@/components/ui/input";
@@ -28,6 +28,7 @@ export function TimerPage() {
   const [notes, setNotes] = useState("");
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [starting, setStarting] = useState(false);
+  const [restarting, setRestarting] = useState<string | null>(null);
 
   const loadEntries = useCallback(async () => {
     if (!t.summary) return;
@@ -44,6 +45,26 @@ export function TimerPage() {
     const ok = await t.start(clientId, { notes: notes.trim() });
     setStarting(false);
     if (ok) { setClientId(""); setNotes(""); }
+  };
+
+  /**
+   * Pick a finished block back up (A86). The same job coming back later is a new block of time,
+   * not an extension of the old one - the 11:19-12:02 you already worked stays exactly as it is
+   * and a fresh entry starts now, so the timesheet still shows when the work actually happened.
+   *
+   * If a timer is already running, `t.start` raises the usual switch dialog and asks what was
+   * completed on it first; nothing special is needed here.
+   */
+  const startAgain = async (e: Entry) => {
+    if (!e.client?.id) return;
+    setRestarting(e.id);
+    await t.start(e.client.id, {
+      notes: e.notes?.trim() || e.task?.name || e.project?.name || e.client.name || "Continued work",
+      projectId: e.project?.id,
+      taskId: e.task?.id,
+    });
+    setRestarting(null);
+    void loadEntries();
   };
 
   const att = t.summary?.attendance ?? null;
@@ -103,6 +124,17 @@ export function TimerPage() {
                       <span className={cn("size-2 rounded-full", e.status === "RUNNING" ? "bg-success" : e.status === "PAUSED" ? "bg-warning" : "bg-muted-foreground/50")} />
                       <div className="min-w-0 flex-1"><Link href={e.task?.id ? `/tasks/${e.task.id}` : e.project?.id ? `/projects/${e.project.id}` : `/clients/${e.client?.id}`} className="block truncate font-medium hover:text-primary hover:underline">{e.notes ?? e.task?.name ?? e.project?.name ?? e.client?.name}</Link><p className="truncate text-xs text-muted-foreground">{[e.client?.name, e.project?.name].filter(Boolean).join(" / ")} - {formatDateTime(e.start).split(", ")[1]}{e.end ? ` to ${formatDateTime(e.end).split(", ")[1]}` : ""}{e.autoClosed && " - auto-closed"}</p></div>
                       <span className="font-mono text-sm tabular-nums">{formatHMS(e.status === "COMPLETED" ? e.durationSeconds : e.id === t.entry?.id ? t.elapsed : e.elapsedSeconds)}</span>
+                      {e.status === "COMPLETED" && e.client?.id && (
+                        <Button
+                          size="sm" variant="outline" className="shrink-0"
+                          disabled={restarting === e.id}
+                          onClick={() => void startAgain(e)}
+                          title={`Start a new timer for "${e.notes ?? e.task?.name ?? e.client.name}"`}
+                        >
+                          <RotateCcw className="size-3.5" />
+                          <span className="hidden sm:inline">{restarting === e.id ? "Starting..." : "Start again"}</span>
+                        </Button>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -497,3 +497,12 @@ Every place where the specification (WorkPulse Build Spec v2.0) was silent or co
 - **It still stamps after the shot, not on the live preview.** The reference app draws its overlay on the camera feed; that is a picture of a stamp, and anything a client draws it can also fake. Stamping server-side from the values written to the database is what makes the photo evidence rather than decoration. A live preview could be added on top of it later - it would be a nicety, not the record.
 - **Verified:** the full swipe suite still passes (28 checks) and the phone-chrome suite (15), and a photo from a real end-to-end run was inspected: top band, correct date to the second, pin, coordinates and site.
 - **Where:** `components/layout/mobile-nav.tsx`, `lib/attendance/stamp.ts`, `services/swipeService.ts`.
+
+### A86. Picking a finished block of time back up (owner question, 25 Sep 2026)
+- **The question:** once a job has been timed from 11:19 to 12:02 and the same job comes back later, how do you start it again without retyping the client and the description?
+- **What:** every finished entry in Today's entries now carries a **Start again** button. It starts a fresh timer with the same client, project, task and description - one tap, nothing to retype.
+- **It creates a new block, not a longer old one.** The 11:19-12:02 you already worked keeps its own times, and a second block starts now. Two entries against the same job is the honest record: the timesheet still shows *when* the work actually happened, and the day's total is the sum. Stretching the first entry would claim you worked straight through the gap.
+- **No new API.** `startTimer` already accepted client, project, task and notes, and `useTimer.start` already handles the "you already have a timer running" case by raising the switch dialog and asking what was completed on the running one. The button is the affordance that was missing, not the machinery.
+- **Description falls back** to the task, project or client name when an entry has no notes, since the timer requires a description of at least three characters.
+- **Verified:** 10 checks - a finished block offers the button, pressing it starts a timer, the entry count goes up by exactly one, the original block keeps its own start time, and the new block carries the same description and the same client.
+- **Where:** `components/timer/timer-page.tsx`.
