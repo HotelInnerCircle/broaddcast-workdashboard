@@ -10,7 +10,7 @@ export function Navbar({ onMenu }: { onMenu: () => void }) {
   const me = useAuth();
   const openSearch = () => window.dispatchEvent(new CustomEvent("wp:open-search"));
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-background/85 px-4 backdrop-blur md:top-4 md:h-14 md:rounded-2xl md:px-2">
+    <header className="sticky top-0 z-30 hidden h-16 items-center gap-3 bg-background/85 px-4 backdrop-blur md:top-4 md:flex md:h-14 md:rounded-2xl md:px-2">
       <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenu} aria-label="Open navigation"><Menu /></Button>
       <button
         type="button"

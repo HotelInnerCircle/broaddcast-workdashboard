@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { ChevronRight, Coffee, LogIn, LogOut, Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
+import { Bell, ChevronRight, Coffee, LogIn, LogOut, Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useRealtime } from "@/hooks/useRealtime";
 import { useTimer, formatHMS, formatHM } from "@/hooks/useTimer";
 import { entryHref, entrySubtitle, entryTitle } from "@/components/timer/mini-timer";
 import { formatDate } from "@/lib/utils/dates";
@@ -22,6 +23,7 @@ export interface MobileAlert { href: string; text: string; tone: "danger" | "war
 export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; alert?: MobileAlert | null; timezone?: string }) {
   const me = useAuth();
   const t = useTimer();
+  const rt = useRealtime();
   const running = t.entry?.status === "RUNNING";
   const onBreak = Boolean(t.break);
   const att = t.summary?.attendance ?? null;
@@ -37,7 +39,19 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
         <span aria-hidden className="pointer-events-none absolute -right-20 -top-28 size-72 rounded-full bg-white/[0.07]" />
         <span aria-hidden className="pointer-events-none absolute -bottom-28 -left-16 size-60 rounded-full bg-white/[0.05]" />
 
-        <div className="relative mt-1 flex items-start gap-4">
+        {/* The phone has no top bar (A84), so this is the only bell - not a duplicate of one. */}
+        <div className="relative flex justify-end">
+          <Link href="/notifications" aria-label={`Notifications${rt.unreadNotifications ? `, ${rt.unreadNotifications} unread` : ""}`} className="relative flex size-10 items-center justify-center text-[#f6c46a]">
+            <Bell className="size-[22px]" />
+            {rt.unreadNotifications > 0 && (
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[9px] font-bold text-white">
+                {rt.unreadNotifications > 9 ? "9+" : rt.unreadNotifications}
+              </span>
+            )}
+          </Link>
+        </div>
+
+        <div className="relative flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xl font-bold leading-tight">Hi {me.name.split(" ")[0]}</p>
             <p className="mt-0.5 truncate text-[12.5px] text-white/75">{me.company?.name ?? ""}</p>

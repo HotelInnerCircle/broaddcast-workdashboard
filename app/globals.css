@@ -169,8 +169,14 @@
   /* Native shell (A65): honour device safe areas and keep the viewport stable when the keyboard opens. */
   html.native-app body { padding-top: env(safe-area-inset-top); overscroll-behavior-y: none; -webkit-text-size-adjust: 100%; }
   html.native-app { -webkit-tap-highlight-color: transparent; }
-  /* Never allow sideways scrolling on phones. */
-  html, body { max-width: 100%; overflow-x: hidden; }
+  /*
+   * Never allow sideways scrolling on phones - but `overflow-x: hidden` is the wrong tool for it.
+   * When one axis is not `visible` the other computes to `auto`, so hiding the x-axis on BOTH html
+   * and body turns both into scroll containers and vertical scrolling stops working on phones.
+   * `clip` does not coerce the other axis, so the page keeps scrolling the way it should.
+   */
+  html { max-width: 100%; overflow-x: clip; }
+  body { max-width: 100%; }
   @media (max-width: 767px) {
     /* Comfortable touch targets on phones (WCAG 2.5.5 ~44px). */
     button, [role="button"], a.nav, select, summary { min-height: 40px; }
