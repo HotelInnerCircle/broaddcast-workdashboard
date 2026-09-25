@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { entryHref, entrySubtitle, entryTitle } from "./mini-timer";
 import Link from "next/link";
-import { Play, Pause, Square, Coffee, LogIn, LogOut, Clock, RotateCcw, Timer as TimerIcon } from "lucide-react";
+import { Play, Pause, Square, Coffee, LogIn, LogOut, Clock, RotateCcw, ChevronDown, Timer as TimerIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NativeSelect, Textarea } from "@/components/ui/input";
@@ -18,6 +18,17 @@ import { api } from "@/lib/api/client";
 import { formatDateTime, formatDate } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 
+interface Group {
+  key: string;
+  title: string;
+  entries: Entry[];
+  totalSeconds: number;
+  firstStart: string;
+  lastEnd: string | null;
+  running: boolean;
+  latest: Entry;
+}
+
 interface Entry { id: string; task: { id: string; name: string | null } | null; project: { id: string; name: string | null } | null; client: { id: string; name: string | null } | null; status: string; start: string; end: string | null; elapsedSeconds: number; durationSeconds: number; autoClosed: boolean; notes: string | null }
 
 export function TimerPage() {
@@ -29,6 +40,7 @@ export function TimerPage() {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [starting, setStarting] = useState(false);
   const [restarting, setRestarting] = useState<string | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
 
   const loadEntries = useCallback(async () => {
     if (!t.summary) return;
@@ -55,9 +67,9 @@ export function TimerPage() {
    * If a timer is already running, `t.start` raises the usual switch dialog and asks what was
    * completed on it first; nothing special is needed here.
    */
-  const startAgain = async (e: Entry) => {
+  const startAgain = async (e: Entry, key: string) => {
     if (!e.client?.id) return;
-    setRestarting(e.id);
+    setRestarting(key);
     await t.start(e.client.id, {
       notes: e.notes?.trim() || e.task?.name || e.project?.name || e.client.name || "Continued work",
       projectId: e.project?.id,
@@ -66,6 +78,37 @@ export function TimerPage() {
     setRestarting(null);
     void loadEntries();
   };
+
+  /**
+   * The same job timed twice in a day is one line, not two (A87). The owner asked for the total
+   * spent on a thing, which is what a timesheet is read for - the individual blocks are still
+   * there underneath, because "when" matters as much as "how long" when anyone questions a day.
+   *
+   * Grouped by what makes two blocks the same work: the client, the project, the task and the
+   * description. A different description is a different job, even on the same task.
+   */
+  const groups = useMemo<Group[] | null>(() => {
+    if (entries === null) return null;
+    const by = new Map<string, Group>();
+    for (const e of entries) {
+      const label = e.notes?.trim() || e.task?.name || e.project?.name || e.client?.name || "Untitled";
+      const key = [e.client?.id ?? "", e.project?.id ?? "", e.task?.id ?? "", label.toLowerCase()].join("|");
+      // A running timer's total has to tick, so take the live value for the active entry.
+      const seconds = e.status === "COMPLETED" ? e.durationSeconds : e.id === t.entry?.id ? t.elapsed : e.elapsedSeconds;
+      const g = by.get(key);
+      if (!g) {
+        by.set(key, { key, title: label, entries: [e], totalSeconds: seconds, firstStart: e.start, lastEnd: e.end, running: e.status !== "COMPLETED", latest: e });
+      } else {
+        g.entries.push(e);
+        g.totalSeconds += seconds;
+        if (e.start < g.firstStart) g.firstStart = e.start;
+        if (!g.lastEnd || (e.end && e.end > g.lastEnd)) g.lastEnd = e.end;
+        if (e.status !== "COMPLETED") g.running = true;
+        if (e.start > g.latest.start) g.latest = e;
+      }
+    }
+    return [...by.values()].sort((a, b) => (a.firstStart < b.firstStart ? 1 : -1));
+  }, [entries, t.entry?.id, t.elapsed]);
 
   const att = t.summary?.attendance ?? null;
   const clockedIn = Boolean(att?.clockIn && !att.clockOut);
@@ -115,28 +158,67 @@ export function TimerPage() {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle>Today&apos;s entries</CardTitle><CardDescription>{t.summary ? formatDate(`${t.summary.date}T12:00:00Z`) : ""} - durations are computed on the server from segment timestamps.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Today&apos;s entries</CardTitle><CardDescription>{t.summary ? formatDate(`${t.summary.date}T12:00:00Z`) : ""} - one line per job, showing the total time on it. Open a line to see each session.</CardDescription></CardHeader>
             <CardContent className="p-0 pt-0">
-              {entries === null ? <div className="p-5"><Skeleton className="h-24" /></div> : entries.length === 0 ? <EmptyState icon={Clock} title="No time tracked yet today" description="Start a timer above to begin." className="py-8" /> : (
+              {groups === null ? <div className="p-5"><Skeleton className="h-24" /></div> : groups.length === 0 ? <EmptyState icon={Clock} title="No time tracked yet today" description="Start a timer above to begin." className="py-8" /> : (
                 <ul className="divide-y divide-border">
-                  {entries.map((e) => (
-                    <li key={e.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                      <span className={cn("size-2 rounded-full", e.status === "RUNNING" ? "bg-success" : e.status === "PAUSED" ? "bg-warning" : "bg-muted-foreground/50")} />
-                      <div className="min-w-0 flex-1"><Link href={e.task?.id ? `/tasks/${e.task.id}` : e.project?.id ? `/projects/${e.project.id}` : `/clients/${e.client?.id}`} className="block truncate font-medium hover:text-primary hover:underline">{e.notes ?? e.task?.name ?? e.project?.name ?? e.client?.name}</Link><p className="truncate text-xs text-muted-foreground">{[e.client?.name, e.project?.name].filter(Boolean).join(" / ")} - {formatDateTime(e.start).split(", ")[1]}{e.end ? ` to ${formatDateTime(e.end).split(", ")[1]}` : ""}{e.autoClosed && " - auto-closed"}</p></div>
-                      <span className="font-mono text-sm tabular-nums">{formatHMS(e.status === "COMPLETED" ? e.durationSeconds : e.id === t.entry?.id ? t.elapsed : e.elapsedSeconds)}</span>
-                      {e.status === "COMPLETED" && e.client?.id && (
-                        <Button
-                          size="sm" variant="outline" className="shrink-0"
-                          disabled={restarting === e.id}
-                          onClick={() => void startAgain(e)}
-                          title={`Start a new timer for "${e.notes ?? e.task?.name ?? e.client.name}"`}
-                        >
-                          <RotateCcw className="size-3.5" />
-                          <span className="hidden sm:inline">{restarting === e.id ? "Starting..." : "Start again"}</span>
-                        </Button>
-                      )}
-                    </li>
-                  ))}
+                  {groups.map((g) => {
+                    const e = g.latest;
+                    const isOpen = open.has(g.key);
+                    const href = e.task?.id ? `/tasks/${e.task.id}` : e.project?.id ? `/projects/${e.project.id}` : `/clients/${e.client?.id}`;
+                    return (
+                      <li key={g.key} className="px-5 py-3 text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className={cn("size-2 shrink-0 rounded-full", g.running ? "bg-success" : "bg-muted-foreground/50")} />
+                          <div className="min-w-0 flex-1">
+                            <Link href={href} className="block truncate font-medium hover:text-primary hover:underline">{g.title}</Link>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {[e.client?.name, e.project?.name].filter(Boolean).join(" / ")}
+                              {" - "}{formatDateTime(g.firstStart).split(", ")[1]}
+                              {g.running ? " - running now" : g.lastEnd ? ` to ${formatDateTime(g.lastEnd).split(", ")[1]}` : ""}
+                            </p>
+                          </div>
+                          <span className="shrink-0 font-mono text-sm tabular-nums">{formatHMS(g.totalSeconds)}</span>
+                          {g.entries.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setOpen((o) => { const n = new Set(o); n.has(g.key) ? n.delete(g.key) : n.add(g.key); return n; })}
+                              aria-expanded={isOpen}
+                              className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                            >
+                              {g.entries.length} sessions
+                              <ChevronDown className={cn("size-3.5 transition-transform", isOpen && "rotate-180")} />
+                            </button>
+                          )}
+                          {!g.running && e.client?.id && (
+                            <Button
+                              size="sm" variant="outline" className="shrink-0"
+                              disabled={restarting === g.key}
+                              onClick={() => void startAgain(e, g.key)}
+                              title={`Start a new timer for "${g.title}"`}
+                            >
+                              <RotateCcw className="size-3.5" />
+                              <span className="hidden sm:inline">{restarting === g.key ? "Starting..." : "Start again"}</span>
+                            </Button>
+                          )}
+                        </div>
+
+                        {isOpen && (
+                          <ul className="mt-2 space-y-1 border-l-2 border-border pl-4">
+                            {g.entries.map((x) => (
+                              <li key={x.id} className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span className="flex-1 truncate">
+                                  {formatDateTime(x.start).split(", ")[1]}{x.end ? ` to ${formatDateTime(x.end).split(", ")[1]}` : " - running"}
+                                  {x.autoClosed && " - auto-closed"}
+                                </span>
+                                <span className="font-mono tabular-nums">{formatHMS(x.status === "COMPLETED" ? x.durationSeconds : x.id === t.entry?.id ? t.elapsed : x.elapsedSeconds)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </CardContent>

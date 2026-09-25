@@ -506,3 +506,12 @@ Every place where the specification (WorkPulse Build Spec v2.0) was silent or co
 - **Description falls back** to the task, project or client name when an entry has no notes, since the timer requires a description of at least three characters.
 - **Verified:** 10 checks - a finished block offers the button, pressing it starts a timer, the entry count goes up by exactly one, the original block keeps its own start time, and the new block carries the same description and the same client.
 - **Where:** `components/timer/timer-page.tsx`.
+
+### A87. One line per job, showing the total on it (owner change, 25 Sep 2026)
+- **What:** Today's entries is now grouped. The same job timed twice in a day is **one line with the total time on it**, not two lines. A **N sessions** chip opens the line to show each block with its own from-to times.
+- **Why this amends A86:** that entry argued two blocks was the honest record. The owner asked for the total instead, and they are right about what the list is *for* - a timesheet is read to answer "how long did this take", and making the reader add up rows is work the page should do. The blocks are unchanged underneath: nothing was merged, deleted or rewritten, and opening a line still shows exactly when each session ran.
+- **What makes two blocks the same job:** the client, the project, the task and the description all match. A different description is a different job, even on the same task - two people describing the same work differently should not silently merge.
+- **A running timer keeps ticking inside its group,** because the group total takes the live elapsed value for the active entry rather than its stored one.
+- **Start again moves to the group** and starts from its most recent session, so the client, project and task come from the block you actually worked last.
+- **Verified:** 8 checks - the API still stores each session separately, the same job renders as exactly one line, a different description keeps its own line, the line carries the combined total and a "2 sessions" chip, and opening it lists each session's own times.
+- **Where:** `components/timer/timer-page.tsx`.
