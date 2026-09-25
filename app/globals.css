@@ -279,6 +279,24 @@
   .scrollbar-none { scrollbar-width: none; }
   .scrollbar-none::-webkit-scrollbar { display: none; }
   .animate-in { animation: fade-in 0.2s ease-out; }
+
+  /*
+   * The sign-in screen's entrance (A92).
+   *
+   * It animates **transform only, never opacity**. Twice now an opacity-based entrance left the
+   * whole login screen blank: the animation was held at its first frame (throttled in a mobile
+   * context) and the element simply stayed at opacity 0. A transform stuck at its first frame is
+   * a card fourteen pixels low - nobody notices. A hidden card is a broken product.
+   *
+   * Anyone who has asked their system not to animate gets nothing at all.
+   */
+  @media (prefers-reduced-motion: no-preference) {
+    .auth-rise { animation: auth-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+    .auth-rise-2 { animation-duration: 0.65s; }
+    .auth-panel { animation: auth-panel 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+  }
+  @keyframes auth-rise { from { transform: translateY(16px); } to { transform: none; } }
+  @keyframes auth-panel { from { transform: translateX(-20px); } to { transform: none; } }
   @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 }
 

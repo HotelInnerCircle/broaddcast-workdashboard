@@ -12,9 +12,9 @@ const points = [
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid min-h-dvh lg:grid-cols-2 lg:gap-4 lg:p-4">
-      <aside className="hidden flex-col justify-between rounded-2xl bg-sidebar p-10 text-white shadow-float lg:flex">
+      <aside className="auth-panel hidden flex-col justify-between rounded-2xl bg-sidebar p-10 text-white shadow-float lg:flex">
         <BrandMark className="text-white" />
-        <div className="max-w-md space-y-8">
+        <div className="auth-rise auth-rise-2 max-w-md space-y-8">
           <h2 className="font-display text-[44px] leading-[1.05]">{brand.tagline}</h2>
           <ul className="space-y-4 text-sm text-white/75">
             {points.map((p) => (
@@ -25,8 +25,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <p className="text-xs text-white/50">&copy; {new Date().getFullYear()} {brand.name}</p>
       </aside>
       <main className="flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md">
-          <div className="mb-8 lg:hidden"><BrandMark /></div>
+        <div className="auth-rise auth-rise-1 w-full max-w-md">
+          <div className="auth-rise mb-8 lg:hidden"><BrandMark /></div>
           {children}
         </div>
       </main>
