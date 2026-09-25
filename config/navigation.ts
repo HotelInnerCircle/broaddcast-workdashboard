@@ -62,6 +62,7 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
     ] },
     { label: "ANALYTICS", items: [
       { label: "Reports", href: "/reports", icon: BarChart3, permission: ["reports", "view"] },
+      { label: "Attendance Ledger", href: "/reports/ledger", icon: CalendarCheck, permission: ["attendance", "view"] },
       { label: "Time Reports", href: "/reports/time", icon: Clock, permission: ["reports", "view"] },
       { label: "Client Reports", href: "/reports/clients", icon: Briefcase, permission: ["reports", "view"], roles: ["COMPANY_ADMIN", "MANAGER"] },
       { label: "Project Reports", href: "/reports/projects", icon: PieChart, permission: ["reports", "view"], roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD"] },
