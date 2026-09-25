@@ -1,7 +1,7 @@
 {
   "name": "workpulse-desktop",
   "productName": "WorkPulse",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "WorkPulse for Windows - a native window around the deployed web app.",
   "private": true,
   "main": "main.js",
