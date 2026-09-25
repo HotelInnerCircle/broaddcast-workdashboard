@@ -43,13 +43,20 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
-
+    <!-- Only what the app actually needs. Capacitor asks the person at the moment of use:
+         BridgeWebChromeClient requests the location permissions from onGeolocationPermissionsShowPrompt
+         and opens the camera from onShowFileChooser, so declaring them here is all that is required
+         for attendance swipes to work (A83). -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Only what the app actually needs: network access, push notifications (Android 13+), and
-         the deep-link filter that lets app.broaddcast.com URLs open in the app. -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Attendance swipes: where you are, and the photo that proves it. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- The camera is how a swipe is taken, but a tablet without one should still install. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

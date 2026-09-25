@@ -78,6 +78,7 @@ Key rules: every tenant query goes through `scoped(Model, ctx)`; every mutation 
 - Settings -> Company -> Job designations: the admin maintains job titles (Web Developer, Designer, ...) that appear as a Designation dropdown when adding or editing people; separate from the fixed access roles. (A57)
 - Sidebar > ADMIN > Menu visibility: the admin switches sidebar items on or off per role while features are rolled out; hiding is menu-only (permissions are unchanged and a direct link still works) and one button shows everything again. (A71)
 - Managers and the Company Admin add clients: a manager's clients are visible to everyone who reports to them, an admin's to the whole company. (A61, A70)
+- Attendance swipes: a photo stamped by the server with the time to the second and the place, approved instantly inside an HR-defined work site or sent to the team lead, then the manager, then HR. Adds an HR role. (A83)
 - Installable apps: Android (Capacitor) and Windows (Electron), both a native window around the deployed site, handed out from one public link at /download. See MOBILE.md and DESKTOP.md. (A65, A82)
 - The dashboard home is a launcher on every screen: the day and the timer on top, then tiles carrying live counts - open tasks, hours today, whether the daily report is written. Hiding a page under Menu visibility hides its tile too. (A81)
 - The daily reports page filters by date range (with presets), team, a single employee, and submitted / not submitted. (A79)

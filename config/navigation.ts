@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, ListChecks, FolderKanban, Building2, CalendarDays, Timer, Table2, CalendarCheck, Users, UsersRound,
-  ShieldCheck, MessageSquare, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
+  ShieldCheck, MessageSquare, Fingerprint, ClipboardCheck, MapPin, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
 } from "lucide-react";
 import { can, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
@@ -40,6 +40,10 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Timer", href: "/timer", icon: Timer, permission: ["timer", "view"] },
       { label: "Timesheets", href: "/timesheets", icon: Table2, permission: ["timer", "view"] },
       { label: "Attendance", href: "/attendance", icon: CalendarCheck, permission: ["attendance", "view"] },
+      // A83: swiping is its own screen - it needs the camera and a location fix, which the
+      // attendance table has no business asking for.
+      { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"] },
+      { label: "Swipe approvals", href: "/attendance/swipes", icon: ClipboardCheck, permission: ["attendance", "view"], roles: ["COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD"] },
       { label: "Daily Report", href: "/daily-report", icon: FileText, permission: ["dailyReports", "create"] },
     ] },
     { label: "TEAM", items: [
@@ -62,6 +66,7 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Project Reports", href: "/reports/projects", icon: PieChart, permission: ["reports", "view"], roles: ["COMPANY_ADMIN", "MANAGER", "TEAM_LEAD"] },
     ] },
     { label: "ADMIN", items: [
+      { label: "Work sites", href: "/work-sites", icon: MapPin, permission: ["workSites", "manage"] },
       { label: "Settings", href: "/settings", icon: Settings, permission: ["companySettings", "view"] },
       { label: "Subscription", href: "/settings?tab=subscription", icon: CreditCard, permission: ["billing", "view"] },
       { label: "Billing", href: "/settings?tab=billing", icon: Receipt, permission: ["billing", "view"] },

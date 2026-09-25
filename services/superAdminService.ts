@@ -24,6 +24,8 @@ import { TaskComment } from "@/models/TaskComment";
 import { TimeEntry } from "@/models/TimeEntry";
 import { Break } from "@/models/Break";
 import { Attendance } from "@/models/Attendance";
+import { WorkSite } from "@/models/WorkSite";
+import { AttendanceSwipe } from "@/models/AttendanceSwipe";
 import { DailyReport } from "@/models/DailyReport";
 import { Conversation } from "@/models/Conversation";
 import { Message } from "@/models/Message";
@@ -41,7 +43,7 @@ import { ROLE_LABEL } from "@/types";
 import type { CreateCompanyInput } from "@/lib/validation/company";
 
 /** Every collection that belongs to a tenant, deleted together with the company (A55). Users/sessions are keyed by companyId too. */
-const TENANT_MODELS = { users: User, sessions: Session, invites: Invite, teams: Team, clients: Client, projects: Project, tasks: Task, taskComments: TaskComment, timeEntries: TimeEntry, breaks: Break, attendance: Attendance, dailyReports: DailyReport, conversations: Conversation, messages: Message, notifications: Notification, announcements: Announcement, subscriptions: Subscription, invoices: Invoice };
+const TENANT_MODELS = { users: User, sessions: Session, invites: Invite, teams: Team, clients: Client, projects: Project, tasks: Task, taskComments: TaskComment, timeEntries: TimeEntry, breaks: Break, attendance: Attendance, workSites: WorkSite, attendanceSwipes: AttendanceSwipe, dailyReports: DailyReport, conversations: Conversation, messages: Message, notifications: Notification, announcements: Announcement, subscriptions: Subscription, invoices: Invoice };
 
 /** Every super-admin cross-tenant read is audited (spec 4.6). */
 export async function listCompanies(ctx: SessionContext, ip: string | null) {
