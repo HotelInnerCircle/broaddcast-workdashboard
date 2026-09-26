@@ -7,6 +7,18 @@ const DailyReportSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     date: { type: String, required: true },
     completed: { type: String, default: "" },
+    /**
+     * Proof of the work, uploaded when it was recorded (A105).
+     *
+     * The object is private, like every other upload here - a screenshot of
+     * somebody working can show a client name, an inbox or a face. A link is
+     * minted on demand rather than listed, because a timesheet of two thousand
+     * rows would otherwise mint two thousand signed URLs nobody looks at.
+     */
+    proofKey: { type: String, default: null },
+    proofName: { type: String, default: null },
+    proofSize: { type: Number, default: null },
+    proofType: { type: String, default: null },
     inProgress: { type: String, default: "" },
     pending: { type: String, default: "" },
     blockers: { type: String, default: "" },

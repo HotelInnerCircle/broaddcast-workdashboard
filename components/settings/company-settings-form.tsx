@@ -17,6 +17,8 @@ import { WEEKDAYS } from "@/types";
 export interface CompanySettings {
   id: string; name: string; logoUrl: string | null; timezone: string; currency: string;
   workingHours: { start: string; end: string }; workingDays: string[]; lateThresholdMinutes: number; defaultTaskStatus: string; setupCompleted: boolean;
+  /** The order leave and off-site swipes are approved in (A104). */
+  approvalChain: string[];
 }
 
 const schema = z.object({

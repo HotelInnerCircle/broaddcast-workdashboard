@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ProofField } from "@/components/ui/proof-field";
 import { ExportButtons } from "@/components/reports/export-buttons";
 import { useSearchParams } from "next/navigation";
 import { addDays, format, startOfMonth, startOfWeek } from "date-fns";
@@ -22,7 +23,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import type { TeamOption } from "@/components/employees/types";
 
 const key = (d: Date) => format(d, "yyyy-MM-dd");
-interface Report { id: string; date: string; completed: string; submittedAt: string }
+interface Report { id: string; date: string; completed: string; submittedAt: string; hasProof?: boolean }
 interface DayRow { user: { id: string; name: string; avatarUrl: string | null; team: string | null }; trackedSeconds: number; byClient: { name: string; seconds: number }[]; report: Report | null }
 interface DayGroup { date: string; rows: DayRow[]; submitted: number; total: number; isWorkingDay: boolean }
 interface RangeData { from: string; to: string; days: DayGroup[]; submitted: number; total: number; trackedSeconds: number; people: number }
@@ -49,6 +50,7 @@ export function DailyReportForm() {
   const [form, setForm] = useState<Record<string, string>>({ completed: "" });
   const [history, setHistory] = useState<Report[] | null>(null);
   const [saving, setSaving] = useState(false);
+  const [proof, setProof] = useState<File | null>(null);
   const locked = date !== today;
 
   const load = useCallback(async () => {
@@ -61,11 +63,24 @@ export function DailyReportForm() {
   }, [date, today]);
   useEffect(() => { void load(); }, [load]);
 
+  const needsProof = me.company?.workProof?.dailyReport !== false;
+
   const submit = async () => {
     setSaving(true);
     try {
-      await api("/api/daily-reports", { method: "POST", json: { date: today, ...form } });
+      // Multipart only when there is a picture; an edit later in the day that
+      // adds no new one keeps the picture already on the report.
+      if (proof) {
+        const body = new FormData();
+        body.append("date", today);
+        for (const [k, v] of Object.entries(form)) body.append(k, String(v ?? ""));
+        body.append("proof", proof);
+        await api("/api/daily-reports", { method: "POST", body });
+      } else {
+        await api("/api/daily-reports", { method: "POST", json: { date: today, ...form } });
+      }
       toast.success("Daily report submitted");
+      setProof(null);
       void load();
     } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not submit"); }
     finally { setSaving(false); }
@@ -109,8 +124,19 @@ export function DailyReportForm() {
                     <Textarea id={"dr-" + q.key} rows={6} value={form[q.key]} placeholder={q.placeholder} onChange={(e) => setForm((f) => ({ ...f, [q.key]: e.target.value }))} />
                   </Field>
                 ))}
+                <ProofField
+                  value={proof}
+                  onChange={setProof}
+                  // Only asked for the first time: an edit later in the day keeps
+                  // the picture already on the report rather than demanding another.
+                  required={needsProof && !existing?.hasProof}
+                  hint="A screenshot or photo of what you finished today."
+                />
                 <div className="flex justify-end">
-                  <Button loading={saving} onClick={submit} disabled={!form.completed.trim()}><FileText />{existing ? "Update report" : "Submit report"}</Button>
+                  <Button loading={saving} onClick={submit}
+                    disabled={!form.completed.trim() || (needsProof && !existing?.hasProof && !proof)}>
+                    <FileText />{existing ? "Update report" : "Submit report"}
+                  </Button>
                 </div>
               </>
             )}

@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { ListEditor } from "@/components/settings/list-editor";
+import { ApprovalChainEditor } from "@/components/settings/approval-chain-editor";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { SubscriptionView, BillingView } from "@/components/settings/subscription-view";
 
@@ -35,6 +36,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
         </TabsList>
         {company && <TabsContent value="company" className="space-y-6"><CompanySettingsForm company={company} />
+          <ApprovalChainEditor initial={company.approvalChain} />
           <ListEditor
             field="services"
             initial={company.services}

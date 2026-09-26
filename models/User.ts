@@ -27,6 +27,24 @@ const UserSchema = new Schema(
     designation: { type: String, default: null },
     /** A95: the code people are known by - EMP001, or whatever HR set. Unique inside a company. */
     employeeCode: { type: String, default: null },
+    /**
+     * What a payslip has to print besides the money (A103): whose it is, the
+     * statutory numbers, and where the payment goes. Kept on the person rather
+     * than on the salary structure, because none of it changes when pay changes.
+     */
+    payrollProfile: {
+      fatherOrHusbandName: { type: String, default: null },
+      pan: { type: String, default: null },
+      uan: { type: String, default: null },
+      pfNumber: { type: String, default: null },
+      esiNumber: { type: String, default: null },
+      /** The company internal reference printed as "REF #". */
+      referenceNumber: { type: String, default: null },
+      bankName: { type: String, default: null },
+      bankIfsc: { type: String, default: null },
+      bankAccount: { type: String, default: null },
+      paymentMode: { type: String, default: "Savings Account" },
+    },
     joiningDate: { type: Date, default: null },
 
     /* Personal details (A93). All optional: a profile is filled in over time, not at creation. */

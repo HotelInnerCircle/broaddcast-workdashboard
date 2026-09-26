@@ -14,7 +14,16 @@ import type { CompanyContext } from "@/lib/auth/context";
 import type { UpdateEmployeeInput, listEmployeesSchema } from "@/lib/validation/employees";
 import { employeeScopeFilter, manageableTeamIds } from "./scope";
 
-const oid = (v: string | null | undefined) => (v ? new Types.ObjectId(v) : null);
+/**
+ * A string to an ObjectId, or null if it is not one.
+ *
+ * Validity, not just truthiness. `new Types.ObjectId("not-an-id")` *throws* a
+ * BSONError, so checking only that the value is non-empty meant the callers'
+ * `oid(id) ?? new Types.ObjectId()` fallback never ran - the throw happened
+ * first. `/employees/<anything-not-an-id>` answered with a server-side exception
+ * instead of "not found", which is a crash reachable from the address bar.
+ */
+const oid = (v: string | null | undefined) => (v && Types.ObjectId.isValid(v) ? new Types.ObjectId(v) : null);
 const ref = (v: unknown) => (v && typeof v === "object" && "name" in v ? { id: String((v as unknown as { _id: unknown })._id), name: (v as { name: string }).name } : null);
 
 export function serializeEmployee(u: Record<string, unknown>) {

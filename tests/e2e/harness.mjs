@@ -235,3 +235,55 @@ export const swipePhoto = (page, type, lat, lng, accuracy = 8) =>
     const r = await fetch("/api/attendance/swipes", { method: "POST", body: fd });
     return { status: r.status, json: await r.json().catch(() => null) };
   }, [type, lat, lng, accuracy]);
+
+/**
+ * A small real image, made in the page, for anywhere a picture is required.
+ *
+ * Returned as a data URL so a suite can post it as a file. The bytes are a
+ * genuine PNG or JPEG, because the server sniffs the header rather than trusting
+ * the content type - a string pretending to be an image is refused, correctly.
+ */
+export const makeImage = (page, label = "work") =>
+  page.evaluate(async (text) => {
+    const c = document.createElement("canvas");
+    c.width = 480; c.height = 320;
+    const x = c.getContext("2d");
+    x.fillStyle = "#3d5a73"; x.fillRect(0, 0, 480, 320);
+    x.fillStyle = "#ffffff"; x.font = "20px sans-serif"; x.fillText(text, 20, 160);
+    return c.toDataURL("image/jpeg", 0.8);
+  }, label);
+
+/**
+ * Stop the running timer with a picture attached (A105).
+ *
+ * The picture is compulsory by default, so a suite that stops a timer has to
+ * send one - the same as a person does.
+ */
+export const stopTimerWithProof = (page, notes) =>
+  page.evaluate(async ([text]) => {
+    const c = document.createElement("canvas");
+    c.width = 400; c.height = 260;
+    const x = c.getContext("2d");
+    x.fillStyle = "#3d5a73"; x.fillRect(0, 0, 400, 260);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.8));
+    const fd = new FormData();
+    fd.append("notes", text);
+    fd.append("proof", new File([blob], "work.jpg", { type: "image/jpeg" }));
+    const r = await fetch("/api/timer/stop", { method: "POST", body: fd });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  }, [notes]);
+
+/** Submit a daily report with its picture. */
+export const submitDailyReportWithProof = (page, fields) =>
+  page.evaluate(async ([f]) => {
+    const c = document.createElement("canvas");
+    c.width = 400; c.height = 260;
+    const x = c.getContext("2d");
+    x.fillStyle = "#4a6b52"; x.fillRect(0, 0, 400, 260);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.8));
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(f)) fd.append(k, String(v));
+    fd.append("proof", new File([blob], "day.jpg", { type: "image/jpeg" }));
+    const r = await fetch("/api/daily-reports", { method: "POST", body: fd });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  }, [fields]);

@@ -18,6 +18,18 @@ const TimeEntrySchema = new Schema(
     date: { type: String, required: true },
     /** Mandatory for user-stopped entries: describes the work completed (A53). Null only on system auto-close. */
     notes: { type: String, default: null },
+    /**
+     * Proof of the work, uploaded when it was recorded (A105).
+     *
+     * The object is private, like every other upload here - a screenshot of
+     * somebody working can show a client name, an inbox or a face. A link is
+     * minted on demand rather than listed, because a timesheet of two thousand
+     * rows would otherwise mint two thousand signed URLs nobody looks at.
+     */
+    proofKey: { type: String, default: null },
+    proofName: { type: String, default: null },
+    proofSize: { type: Number, default: null },
+    proofType: { type: String, default: null },
     flags: { autoClosed: { type: Boolean, default: false } },
   },
   { timestamps: true },

@@ -14,6 +14,14 @@ export const updateCompanySchema = z.object({
   employeeCodePrefix: z.string().trim().max(8).optional(),
   employeeCodePadding: z.number().int().min(1).max(8).optional(),
   payrollStartDay: z.number().int().min(1).max(31).optional(),
+  workProof: z.object({ timer: z.boolean().optional(), dailyReport: z.boolean().optional() }).optional(),
+  approvalChain: z.array(z.enum(["TEAM_LEAD", "MANAGER", "HR"]))
+    .min(1)
+    .refine((a) => new Set(a).size === a.length, "A step cannot appear twice")
+    // HR last is not a preference: any HR can settle that step, so it is what
+    // stops a request stranding when a lead or a manager is away or has left.
+    .refine((a) => a[a.length - 1] === "HR", "HR has to be the last step")
+    .optional(),
   designations: z.array(z.string().trim().min(1, "Designation cannot be empty").max(60)).max(100).optional(),
   services: z.array(z.string().trim().min(1, "Service cannot be empty").max(60)).max(100).optional(),
   hiddenNav: z.object({

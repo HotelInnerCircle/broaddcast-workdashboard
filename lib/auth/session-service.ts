@@ -101,6 +101,11 @@ export async function resolveSession(token: string | null | undefined): Promise<
     company = {
       id: String(c._id), name: c.name, logoUrl: c.logoUrl ?? null, timezone: c.timezone,
       currency: c.currency, setupCompleted: c.setupCompleted,
+      // So a screen can mark the picture required before the server refuses it.
+      workProof: {
+        timer: (c.workProof as { timer?: boolean } | undefined)?.timer !== false,
+        dailyReport: (c.workProof as { dailyReport?: boolean } | undefined)?.dailyReport !== false,
+      },
       hiddenNav: ((c.hiddenNav as Record<string, string[]> | undefined)?.[user.role] ?? []),
     };
   }

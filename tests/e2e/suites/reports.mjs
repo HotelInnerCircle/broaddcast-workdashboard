@@ -7,7 +7,7 @@
  * list is still there on the toggle, because that is what the timesheet shows and
  * what the export contains.
  */
-import { call, signedIn, shot, wait, waitForText } from "../harness.mjs";
+import { call, signedIn, shot, wait, waitForText, stopTimerWithProof, submitDailyReportWithProof } from "../harness.mjs";
 
 export const name = "reports";
 export const description = "grouped entries, and daily reports as CSV and Excel";
@@ -49,14 +49,14 @@ export default async function run({ browser, lab, check }) {
   check("clients to track against", clientIds.every(Boolean), JSON.stringify(clientIds));
 
   await call(emp, "/api/attendance/clock-in", {});
-  await call(emp, "/api/timer/stop", { notes: "cleanup" });
+  await stopTimerWithProof(emp, "cleanup");
 
   // Three sessions in one day: two on one client, one on another. Grouped, this
   // is a single line; flat, it is three.
   for (const [clientId, note, ms] of [[clientIds[0], "Drawings", 1800], [clientIds[1], "Revisions", 1500], [clientIds[0], "Drawings again", 2200]]) {
     await call(emp, "/api/timer/start", { clientId, notes: note, force: false });
     await wait(ms);
-    await call(emp, "/api/timer/stop", { notes: note });
+    await stopTimerWithProof(emp, note);
   }
 
   const raw = await call(admin, `/api/reports/time?from=${today}&to=${today}&format=json`, null, "GET");
@@ -116,7 +116,7 @@ export default async function run({ browser, lab, check }) {
   check("and it goes back to grouped", (await rowsFor()).length === 1);
 
   /* ---------- daily reports, downloaded ---------- */
-  await call(emp, "/api/daily-reports", { date: today, completed: "Finished the AUDI drawings and the NEXA revisions." });
+  await submitDailyReportWithProof(emp, { date: today, completed: "Finished the AUDI drawings and the NEXA revisions." });
 
   const csv = await fetchFile(admin, `/api/reports/daily?from=${today}&to=${today}&format=csv`);
   check("the daily report downloads as CSV", csv.status === 200, `status=${csv.status}`);

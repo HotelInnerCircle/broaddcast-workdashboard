@@ -691,3 +691,26 @@ The first piece of payroll: the cycle everything else will hang off, and a way t
 - **Where:** `lib/time/payroll-period.ts`, `models/{Payslip,Company}.ts`, `services/{payslipService,ledgerService,companyService}.ts`, `app/api/payslips/**`, `components/payroll/*`, `config/navigation.ts`.
 
 **Still to come, in order:** salary structures (effective-dated, so a raise in June does not rewrite May), the monthly run computing from the ledger, statutory deductions as data rather than code, and payment - a bank advice file first, a payout API only after.
+
+### A103. Payslips worked out, not uploaded (owner request, 26 Sep 2026)
+The owner sent a real April 2026 payslip and asked for it to be generated rather than uploaded. It now is, and **the maths is pinned against that slip line by line** - if those numbers change, somebody's pay changed, and it should be deliberate.
+
+- **Salaries are effective-dated.** A raise is a *new* row with a later `effectiveFrom`, never an edit: a payslip must be reproducible years later exactly as issued, and a June raise must not rewrite what May said. Every run asks which scale was in force on the day the period *ended*. The test proves it: a raise dated next year leaves this month at 33,000.
+- **The figures come from three places that have to agree** - the scale in force, the attendance ledger for the same days, and the company's statutory rules. The ledger is *asked*, never recounted, which is what `payableDays` was built for back in A94.
+- **EPF is twelve per cent of basic capped at a wage of 15,000** - which is why a basic of 16,500 deducts 1,800 and not 1,980. That one line is the most commonly got wrong, and it has a test of its own from both sides of the ceiling.
+- **ESI is judged on the full monthly gross, not on a short month.** Otherwise a month of unpaid leave would pull somebody into ESI who is not eligible, and back out again the next month.
+- **Professional tax is flat and does not prorate**, because the state charges it by the month rather than by the day.
+- **The total is the sum of the rounded lines, not the rounded total.** They differ by a rupee often enough, and a payslip whose column does not add up is the first thing anybody notices. Tested across eight different attendance splits.
+- **Net is never negative.** A deduction bigger than the earnings is a data problem, and a payslip promising a negative payment helps nobody.
+- **Statutory rates are company settings, not constants.** They are set by law and they change; a rate written into a source file is wrong from the day the budget changes, and silently. The defaults are the Indian ones - confirm them with an accountant before anybody is paid from them.
+
+**The hazard this turned up, and what was done about it.** Days that have not happened yet are not payable days, so **running payroll before the period ends prorates everybody down to the days so far** - a fortnight in, everyone is paid half. The figures are correct and the payslip looks completely normal, which is what makes it dangerous. The run now says so, in the response and as a warning on screen, and says the same when somebody joined part way through the period.
+
+- **Uploading is still there** for a month worked out elsewhere; generating is simply the default now.
+- **What HR types in survives a regenerate** - TDS, a late penalty, an advance, arrears - so re-running after fixing an attendance record does not quietly drop them.
+- **The whole-company run reports who was skipped and why**, rather than counting the successes and leaving the rest unmentioned.
+- **The PDF is matched to the slip the company already issues**, deliberately rather than redesigned: people have read that layout for years and know where their net pay is. The one addition is a "Pay period" line, so a 26th-to-25th month is not a mystery.
+- **Verified:** 33 unit checks on the maths, including the April slip reproduced exactly, and 36 browser checks end to end - salary set, payslip generated, a real PDF out of storage, adjustments surviving a regenerate, a future raise leaving an issued payslip alone, and an employee refused both the register and somebody else's slip.
+- **Where:** `lib/payroll/{compute,payslip-pdf}.ts`, `models/{SalaryStructure,Payslip,User,Company}.ts`, `services/payrollService.ts`, `app/api/payroll/**`, `components/payroll/*`.
+
+**Not built yet:** TDS is typed in rather than computed across the year, gratuity and bonus are absent, and nothing pays anybody - a bank advice file comes before any payout API.

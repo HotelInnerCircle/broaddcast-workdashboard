@@ -38,6 +38,8 @@ export interface SessionContext {
     setupCompleted: boolean;
     /** Menu items hidden for this user's role (A71): nav hrefs. */
     hiddenNav: string[];
+    /** Whether a picture of the work is required when recording it (A105). */
+    workProof: { timer: boolean; dailyReport: boolean };
   } | null;
 }
 

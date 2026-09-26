@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { ProofField } from "@/components/ui/proof-field";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Pause, Play, Square, Coffee, Timer } from "lucide-react";
@@ -83,16 +85,27 @@ const valid = (v: string) => v.trim().length >= 3;
 /** Stop: the timer cannot be stopped without describing the work that was completed (A53). */
 export function StopDialog() {
   const t = useTimer();
+  const me = useAuth();
   const [notes, setNotes] = useState("");
+  const [proof, setProof] = useState<File | null>(null);
+  // The company decides whether a picture has to come with the time (A105).
+  const needsProof = me.company?.workProof?.timer !== false;
   // Pre-filled with what they said they were working on at start (A58); they confirm or refine it.
-  useEffect(() => { if (t.stopPrompt) setNotes(t.entry?.notes ?? ""); }, [t.stopPrompt, t.entry?.notes]);
+  useEffect(() => { if (t.stopPrompt) { setNotes(t.entry?.notes ?? ""); setProof(null); } }, [t.stopPrompt, t.entry?.notes]);
+  const ready = valid(notes) && (!needsProof || Boolean(proof));
   return (
     <Dialog open={t.stopPrompt} onOpenChange={(o) => !o && t.resolveStop(null)}>
       <DialogContent title="Stop timer" description={t.entry ? `${formatHMS(t.elapsed)} on "${entryTitle(t.entry)}". Confirm or refine what you completed.` : undefined}>
         <NotesField id="stop-notes" value={notes} onChange={setNotes} autoFocus />
+        <ProofField
+          value={proof}
+          onChange={setProof}
+          required={needsProof}
+          hint="A screenshot or photo of what you finished."
+        />
         <DialogFooter>
           <Button variant="outline" onClick={() => t.resolveStop(null)}>Keep running</Button>
-          <Button variant="danger" disabled={!valid(notes)} onClick={() => t.resolveStop(notes.trim())}><Square />Stop timer</Button>
+          <Button variant="danger" disabled={!ready} onClick={() => t.resolveStop({ notes: notes.trim(), proof })}><Square />Stop timer</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

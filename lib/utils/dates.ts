@@ -6,24 +6,48 @@ export const DATE_FMT = "dd MMM yyyy";
 export const TIME_FMT = "hh:mm a";
 export const DATETIME_FMT = "dd MMM yyyy, hh:mm a";
 
-export function formatDate(d: Date | string | null | undefined, tz?: string): string {
-  if (!d) return "-";
-  const date = typeof d === "string" ? new Date(d) : d;
+/**
+ * Anything that might be a moment, turned into a usable Date or null.
+ *
+ * Every formatter below goes through this, and the reason is worth stating: a
+ * date formatter that throws takes down whichever page rendered it. `date-fns`
+ * raises `RangeError: Invalid time value` on an unparseable date, and calling
+ * `.toISOString()` on one does the same - so a single bad timestamp anywhere in
+ * a page's data was enough to replace the whole page with a server-side
+ * exception. A record with a bad date should look wrong, not be unreachable.
+ *
+ * Accepts a number too: timestamps arrive from JSON and from older records, and
+ * calling a Date method on one is a TypeError rather than anything useful.
+ */
+function asDate(d: Date | string | number | null | undefined): Date | null {
+  if (d === null || d === undefined || d === "") return null;
+  const date = d instanceof Date ? d : new Date(d as string | number);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function formatDate(d: Date | string | number | null | undefined, tz?: string): string {
+  const date = asDate(d);
+  if (!date) return "-";
   return tz ? formatInTimeZone(date, tz, DATE_FMT) : format(date, DATE_FMT);
 }
 
-export function formatDateTime(d: Date | string | null | undefined, tz?: string): string {
-  if (!d) return "-";
-  const date = typeof d === "string" ? new Date(d) : d;
+export function formatDateTime(d: Date | string | number | null | undefined, tz?: string): string {
+  const date = asDate(d);
+  if (!date) return "-";
   return tz ? formatInTimeZone(date, tz, DATETIME_FMT) : format(date, DATETIME_FMT);
 }
 
-export function relativeTime(d: Date | string | null | undefined): string {
-  if (!d) return "never";
-  const date = typeof d === "string" ? new Date(d) : d;
+export function relativeTime(d: Date | string | number | null | undefined): string {
+  const date = asDate(d);
+  if (!date) return "never";
   const diff = Date.now() - date.getTime();
   if (diff < 60_000) return "Just now";
   return formatDistanceToNowStrict(date, { addSuffix: true });
+}
+
+/** The ISO form, or null when there is no usable moment. Never throws. */
+export function isoOrNull(d: Date | string | number | null | undefined): string | null {
+  return asDate(d)?.toISOString() ?? null;
 }
 
 /** Day key (yyyy-MM-dd) in the company timezone. */

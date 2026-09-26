@@ -15,7 +15,7 @@ export function serializeCompany(c: Record<string, unknown>) {
   return {
     id: String(c._id), name: c.name as string, logoUrl: (c.logoUrl as string | null) ?? null, timezone: c.timezone as string,
     currency: c.currency as string, workingHours: c.workingHours as { start: string; end: string }, workingDays: c.workingDays as string[],
-    lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []), employeeCodePrefix: ((c.employeeCodePrefix as string | undefined) ?? "EMP"), employeeCodePadding: ((c.employeeCodePadding as number | undefined) ?? 3), payrollStartDay: ((c.payrollStartDay as number | undefined) ?? 1), services: ((c.services as string[] | undefined) ?? []),
+    lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []), employeeCodePrefix: ((c.employeeCodePrefix as string | undefined) ?? "EMP"), employeeCodePadding: ((c.employeeCodePadding as number | undefined) ?? 3), payrollStartDay: ((c.payrollStartDay as number | undefined) ?? 1), approvalChain: ((c.approvalChain as string[] | undefined)?.length ? (c.approvalChain as string[]) : ["TEAM_LEAD", "MANAGER", "HR"]), workProof: { timer: (c.workProof as { timer?: boolean } | undefined)?.timer !== false, dailyReport: (c.workProof as { dailyReport?: boolean } | undefined)?.dailyReport !== false }, services: ((c.services as string[] | undefined) ?? []),
     hiddenNav: {
       COMPANY_ADMIN: ((c.hiddenNav as Record<string, string[]> | undefined)?.COMPANY_ADMIN ?? []),
       HR: ((c.hiddenNav as Record<string, string[]> | undefined)?.HR ?? []),
@@ -53,6 +53,8 @@ export async function updateCompany(ctx: CompanyContext, input: UpdateCompanyInp
   if (input.employeeCodePrefix !== undefined) c.set("employeeCodePrefix", input.employeeCodePrefix);
   if (input.employeeCodePadding !== undefined) c.set("employeeCodePadding", input.employeeCodePadding);
   if (input.payrollStartDay !== undefined) c.set("payrollStartDay", input.payrollStartDay);
+  if (input.approvalChain !== undefined) c.set("approvalChain", input.approvalChain);
+  if (input.workProof !== undefined) c.set("workProof", { ...(c.workProof ?? {}), ...input.workProof });
   if (input.designations !== undefined) c.set("designations", dedupe(input.designations));
   if (input.services !== undefined) c.set("services", dedupe(input.services));
   if (input.hiddenNav !== undefined) {

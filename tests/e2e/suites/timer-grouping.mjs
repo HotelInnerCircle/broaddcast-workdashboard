@@ -6,7 +6,7 @@
  * The sessions are still stored separately - the grouping is a view, and the
  * first check here holds the API to that.
  */
-import { call, signedIn, shot, wait } from "../harness.mjs";
+import { call, signedIn, shot, wait, stopTimerWithProof } from "../harness.mjs";
 
 export const name = "timer-grouping";
 export const description = "one line per job, with the total and the sessions underneath";
@@ -28,13 +28,13 @@ export default async function run({ browser, lab, check }) {
 
   const emp = await signedIn(browser, lab.people.emp.email, lab.pw);
   await call(emp, "/api/attendance/clock-in", {});
-  await call(emp, "/api/timer/stop", { notes: "cleanup" });
+  await stopTimerWithProof(emp, "cleanup");
 
   // The same job, timed twice, plus a different job in between.
   for (const [note, ms] of [[JOB, 2200], [OTHER, 1600], [JOB, 3200]]) {
     await call(emp, "/api/timer/start", { clientId, notes: note, force: false });
     await wait(ms);
-    await call(emp, "/api/timer/stop", { notes: note });
+    await stopTimerWithProof(emp, note);
   }
 
   const today = new Date().toISOString().slice(0, 10);

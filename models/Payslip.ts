@@ -32,6 +32,19 @@ const PayslipSchema = new Schema(
     contentType: { type: String, required: true },
     /** Optional, for showing a figure in the list without opening the file. */
     netPay: { type: Number, default: null },
+    /** Where the file came from: computed here, or a PDF somebody uploaded. */
+    source: { type: String, enum: ["generated", "uploaded"], default: "uploaded" },
+    /**
+     * The figures as they were when this payslip was issued (A103), frozen.
+     *
+     * Stored rather than recomputed on demand, because a payslip must be
+     * reproducible exactly as it was issued - a later raise, a corrected
+     * attendance record or a change to the PF ceiling must not silently rewrite
+     * what somebody was already told they were paid.
+     */
+    computation: { type: Schema.Types.Mixed, default: null },
+    /** What HR typed in: TDS, a late penalty, an advance, arrears. Kept so a regenerate does not lose them. */
+    adjustments: { type: Schema.Types.Mixed, default: null },
     note: { type: String, default: null, maxlength: 500 },
     uploadedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     /** When the employee became able to see it. Null means uploaded but withheld. */

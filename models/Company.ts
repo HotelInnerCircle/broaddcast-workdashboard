@@ -31,6 +31,52 @@ const CompanySchema = new Schema(
      * derives from this one number.
      */
     payrollStartDay: { type: Number, default: 1, min: 1, max: 31 },
+    /**
+     * Who has to agree to a leave request or an off-site swipe, in order (A104).
+     *
+     * The admin sets this; the default is team lead, then manager, then HR.
+     * A step is only used when there is somebody distinct to fill it, so a person
+     * with no team lead simply starts at their manager.
+     *
+     * **HR is always the last step and cannot be removed.** Any HR - and the
+     * company admin - can settle it, which is what guarantees a request can never
+     * be left pending with nobody able to decide it.
+     */
+    approvalChain: { type: [String], default: ["TEAM_LEAD", "MANAGER", "HR"] },
+    /**
+     * Whether a picture of the work has to come with it (A105).
+     *
+     * On by default, at the owner request that introduced it. It is a setting
+     * rather than a constant because it is a real imposition on everybody, every
+     * day - a person with no camera to hand, or a job that produces nothing to
+     * photograph, otherwise cannot record their time at all.
+     */
+    workProof: {
+      timer: { type: Boolean, default: true },
+      dailyReport: { type: Boolean, default: true },
+    },
+    /**
+     * The statutory rules a payslip is computed with (A103). These are *data*,
+     * not code, because they are set by law and change: a rate written into a
+     * source file is wrong from the day the budget changes, and silently.
+     *
+     * The defaults are the Indian ones as they stand - PF at 12% of basic capped
+     * at a wage of 15,000, ESI at 0.75% for people under 21,000, and Telangana
+     * professional tax of 200 a month over a gross of 20,000. Confirm them with
+     * an accountant before anybody is paid from them.
+     */
+    payroll: {
+      establishmentName: { type: String, default: null },
+      address: { type: String, default: null },
+      pfEnabled: { type: Boolean, default: true },
+      pfEmployeeRate: { type: Number, default: 12, min: 0, max: 100 },
+      pfWageCeiling: { type: Number, default: 15000, min: 0 },
+      esiEnabled: { type: Boolean, default: true },
+      esiEmployeeRate: { type: Number, default: 0.75, min: 0, max: 100 },
+      esiWageLimit: { type: Number, default: 21000, min: 0 },
+      professionalTax: { type: Number, default: 200, min: 0 },
+      professionalTaxMinGross: { type: Number, default: 20000, min: 0 },
+    },
     /** Job designations the admin maintains (A57), e.g. "Web Developer"; picked when adding/editing people. */
     designations: { type: [String], default: [] },
     /** Services the company sells (A69), e.g. "Meta Ads"; ticked per client. */

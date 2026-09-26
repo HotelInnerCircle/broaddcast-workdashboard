@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { relativeTime } from "@/lib/utils/dates";
+import { relativeTime, isoOrNull } from "@/lib/utils/dates";
 
 /**
  * "2 minutes ago", without the hydration error that comes free with it.
@@ -26,7 +26,8 @@ export function RelativeTime({
   className,
   everyMs = 30_000,
 }: {
-  value: Date | string | null | undefined;
+  /** A number is accepted because stored timestamps arrive as one often enough. */
+  value: Date | string | number | null | undefined;
   className?: string;
   /** How often to redraw. Half a minute keeps "x minutes ago" honest. */
   everyMs?: number;
@@ -41,9 +42,17 @@ export function RelativeTime({
     return () => clearInterval(id);
   }, [value, everyMs]);
 
-  if (!value) return <span className={className}>{text}</span>;
+  /*
+   * A value that is not a usable moment - null, an unparseable string, a stored
+   * timestamp that arrived as a number, an Invalid Date - renders as plain text
+   * instead of a <time>. It must not throw: this component appears on a list of
+   * thirty audit entries, and one bad timestamp among them used to replace the
+   * entire page with a server-side exception. A wrong-looking row is recoverable;
+   * an unreachable page is not.
+   */
+  const iso = isoOrNull(value);
+  if (!iso) return <span className={className}>{text}</span>;
 
-  const iso = (typeof value === "string" ? new Date(value) : value).toISOString();
   return (
     <time dateTime={iso} title={iso} className={className} suppressHydrationWarning>
       {text}

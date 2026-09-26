@@ -33,11 +33,25 @@ export function serializeDailyReport(r: Record<string, unknown>) {
     user: u && typeof u === "object" && "name" in (u as object) ? { id: String((u as { _id: unknown })._id), name: (u as { name: string }).name } : null,
     date: r.date as string, completed: r.completed as string,
     submittedAt: r.submittedAt as Date, updatedAt: r.updatedAt as Date,
+    /*
+     * Whether there is a picture, not a link to it (A105). A month of reports
+     * would otherwise mint a signed URL per row for pictures nobody opens; the
+     * one being looked at is fetched on demand from /api/work-proof.
+     */
+    hasProof: Boolean(r.proofKey),
   };
 }
 
 /** Employees submit (or re-submit) their own report for a day; defaults to today in the company timezone. */
-export async function submitDailyReport(ctx: CompanyContext, input: { date?: string; completed: string; inProgress?: string; pending?: string; blockers?: string; tomorrow?: string }, ip: string | null) {
+/** Does a report for this day already carry a picture? Re-editing must not demand another. */
+export async function hasProofAlready(ctx: CompanyContext, date?: string): Promise<boolean> {
+  const clock = await companyClock(ctx.companyId);
+  const day = date ?? clock.dayOf(new Date());
+  const r = await scoped(DailyReport, ctx).findOne({ userId: new Types.ObjectId(ctx.userId), date: day }).select("proofKey").lean();
+  return Boolean(r?.proofKey);
+}
+
+export async function submitDailyReport(ctx: CompanyContext, input: { date?: string; completed: string; inProgress?: string; pending?: string; blockers?: string; tomorrow?: string; proof?: { proofKey: string; proofName: string; proofSize: number; proofType: string } | null }, ip: string | null) {
   const clock = await companyClock(ctx.companyId);
   const today = clock.dayOf(new Date());
   const date = input.date ?? today;
@@ -50,8 +64,11 @@ export async function submitDailyReport(ctx: CompanyContext, input: { date?: str
       ? Errors.bad("FUTURE_DATE", "Daily reports cannot be submitted for a future date")
       : Errors.bad("REPORT_LOCKED", `The report for ${date} is locked. Daily reports can only be written on the day itself.`);
   }
-  const { date: _d, ...fields } = input;
+  const { date: _d, proof, ...rest } = input;
   void _d;
+  // A new picture replaces the old one; no picture leaves what is there alone,
+  // so editing the wording later does not ask for another photograph.
+  const fields = proof ? { ...rest, ...proof } : rest;
   const existing = await scoped(DailyReport, ctx).findOne({ userId: new Types.ObjectId(ctx.userId), date });
   const rec = await scoped(DailyReport, ctx).findOneAndUpdate({ userId: new Types.ObjectId(ctx.userId), date }, { $set: { ...fields, submittedAt: new Date() } }, { upsert: true });
   await audit({ ctx, companyId: ctx.companyId, entity: "dailyReport", entityId: rec!._id, action: existing ? "daily_report.updated" : "daily_report.submitted", summary: `${ctx.name} ${existing ? "updated" : "submitted"} their daily report for ${date}`, after: { date }, ip });

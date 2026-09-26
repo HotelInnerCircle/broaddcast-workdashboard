@@ -36,6 +36,8 @@ export function serializeEntry(e: Record<string, unknown>, now = new Date()) {
   return {
     id: String(e._id), userId: String(e.userId), client: ref(e.clientId), project: ref(e.projectId), task: titleRef(e.taskId),
     status, date: e.date as string, notes: (e.notes as string | null) ?? null,
+    /** Whether a picture of the work is attached (A105); the link is fetched on demand. */
+    hasProof: Boolean(e.proofKey),
     segments: segments.map((s) => ({ start: s.start, end: s.end })),
     start: first, end: status === "COMPLETED" ? last : null,
     closedSeconds: closedSeconds(segments), openSince: open?.start ?? null,
@@ -115,6 +117,17 @@ export async function startTimer(ctx: CompanyContext, input: { clientId: string;
     }
     // Switching closes the running entry, which needs its work notes like any other stop (A53).
     if (!input.previousNotes) throw Errors.bad("NOTES_REQUIRED", "Describe the work you completed on the running timer before switching");
+    /*
+     * A105: switching closes a timer, so it would be a way round the picture -
+     * start anything at all and the running entry ends with no proof of it. When
+     * a picture is required the switch is refused and they are sent to Stop,
+     * which is the one place that asks for it. A requirement with a way around it
+     * is not a requirement.
+     */
+    const { proofRequired } = await import("@/lib/storage/work-proof");
+    if (await proofRequired(ctx.companyId, "timer")) {
+      throw Errors.bad("STOP_FIRST", "Stop the running timer first - it needs a picture of the work you finished.");
+    }
     await finalizeEntry(ctx, active as never, now, { notes: input.previousNotes, ip });
   }
   const openBreak = await scoped(Break, ctx).findOne({ userId: new Types.ObjectId(ctx.userId), end: null });
@@ -165,10 +178,17 @@ export async function resumeTimer(ctx: CompanyContext) {
   return serializeEntry(entry.toObject() as Record<string, unknown>, now);
 }
 
-export async function stopTimer(ctx: CompanyContext, input: { notes: string }, ip: string | null) {
+export async function stopTimer(
+  ctx: CompanyContext,
+  input: { notes: string; proof?: { proofKey: string; proofName: string; proofSize: number; proofType: string } | null },
+  ip: string | null,
+) {
   const entry = await findActive(ctx);
   if (!entry) throw Errors.notFound("Active timer");
   const now = new Date();
+  // Set before finalising, so the picture and the entry are saved together
+  // rather than the entry closing and the proof going missing if the write fails.
+  if (input.proof) entry.set(input.proof);
   await finalizeEntry(ctx, entry as never, now, { notes: input.notes, ip });
   return serializeEntry(entry.toObject() as Record<string, unknown>, now);
 }

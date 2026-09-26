@@ -26,8 +26,11 @@ interface TimerApi {
   /** Confirm-and-switch: resolve with the notes for the running entry to switch, or null to keep it. */
   conflict: ActiveEntry | null; resolveConflict: (previousNotes: string | null) => void;
   /** Stop dialog: resolve with the work notes, or null to cancel. */
-  stopPrompt: boolean; resolveStop: (notes: string | null) => void;
+  stopPrompt: boolean; resolveStop: (result: StopResult | null) => void;
 }
+
+/** What the stop dialog hands back: the words, and the picture when one is asked for. */
+export interface StopResult { notes: string; proof: File | null }
 
 const Ctx = createContext<TimerApi | null>(null);
 
@@ -37,7 +40,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const [offset, setOffset] = useState(0); // serverNow - clientNow (ms)
   const [tick, setTick] = useState(0);
   const [conflict, setConflict] = useState<{ entry: ActiveEntry; resolve: (v: string | null) => void } | null>(null);
-  const [stopPrompt, setStopPrompt] = useState<{ resolve: (v: string | null) => void } | null>(null);
+  const [stopPrompt, setStopPrompt] = useState<{ resolve: (v: StopResult | null) => void } | null>(null);
   const mounted = useRef(true);
 
   const apply = useCallback((p: TimerPayload) => {
@@ -103,14 +106,27 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
   const pause = useCallback(async () => { try { patchEntry(await api<ActiveEntry>("/api/timer/pause", { method: "POST" })); } catch (e) { fail(e, "Could not pause"); } }, []);
   const resume = useCallback(async () => { try { const en = await api<ActiveEntry>("/api/timer/resume", { method: "POST" }); setOffset(new Date(en.serverNow).getTime() - Date.now()); patchEntry(en, null); } catch (e) { fail(e, "Could not resume"); } }, []);
   const stop = useCallback(async (notes?: string) => {
-    let text = notes;
-    if (!text) {
-      text = (await new Promise<string | null>((resolve) => setStopPrompt({ resolve }))) ?? undefined;
+    let result: StopResult | null = notes ? { notes, proof: null } : null;
+    if (!result) {
+      result = await new Promise<StopResult | null>((resolve) => setStopPrompt({ resolve }));
       setStopPrompt(null);
-      if (!text) return;
+      if (!result?.notes) return;
     }
     try {
-      const en = await api<ActiveEntry>("/api/timer/stop", { method: "POST", json: { notes: text } });
+      /*
+       * Multipart only when there is a picture, so an ordinary stop stays a small
+       * JSON request. The server decides whether one was required - the company
+       * setting can change between the page loading and the timer stopping.
+       */
+      let en: ActiveEntry;
+      if (result.proof) {
+        const body = new FormData();
+        body.append("notes", result.notes);
+        body.append("proof", result.proof);
+        en = await api<ActiveEntry>("/api/timer/stop", { method: "POST", body });
+      } else {
+        en = await api<ActiveEntry>("/api/timer/stop", { method: "POST", json: { notes: result.notes } });
+      }
       patchEntry(null);
       toast.success(`Stopped: ${formatHMS(en.durationSeconds)} tracked`);
       void refresh();

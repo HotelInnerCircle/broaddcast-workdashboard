@@ -16,17 +16,45 @@ export interface ChainStep { step: ApprovalStep; approverId: Types.ObjectId | nu
  * always present and always settleable - any HR may act, and a Company Admin may act on any step -
  * so a pending request can never be stranded with nobody able to decide it.
  */
+export const DEFAULT_CHAIN: ApprovalStep[] = ["TEAM_LEAD", "MANAGER", "HR"];
+
+/**
+ * The order this company approves in (A104), with HR guaranteed last.
+ *
+ * HR's position is not a preference. It is the step *any* HR - and the company
+ * admin - can settle, so putting anything after it would let a request strand
+ * behind a lead or a manager who is away, or who has left. The admin chooses
+ * which steps come before it and in what order.
+ */
+export async function chainOrder(ctx: CompanyContext): Promise<ApprovalStep[]> {
+  const { Company } = await import("@/models/Company");
+  const c = await Company.findById(ctx.companyId).select("approvalChain").lean();
+  const stored = (c?.approvalChain as string[] | undefined)
+    ?.filter((s): s is ApprovalStep => (APPROVAL_STEPS as readonly string[]).includes(s));
+  if (!stored?.length) return DEFAULT_CHAIN;
+  return [...stored.filter((s) => s !== "HR"), "HR"];
+}
+
 export async function buildChain(ctx: CompanyContext, userId: Types.ObjectId): Promise<ChainStep[]> {
-  const user = await scoped(User, ctx).findById(String(userId)).select("teamId managerId").lean();
+  const [user, order] = await Promise.all([
+    scoped(User, ctx).findById(String(userId)).select("teamId managerId").lean(),
+    chainOrder(ctx),
+  ]);
   const team = user?.teamId ? await scoped(Team, ctx).findById(String(user.teamId)).select("leadId managerId").lean() : null;
 
   const steps: ChainStep[] = [];
   const isSelf = (id: unknown) => id && String(id) === String(userId);
-
-  if (team?.leadId && !isSelf(team.leadId)) steps.push({ step: "TEAM_LEAD", approverId: team.leadId as Types.ObjectId });
   const managerId = user?.managerId ?? team?.managerId ?? null;
-  if (managerId && !isSelf(managerId)) steps.push({ step: "MANAGER", approverId: managerId as Types.ObjectId });
-  steps.push({ step: "HR", approverId: null });
+
+  for (const step of order) {
+    if (step === "TEAM_LEAD") {
+      if (team?.leadId && !isSelf(team.leadId)) steps.push({ step, approverId: team.leadId as Types.ObjectId });
+    } else if (step === "MANAGER") {
+      if (managerId && !isSelf(managerId)) steps.push({ step, approverId: managerId as Types.ObjectId });
+    } else {
+      steps.push({ step: "HR", approverId: null });
+    }
+  }
   return steps;
 }
 

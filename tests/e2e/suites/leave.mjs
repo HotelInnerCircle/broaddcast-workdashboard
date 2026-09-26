@@ -5,7 +5,7 @@
  * here as well - if one of them ever stops matching the other, the two suites
  * disagree and say so.
  */
-import { call, form, signedInEach, shot, wait, waitForText } from "../harness.mjs";
+import { call, form, signedInEach, shot, wait, waitForText, signedIn } from "../harness.mjs";
 
 export const name = "leave";
 export const description = "the six types, the balance, and the approval chain";
@@ -88,4 +88,28 @@ export default async function run({ browser, lab, check }) {
   await emp.click('button:has-text("Balance")');
   check("Balance shows what is left", await waitForText(emp, /left of/, 30_000));
   await shot(emp, "leave-balance");
+
+  /* ---------- the admin decides the order (A104) ---------- */
+  const admin = await signedIn(browser, lab.people.admin.email, lab.pw);
+  const dropLead = await call(admin, "/api/admin/company", { approvalChain: ["MANAGER", "HR"] }, "PATCH");
+  check("the admin can change who approves", dropLead.status === 200, `status=${dropLead.status} ${JSON.stringify(dropLead.json?.error ?? "")}`);
+
+  const shorter = await apply(emp, "CL", monday(5), monday(5));
+  const steps = (shorter.json?.data?.approvals ?? []).map((x) => x.step);
+  check("a new request follows the new order", JSON.stringify(steps) === JSON.stringify(["MANAGER", "HR"]), JSON.stringify(steps));
+  check("and the lead can no longer decide it",
+    (await call(lead, `/api/leave/${shorter.json.data.id}/decision`, { decision: "APPROVED" })).status === 403);
+  check("while the manager can", (await call(mgr, `/api/leave/${shorter.json.data.id}/decision`, { decision: "APPROVED" })).json?.data?.currentStep === "HR");
+
+  // HR cannot be removed: it is the step anybody in HR can settle, and without
+  // it a request can be left pending with nobody able to decide it.
+  check("HR cannot be dropped from the chain",
+    (await call(admin, "/api/admin/company", { approvalChain: ["TEAM_LEAD", "MANAGER"] }, "PATCH")).status === 422);
+  check("nor moved off the end",
+    (await call(admin, "/api/admin/company", { approvalChain: ["HR", "MANAGER"] }, "PATCH")).status === 422);
+  check("and a step cannot be listed twice",
+    (await call(admin, "/api/admin/company", { approvalChain: ["MANAGER", "MANAGER", "HR"] }, "PATCH")).status === 422);
+
+  // Put it back for the suites that follow.
+  await call(admin, "/api/admin/company", { approvalChain: ["TEAM_LEAD", "MANAGER", "HR"] }, "PATCH");
 }

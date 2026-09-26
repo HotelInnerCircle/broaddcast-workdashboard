@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { FileText, Upload, Trash2, Check, AlertCircle } from "lucide-react";
+import { FileText, Upload, Trash2, Check, AlertCircle, Sparkles, Users } from "lucide-react";
 import { api, ClientApiError } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,41 @@ export function PayslipRegister() {
     finally { setBusy(null); }
   };
 
+  /**
+   * Work one payslip out from the salary on file and the attendance for these
+   * days. Safe to repeat: it replaces rather than duplicating, and anything HR
+   * typed in - TDS, an advance - is carried over.
+   */
+  const generateOne = async (row: Row) => {
+    setBusy(row.userId);
+    try {
+      const r = await api<{ incomplete: string | null }>("/api/payroll/generate", { method: "POST", json: { userId: row.userId, month } });
+      toast.success(`${row.userName}'s payslip generated`);
+      // A part-month payslip looks perfectly normal, so the reason is said out loud.
+      if (r.incomplete) toast.warning(r.incomplete, { duration: 9000 });
+      await load();
+    } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not generate it"); }
+    finally { setBusy(null); }
+  };
+
+  const generateAll = async () => {
+    if (!confirm(`Generate payslips for everyone with a salary set, for ${data?.period.label}?`)) return;
+    setBusy("__all__");
+    try {
+      const r = await api<{ generated: number; skipped: number; results: Array<{ userName: string; ok: boolean; reason?: string; incomplete?: string | null }> }>(
+        "/api/payroll/generate", { method: "POST", json: { month } });
+      toast.success(`${r.generated} generated${r.skipped ? `, ${r.skipped} skipped` : ""}`);
+      // Name the ones that could not be done, rather than only counting them.
+      for (const f of r.results.filter((x) => !x.ok).slice(0, 4)) toast.error(`${f.userName}: ${f.reason}`);
+      // Said once for the run, not once per person: if the period is not over,
+      // every single payslip in it is for part of a month.
+      const warning = r.results.find((x) => x.ok && x.incomplete)?.incomplete;
+      if (warning) toast.warning(warning, { duration: 12000 });
+      await load();
+    } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Payroll run failed"); }
+    finally { setBusy(null); }
+  };
+
   const open = async (slip: Payslip) => {
     try {
       const { url } = await api<{ url: string }>(`/api/payslips/${slip.id}`, { fresh: true });
@@ -103,6 +138,15 @@ export function PayslipRegister() {
             </span>
           </div>
         )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button loading={busy === "__all__"} onClick={() => void generateAll()} disabled={!data}>
+          <Users />Generate for everyone
+        </Button>
+        <span className="text-[11.5px] text-muted-foreground">
+          Works each payslip out from the salary on file and the attendance for these days. Safe to run again.
+        </span>
       </div>
 
       {loading ? <Skeleton className="h-96 rounded-2xl" />
@@ -141,9 +185,13 @@ export function PayslipRegister() {
                 />
                 <div className="flex shrink-0 items-center gap-1">
                   {slip && <Button variant="outline" size="sm" onClick={() => void open(slip)}><FileText />Open</Button>}
-                  <Button variant="outline" size="sm" loading={busy === row.userId}
+                  <Button size="sm" loading={busy === row.userId} onClick={() => void generateOne(row)}>
+                    <Sparkles />{slip ? "Regenerate" : "Generate"}
+                  </Button>
+                  {/* Uploading stays for a month that was worked out elsewhere. */}
+                  <Button variant="outline" size="icon" aria-label={`Upload a payslip PDF for ${row.userName}`}
                     onClick={() => pickers.current[row.userId]?.click()}>
-                    <Upload />{slip ? "Replace" : "Upload"}
+                    <Upload />
                   </Button>
                   {slip && (
                     <Button variant="outline" size="icon" aria-label={`Delete ${row.userName}'s payslip`}
@@ -157,9 +205,11 @@ export function PayslipRegister() {
       )}
 
       <p className="px-1 text-[11.5px] leading-relaxed text-muted-foreground">
-        A payslip is a PDF, stored privately and opened through a link that expires in five minutes.
-        Uploading one makes it visible to that employee straight away. Replacing one removes the file
-        it replaced, and both are written to the audit log.
+        Generating works the payslip out from the salary on file and the attendance for this period, and
+        can be run again at any time - anything typed in, like TDS or an advance, is kept. Uploading a PDF
+        is still there for a month that was worked out elsewhere. Either way it becomes visible to that
+        employee straight away, is stored privately, opens through a link that expires in five minutes,
+        and replacing one removes the file it replaced. All of it is written to the audit log.
       </p>
     </div>
   );
