@@ -15,7 +15,7 @@ export function serializeCompany(c: Record<string, unknown>) {
   return {
     id: String(c._id), name: c.name as string, logoUrl: (c.logoUrl as string | null) ?? null, timezone: c.timezone as string,
     currency: c.currency as string, workingHours: c.workingHours as { start: string; end: string }, workingDays: c.workingDays as string[],
-    lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []), employeeCodePrefix: ((c.employeeCodePrefix as string | undefined) ?? "EMP"), employeeCodePadding: ((c.employeeCodePadding as number | undefined) ?? 3), services: ((c.services as string[] | undefined) ?? []),
+    lateThresholdMinutes: c.lateThresholdMinutes as number, defaultTaskStatus: c.defaultTaskStatus as string, designations: ((c.designations as string[] | undefined) ?? []), employeeCodePrefix: ((c.employeeCodePrefix as string | undefined) ?? "EMP"), employeeCodePadding: ((c.employeeCodePadding as number | undefined) ?? 3), payrollStartDay: ((c.payrollStartDay as number | undefined) ?? 1), services: ((c.services as string[] | undefined) ?? []),
     hiddenNav: {
       COMPANY_ADMIN: ((c.hiddenNav as Record<string, string[]> | undefined)?.COMPANY_ADMIN ?? []),
       HR: ((c.hiddenNav as Record<string, string[]> | undefined)?.HR ?? []),
@@ -52,6 +52,7 @@ export async function updateCompany(ctx: CompanyContext, input: UpdateCompanyInp
   // A95: affects the next code issued, never one already given out.
   if (input.employeeCodePrefix !== undefined) c.set("employeeCodePrefix", input.employeeCodePrefix);
   if (input.employeeCodePadding !== undefined) c.set("employeeCodePadding", input.employeeCodePadding);
+  if (input.payrollStartDay !== undefined) c.set("payrollStartDay", input.payrollStartDay);
   if (input.designations !== undefined) c.set("designations", dedupe(input.designations));
   if (input.services !== undefined) c.set("services", dedupe(input.services));
   if (input.hiddenNav !== undefined) {

@@ -22,6 +22,7 @@ import * as profile from "./suites/profile.mjs";
 import * as employeeCodes from "./suites/employee-codes.mjs";
 import * as accessControl from "./suites/access-control.mjs";
 import * as reports from "./suites/reports.mjs";
+import * as payslips from "./suites/payslips.mjs";
 import * as singleDevice from "./suites/single-device.mjs";
 
 /**
@@ -30,7 +31,7 @@ import * as singleDevice from "./suites/single-device.mjs";
  */
 // single-device last: it signs in repeatedly, and anything after it would be
 // competing for the sign-in rate limit that the whole run shares.
-const ALL = [scheduling, swipes, timerGrouping, leave, ledger, profile, employeeCodes, accessControl, reports, singleDevice];
+const ALL = [scheduling, swipes, timerGrouping, leave, ledger, profile, employeeCodes, accessControl, reports, payslips, singleDevice];
 
 const wanted = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 const suites = wanted.length ? ALL.filter((s) => wanted.includes(s.name)) : ALL;

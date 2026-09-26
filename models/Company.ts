@@ -23,6 +23,14 @@ const CompanySchema = new Schema(
     employeeCodePrefix: { type: String, default: "EMP", maxlength: 8 },
     employeeCodePadding: { type: Number, default: 3, min: 1, max: 8 },
     employeeCodeNext: { type: Number, default: 1, min: 1 },
+    /**
+     * The day of the month a payroll cycle opens (A102). 1 is a plain calendar
+     * month; 26 means the 26th to the 25th, which is common so that attendance
+     * closes with a few days in hand before payday. Everything that has to agree
+     * about which month a day belongs to - the ledger, loss of pay, payslips -
+     * derives from this one number.
+     */
+    payrollStartDay: { type: Number, default: 1, min: 1, max: 31 },
     /** Job designations the admin maintains (A57), e.g. "Web Developer"; picked when adding/editing people. */
     designations: { type: [String], default: [] },
     /** Services the company sells (A69), e.g. "Meta Ads"; ticked per client. */

@@ -672,3 +672,22 @@ Built from three screenshots of another app: a month calendar of status chips, a
 - **The classifier is tested against real user agents, not invented ones**, because the real ones lie about each other: Edge and Opera both claim to be Chrome, Chrome claims to be Safari, and the Electron shell claims to be Chrome on the host platform. Reading the desktop app as a phone would mean every HR person signing in on their laptop silently kicked themselves off their own phone.
 - **Verified:** 15 unit checks on the classifier and 15 browser checks - a phone and a desktop signed in together, a second phone taking over while the desktop is untouched, the old phone landing on the login screen and being told which device took over, signing in again always working, and another person's phone unaffected.
 - **Where:** `lib/auth/device.ts`, `lib/auth/session-service.ts`, `models/Session.ts`, `app/(auth)/login/page.tsx`.
+
+### A102. The payroll month, and payslips people can check (owner request, 26 Sep 2026)
+The first piece of payroll: the cycle everything else will hang off, and a way to put a payslip in front of the person it belongs to.
+
+**The 26th-to-25th cycle.** `payrollStartDay` on the company (1 = calendar month, 26 = the 26th to the 25th) drives one helper, `lib/time/payroll-period.ts`, and **the attendance ledger now follows it too**. That second part is the point: an absence counted in one month while the deduction for it lands in another is exactly how a payslip and an attendance record come to disagree, and there is no arguing your way out of it afterwards.
+- A period is **named after the month it ends in** - "September" on a 26th cycle means 26 August to 25 September, which is the payslip somebody expects to receive in September.
+- **A period ends the day before the next opens, and starts the day after the last one closed.** Deriving both ends from one rule is what makes gaps and overlaps impossible. It matters at the edges: on a 31st cycle February closes on the 28th, and March starts on the 1st. Computing March's start independently as "the 31st of February, clamped" would have given the 28th to *both* months - one day of somebody's pay, counted twice. **A test caught exactly that**, which is why the test asserts the property (every day of the year in exactly one period, no gaps) rather than a handful of examples.
+
+**Payslips.** HR uploads a PDF per person per month; the employee sees their own at `/my/payslips` with the days it covers, and downloads it.
+- **The register lists the people who have *no* payslip too.** On the 30th the question is never "show me what I uploaded", it is "who have I still not done" - and a list of only the uploaded ones cannot answer it.
+- **Each payslip records the days it covered, rather than recomputing them.** A company that changes its cycle next year must not silently rewrite what an already-issued payslip claimed to pay for.
+- **One row per person per month**, enforced by a unique index. Uploading again replaces, deletes the file it replaced, and is written to the audit log - a payslip that changed after somebody read it has to be explainable.
+- **Files are private, links expire in five minutes,** and the type is checked by magic bytes, not by what the upload claims. Your own payslip always; anybody else's only with the grant, which is HR and the company admin.
+- **Reading your own needs no permission grant**, like your own profile - a grant would have meant "everybody's".
+- **Caught by the tenant guard, working as designed:** deleting through `doc.deleteOne()` carries no companyId filter and was refused. It goes through the scoped query now.
+- **Verified:** 25 unit checks on the period maths and 32 browser checks - the cycle, the ledger agreeing with it, uploading, replacing, non-PDFs refused, an employee seeing only their own and being refused somebody else's, both screens, and deleting.
+- **Where:** `lib/time/payroll-period.ts`, `models/{Payslip,Company}.ts`, `services/{payslipService,ledgerService,companyService}.ts`, `app/api/payslips/**`, `components/payroll/*`, `config/navigation.ts`.
+
+**Still to come, in order:** salary structures (effective-dated, so a raise in June does not rewrite May), the monthly run computing from the ledger, statutory deductions as data rather than code, and payment - a bank advice file first, a payout API only after.

@@ -7,6 +7,8 @@ import { Attendance } from "@/models/Attendance";
 import { Holiday } from "@/models/Holiday";
 import { LeaveRequest } from "@/models/LeaveRequest";
 import { User } from "@/models/User";
+import { Company } from "@/models/Company";
+import { payrollPeriod } from "@/lib/time/payroll-period";
 import { LEAVE_TYPE_LABEL, type LeaveType } from "@/types";
 import type { CompanyContext } from "@/lib/auth/context";
 
@@ -29,6 +31,8 @@ export interface LedgerDay {
 
 export interface Ledger {
   userId: string; userName: string; month: string; shiftName: string | null;
+  /** The days this month actually covers - not the calendar month on a 26th cycle. */
+  periodFrom: string; periodTo: string; periodLabel: string;
   /** The shift window the late/early figures are measured against, as "HH:mm". */
   shiftStart: string; shiftEnd: string;
   /** The day this person started; everything before it is outside their employment. */
@@ -58,9 +62,16 @@ export async function attendanceLedger(ctx: CompanyContext, userId: string, mont
   if (!user) throw Errors.notFound("Employee");
 
   const clock = await personClock(ctx.companyId, userId);
-  const first = `${month}-01`;
-  const lastDay = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
-  const last = `${month}-${String(lastDay).padStart(2, "0")}`;
+  /*
+   * The month follows the company's payroll cycle, not the calendar (A102). On a
+   * 26th-to-25th cycle, "September" runs from 26 August - and it has to, because
+   * an absence counted in one month and the deduction for it applied in another
+   * is how a payslip and an attendance record come to disagree.
+   */
+  const company = await Company.findById(ctx.companyId).select("payrollStartDay").lean();
+  const period = payrollPeriod((company?.payrollStartDay as number | undefined) ?? 1, month);
+  const first = period.from;
+  const last = period.to;
   const uid = new Types.ObjectId(userId);
   const today = clock.dayOf(new Date());
   // Nobody is absent for days before they existed here. Without this, a person who joined on the
@@ -172,6 +183,7 @@ export async function attendanceLedger(ctx: CompanyContext, userId: string, mont
   s.totalHours = Math.round((s.totalHours / 3600) * 10) / 10;
   return {
     userId, userName: user.name as string, month,
+    periodFrom: period.from, periodTo: period.to, periodLabel: period.label,
     shiftName: clock.shiftName, shiftStart: clock.workingHours.start, shiftEnd: clock.workingHours.end,
     joinedOn: joined, days, summary: s,
   };

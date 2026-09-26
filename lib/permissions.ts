@@ -13,7 +13,7 @@ import type { Role } from "@/types";
 export const RESOURCES = [
   "companies", "systemAnalytics", "companySettings", "billing", "employees", "teams", "clients",
   "projects", "tasks", "reports", "liveStatus", "timer", "attendance", "chat", "announcements",
-  "dailyReports", "auditLog", "roles", "workSites", "scheduling",
+  "dailyReports", "auditLog", "roles", "workSites", "scheduling", "payslips",
 ] as const;
 export type Resource = (typeof RESOURCES)[number];
 
@@ -52,6 +52,12 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view", "create"], "company"),
     auditLog: g(["view"], "company"),
+    /**
+     * Payroll is HR and the company admin only (A102). Everybody can read their
+     * own payslip without a grant - that is handled in the route, the way a
+     * person's own profile is - because a grant here would mean "everybody's".
+     */
+    payslips: g(ALL, "company"),
     roles: g(["view"], "company"),
   },
   /**
@@ -72,6 +78,7 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     chat: g(["view", "create"], "company"),
     announcements: g(["view", "create"], "company"),
     dailyReports: g(["view"], "company"),
+    payslips: g(ALL, "company"),
     roles: g(["view"], "company"),
   },
   MANAGER: {
@@ -139,6 +146,7 @@ export const RESOURCE_LABEL: Record<Resource, string> = {
   tasks: "Tasks",
   reports: "Reports",
   liveStatus: "Live employee status",
+  payslips: "Payslips",
   timer: "Timer / timesheet",
   attendance: "Attendance",
   chat: "Chat",

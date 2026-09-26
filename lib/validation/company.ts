@@ -13,6 +13,7 @@ export const updateCompanySchema = z.object({
   /** A95: how employee codes are built. Changing these affects the next one issued, not past ones. */
   employeeCodePrefix: z.string().trim().max(8).optional(),
   employeeCodePadding: z.number().int().min(1).max(8).optional(),
+  payrollStartDay: z.number().int().min(1).max(31).optional(),
   designations: z.array(z.string().trim().min(1, "Designation cannot be empty").max(60)).max(100).optional(),
   services: z.array(z.string().trim().min(1, "Service cannot be empty").max(60)).max(100).optional(),
   hiddenNav: z.object({

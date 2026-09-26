@@ -15,6 +15,7 @@ interface Day {
 }
 interface Ledger {
   userId: string; userName: string; month: string;
+  periodFrom: string; periodTo: string; periodLabel: string;
   shiftName: string | null; shiftStart: string; shiftEnd: string;
   joinedOn: string;
   days: Day[];
@@ -117,6 +118,16 @@ export function LedgerView({ canPickPeople, myUserId }: { canPickPeople: boolean
               {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </label>
+        )}
+        {/*
+          Shown only when the payroll cycle is not the calendar month, which the
+          label gives away by being a range. On a 26th cycle "September" starts in
+          August, and somebody checking a deduction needs to see which days counted.
+        */}
+        {data?.periodLabel.includes(" - ") && (
+          <span className="mb-1 rounded-full bg-primary-soft px-3 py-1 text-[11.5px] font-semibold text-primary">
+            Covers {data.periodLabel}
+          </span>
         )}
         {data?.shiftName && (
           <span className="mb-1 rounded-full bg-muted px-3 py-1 text-[11.5px] font-semibold text-muted-foreground">
