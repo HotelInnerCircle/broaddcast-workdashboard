@@ -7,7 +7,10 @@
  * is refused while a picture is required, and that is asserted here rather than
  * trusted.
  */
-import { call, signedIn, stopTimerWithProof, submitDailyReportWithProof, wait } from "../harness.mjs";
+import { call, shot, signedIn, stopTimerWithProof, submitDailyReportWithProof, wait, waitForText } from "../harness.mjs";
+
+/** Built from a string so a layer of shell quoting cannot eat the escape. */
+const WHITESPACE = new RegExp("\\s+", "g");
 
 export const name = "work-proof";
 export const description = "a picture of the work, and no way round it";
@@ -133,4 +136,14 @@ export default async function run({ browser, lab, check }) {
 
   // Back on for anything that follows.
   await call(admin, "/api/admin/company", { workProof: { timer: true, dailyReport: true } }, "PATCH");
+
+  /* ---------- the phone home leads with today's swipes, not the timer (A106) ---------- */
+  const phone = await signedIn(browser, lab.people.emp.email, lab.pw, { mobile: true });
+  await phone.goto(`${lab.base}/employee/dashboard`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const shown = await waitForText(phone, /TODAY.S SWIPES/i, 30_000);
+  check("the phone home leads with today's swipes", shown, "the card never appeared");
+  const home = (await phone.textContent("body")) ?? "";
+  check("and no longer with the running timer", !/No timer running/i.test(home));
+  check("it says how many there are", /today|None yet/i.test(home), home.replace(WHITESPACE, " ").slice(0, 160));
+  await shot(phone, "mobile-home-swipes");
 }

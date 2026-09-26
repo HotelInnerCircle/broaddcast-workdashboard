@@ -1,20 +1,20 @@
 "use client";
 import Link from "next/link";
-import { Bell, ChevronRight, Coffee, LogIn, LogOut, Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
+import { Bell, ChevronRight, LogIn, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
-import { useTimer, formatHMS, formatHM } from "@/hooks/useTimer";
-import { entryHref, entrySubtitle, entryTitle } from "@/components/timer/mini-timer";
+import { useTimer, formatHM } from "@/hooks/useTimer";
 import { formatDate } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 import { TILE_FILL, TILE_ICONS, TileBadge, visibleTiles, type LauncherTile } from "./tiles";
+import { TodaySwipes } from "./today-swipes";
 
 /** One line under the grid: what is wrong today, or nothing at all. */
 export interface MobileAlert { href: string; text: string; tone: "danger" | "warning" }
 
 /**
  * Phone home (A81): the launcher direction the owner picked - a cocoa header carrying the
- * greeting, the running timer lifted over it as a card, then a grid of tiles and one line saying
+ * greeting, today swipes lifted over it as a card, then a grid of tiles and one line saying
  * whether anything needs attention. Phones only (`md:hidden`); the desktop dashboard is separate.
  *
  * Every piece of timer and attendance state comes from the shared `useTimer` context, so start,
@@ -24,8 +24,6 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
   const me = useAuth();
   const t = useTimer();
   const rt = useRealtime();
-  const running = t.entry?.status === "RUNNING";
-  const onBreak = Boolean(t.break);
   const att = t.summary?.attendance ?? null;
   const clockedIn = Boolean(att?.clockIn && !att.clockOut);
   const initials = me.name.split(" ").map((p) => p[0]).slice(0, 2).join("");
@@ -64,61 +62,15 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
         </div>
       </div>
 
-      {/* The running timer, lifted over the header */}
-      <div className="relative -mt-14 rounded-3xl bg-card p-4 shadow-float">
-        {onBreak ? (
-          <>
-            <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-warning" />
-              <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.09em] text-warning">On a break</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">{formatHM(t.summary?.workSeconds ?? 0)} today</span>
-            </div>
-            <div className="mt-1.5 flex items-end gap-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="font-display text-[42px] leading-none tabular-nums">{formatHMS(t.breakElapsed)}</p>
-                {t.entry && <p className="mt-1.5 truncate text-xs text-muted-foreground">&ldquo;{entryTitle(t.entry)}&rdquo; is paused</p>}
-              </div>
-              <button type="button" onClick={() => void t.endBreak()} className="h-[46px] shrink-0 rounded-full bg-primary px-6 text-sm font-bold text-primary-foreground">End break</button>
-            </div>
-          </>
-        ) : t.entry ? (
-          <>
-            <div className="flex items-center gap-2">
-              <span className={cn("size-2 rounded-full", running ? "bg-success" : "bg-muted-foreground")} />
-              <span className={cn("flex-1 text-[11px] font-bold uppercase tracking-[0.09em]", running ? "text-success" : "text-muted-foreground")}>{running ? "Running" : "Paused"}</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">{formatHM(t.summary?.workSeconds ?? 0)} today</span>
-            </div>
-            <div className="mt-1.5 flex items-end gap-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="font-display text-[42px] leading-none tabular-nums">{formatHMS(t.elapsed)}</p>
-                <Link href={entryHref(t.entry)} className="mt-1.5 block truncate text-xs text-muted-foreground">{entrySubtitle(t.entry) || entryTitle(t.entry)}</Link>
-              </div>
-              {running ? (
-                <button type="button" onClick={() => void t.pause()} aria-label="Pause timer" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Pause className="size-[18px]" /></button>
-              ) : (
-                <button type="button" onClick={() => void t.resume()} aria-label="Resume timer" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><Play className="size-[18px]" /></button>
-              )}
-              <button type="button" onClick={() => void t.startBreak()} aria-label="Take a break" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-muted text-foreground"><Coffee className="size-[17px]" /></button>
-              <button type="button" onClick={() => void t.stop()} aria-label="Stop timer" className="flex size-[46px] shrink-0 items-center justify-center rounded-full bg-sidebar text-white"><Square className="size-4" /></button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-border" />
-              <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.09em] text-muted-foreground">No timer running</span>
-              <span className="text-[11.5px] font-semibold text-muted-foreground">{formatHM(t.summary?.workSeconds ?? 0)} today</span>
-            </div>
-            <div className="mt-1.5 flex items-end gap-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="font-display text-[42px] leading-none tabular-nums text-muted-foreground/50">00:00:00</p>
-                <p className="mt-1.5 truncate text-xs text-muted-foreground">Pick a client and start tracking</p>
-              </div>
-              <Link href="/timer" className="inline-flex h-[46px] shrink-0 items-center gap-2 rounded-full bg-primary px-5 text-sm font-bold text-primary-foreground"><TimerIcon className="size-4" />Start</Link>
-            </div>
-          </>
-        )}
-      </div>
+      {/*
+        Today swipes, lifted over the header (A106).
+
+        This was the running timer. The owner asked for it to go: the phone is
+        mostly used to swipe in and out, and the timer has its own screen and a
+        mini timer that follows you around anyway - so the space belongs to the
+        thing people open the app to check.
+      */}
+      <TodaySwipes userId={me.userId} userName={me.name} />
 
       {/* The launcher grid */}
       <div className="mt-5 flex items-baseline gap-2 px-1">
