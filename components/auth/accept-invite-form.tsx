@@ -31,7 +31,7 @@ export function AcceptInviteForm({ token, email }: { token: string; email: strin
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+    <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <FormAlert kind="error" message={error} />
       <Field label="Email" htmlFor="email"><Input id="email" value={email} disabled /></Field>
       <Field label="Your name" htmlFor="name" error={errors.name?.message}>

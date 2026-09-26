@@ -15,7 +15,8 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { api, apiPaged, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
-import { formatDate, relativeTime } from "@/lib/utils/dates";
+import { formatDate } from "@/lib/utils/dates";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { ROLE_LABEL } from "@/types";
 import { InviteDialog } from "./invite-dialog";
 import { EmployeeSheet } from "./employee-sheet";
@@ -111,7 +112,7 @@ export function EmployeesView() {
                     <TD label="Team" className="text-muted-foreground">{r.team?.name ?? "-"}</TD>
                     <TD label="Manager" className="text-muted-foreground">{r.manager?.name ?? "-"}</TD>
                     <TD label="Status"><Badge variant={r.status === "active" ? "success" : r.status === "invited" ? "warning" : "danger"}>{r.status}</Badge></TD>
-                    <TD label="Last active" className="text-xs text-muted-foreground">{relativeTime(r.lastActiveAt)}</TD>
+                    <TD label="Last active" className="text-xs text-muted-foreground"><RelativeTime value={r.lastActiveAt} /></TD>
                     {canEdit && <TD><Button variant="ghost" size="icon" aria-label={`Edit ${r.name}`} onClick={() => setSelected(r)}><Pencil /></Button></TD>}
                   </TR>
                 ))}

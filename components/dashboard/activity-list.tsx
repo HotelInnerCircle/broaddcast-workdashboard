@@ -1,7 +1,8 @@
 import { History } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { relativeTime } from "@/lib/utils/dates";
+
+import { RelativeTime } from "@/components/ui/relative-time";
 
 export interface ActivityItem { id: string; summary: string | null; action: string; actorName: string | null; createdAt: Date | string }
 
@@ -23,7 +24,7 @@ export function ActivityList({ items, title = "Recent activity", description }: 
                   <p className="truncate">{a.summary ?? a.action}</p>
                   <p className="text-xs text-muted-foreground">{a.actorName ?? "System"} <span className="mx-1">&middot;</span> <span className="font-mono text-[11px]">{a.action}</span></p>
                 </div>
-                <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(a.createdAt)}</span>
+                <span className="shrink-0 text-xs text-muted-foreground"><RelativeTime value={a.createdAt} /></span>
               </li>
             ))}
           </ul>

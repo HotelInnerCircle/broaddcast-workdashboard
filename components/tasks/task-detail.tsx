@@ -16,7 +16,8 @@ import { showLimitError } from "@/lib/api/limit-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useTimer, formatHMS } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils/cn";
-import { formatDate, formatDateTime, formatDuration, relativeTime } from "@/lib/utils/dates";
+import { formatDate, formatDateTime, formatDuration } from "@/lib/utils/dates";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { TASK_STATUSES } from "@/types";
 import { TaskDialog } from "./task-dialog";
 import type { TaskDetail } from "./types";
@@ -60,7 +61,7 @@ export function TaskDetailView({ task }: { task: TaskDetail }) {
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{task.client?.name && <Link href={`/clients/${task.client.id}`} className="hover:underline">{task.client.name}</Link>}{task.client?.name && task.project?.name && " / "}{task.project?.name && <Link href={`/projects/${task.project.id}`} className="hover:underline">{task.project.name}</Link>}</p>
           <h1 className={cn("mt-1 text-2xl font-semibold tracking-tight", task.archivedAt && "line-through opacity-60")}>{task.title}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2"><TaskStatusBadge status={task.status} /><PriorityBadge priority={task.priority} />{task.overdue && <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">Overdue</span>}{task.archivedAt && <span className="text-xs text-muted-foreground">Archived {relativeTime(task.archivedAt)}</span>}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2"><TaskStatusBadge status={task.status} /><PriorityBadge priority={task.priority} />{task.overdue && <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">Overdue</span>}{task.archivedAt && <span className="text-xs text-muted-foreground">Archived <RelativeTime value={task.archivedAt} /></span>}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {timingThis ? <Button variant="outline" onClick={() => void timer.stop()}><Square />Stop timer <span className="font-mono tabular-nums">{formatHMS(timer.elapsed)}</span></Button> : <Button disabled={closed} title={closed ? "Reopen the task to track time" : undefined} onClick={() => task.client?.id && void timer.start(task.client.id, { projectId: task.project?.id, taskId: task.id, notes: `Working on ${task.title}` })}><Play />Start timer</Button>}
@@ -124,7 +125,7 @@ export function TaskDetailView({ task }: { task: TaskDetail }) {
                     <li key={a.id} className="text-sm">
                       <span className="absolute -left-[5px] mt-1.5 size-2 rounded-full bg-primary" />
                       <p>{a.summary ?? a.action}</p>
-                      <p className="text-xs text-muted-foreground">{a.actorName ?? "System"} &middot; {relativeTime(a.createdAt)}</p>
+                      <p className="text-xs text-muted-foreground">{a.actorName ?? "System"} &middot; <RelativeTime value={a.createdAt} /></p>
                     </li>
                   ))}
                 </ol>

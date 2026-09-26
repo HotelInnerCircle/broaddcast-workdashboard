@@ -29,7 +29,7 @@ export function ForgotPasswordForm() {
 
   if (done) return <FormAlert kind="success" message={done} />;
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+    <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <FormAlert kind="error" message={error} />
       <Field label="Email" htmlFor="email" error={errors.email?.message}>
         <Input id="email" type="email" autoComplete="email" aria-invalid={!!errors.email} {...register("email")} />

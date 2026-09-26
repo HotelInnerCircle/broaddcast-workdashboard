@@ -3,6 +3,7 @@ import { created, paged, parseQuery } from "@/lib/api/response";
 import { Errors } from "@/lib/api/errors";
 import { requirePermission } from "@/lib/auth/context";
 import { checkLimit } from "@/lib/limits";
+import { rateLimit } from "@/lib/rate-limit";
 import { swipeCreateSchema, swipeQuerySchema } from "@/lib/validation/swipes";
 import { createSwipe, listSwipes } from "@/services/swipeService";
 
@@ -20,6 +21,11 @@ export const GET = route(async (req) => {
  */
 export const POST = route(async (req) => {
   const ctx = await requirePermission("attendance", "create");
+  // Keyed by person, not by address: everyone on an office wifi shares an address,
+  // and the account is the thing being limited. Twenty a minute is far more than
+  // going on and off duty needs, and well under what it takes to keep the image
+  // pipeline busy on purpose.
+  rateLimit(`swipe:${ctx.userId}`, 20, 60_000);
   const form = await req.formData();
   const photo = form.get("photo");
   if (!(photo instanceof File)) throw Errors.bad("PHOTO_REQUIRED", "Take a photo to swipe");

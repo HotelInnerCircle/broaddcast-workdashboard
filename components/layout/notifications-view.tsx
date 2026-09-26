@@ -9,7 +9,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api/client";
 import { useRealtime } from "@/hooks/useRealtime";
-import { relativeTime } from "@/lib/utils/dates";
+
+import { RelativeTime } from "@/components/ui/relative-time";
 import { cn } from "@/lib/utils/cn";
 import { TYPE_ICON, type NotificationItem } from "./notification-bell";
 
@@ -32,7 +33,7 @@ export function NotificationsView() {
             <ul className="divide-y divide-border">{items.map((n) => (
               <li key={n.id}><button onClick={() => open(n)} className={cn("flex w-full items-start gap-3 px-5 py-3 text-left text-sm hover:bg-muted", !n.readAt && "bg-primary-soft/30")}>
                 <span className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", TYPE_ICON[n.type] ?? "bg-muted-foreground")} />
-                <span className="min-w-0 flex-1"><span className={cn("block", !n.readAt && "font-medium")}>{n.title}</span>{n.body && <span className="block text-muted-foreground">{n.body}</span>}<span className="text-xs text-muted-foreground">{n.type.replace("_", " ").toLowerCase()} - {relativeTime(n.createdAt)}</span></span>
+                <span className="min-w-0 flex-1"><span className={cn("block", !n.readAt && "font-medium")}>{n.title}</span>{n.body && <span className="block text-muted-foreground">{n.body}</span>}<span className="text-xs text-muted-foreground">{n.type.replace("_", " ").toLowerCase()} - <RelativeTime value={n.createdAt} /></span></span>
                 {!n.readAt && <span className="mt-2 size-2 rounded-full bg-primary" />}
               </button></li>
             ))}</ul>

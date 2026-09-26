@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { User } from "@/models/User";
 import { Team } from "@/models/Team";
@@ -31,7 +32,8 @@ export function serializeEmployee(u: Record<string, unknown>) {
 export async function listEmployees(ctx: CompanyContext, query: z.infer<typeof listEmployeesSchema> & z.infer<typeof paginationSchema>) {
   const scope = await employeeScopeFilter(ctx);
   const filter: Record<string, unknown> = { ...scope, archivedAt: null };
-  if (query.q) filter.$and = [...((filter.$and as unknown[]) ?? []), { $or: [{ name: { $regex: query.q, $options: "i" } }, { email: { $regex: query.q, $options: "i" } }] }];
+  // Escaped - see clientService: an unescaped search term is a denial of service.
+  if (query.q) { const q = escapeRegex(query.q); filter.$and = [...((filter.$and as unknown[]) ?? []), { $or: [{ name: { $regex: q, $options: "i" } }, { email: { $regex: q, $options: "i" } }] }]; }
   if (query.role) filter.role = query.role;
   if (query.status) filter.status = query.status;
   else filter.status = { $ne: "deactivated" };

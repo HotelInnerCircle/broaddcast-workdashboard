@@ -5,7 +5,7 @@ import { audit } from "@/lib/audit";
 import { storage, validateUpload, sniffMatches } from "@/lib/storage";
 import { personClock } from "@/lib/time/company-clock";
 import { notify, notifyMany } from "@/services/notificationService";
-import { employeeScopeFilter } from "@/services/scope";
+import { employeeScopeFilter, requireVisibleEmployee } from "@/services/scope";
 import { buildChain, canDecide, approversFor } from "@/services/approvalChain";
 import { LeaveRequest } from "@/models/LeaveRequest";
 import { LeavePolicy } from "@/models/LeavePolicy";
@@ -257,7 +257,9 @@ export async function listLeave(
   const visibleIds = visible.map((v) => v._id as Types.ObjectId);
 
   const filter: Record<string, unknown> = { userId: { $in: visibleIds } };
-  if (q.userId) filter.userId = new Types.ObjectId(q.userId);
+  // Checked, not just assigned: plain assignment would replace the visible-ids
+  // restriction above and hand over anybody's leave history.
+  if (q.userId) filter.userId = await requireVisibleEmployee(ctx, q.userId);
   if (q.status) filter.status = q.status;
   if (q.from) filter.endDate = { $gte: q.from };
   if (q.to) filter.startDate = { $lte: q.to };

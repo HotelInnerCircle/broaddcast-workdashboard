@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { Conversation, type ConversationDoc } from "@/models/Conversation";
 import { Message, type MessageAttachment } from "@/models/Message";
@@ -396,7 +397,7 @@ export async function markConversationRead(ctx: CompanyContext, conversationId: 
 export async function searchMessages(ctx: CompanyContext, q: string, limit = 20) {
   const convs = await scoped(Conversation, ctx).find(await accessFilter(ctx)).select("_id type name teamId projectId participantIds").populate([pop("teamId", "name"), pop("projectId", "name"), pop("participantIds", "name")]).lean();
   const names = new Map(convs.map((c) => [String(c._id), c.type === "dm" ? (c.participantIds as unknown as { _id: unknown; name: string }[]).filter((p) => String(p._id) !== ctx.userId).map((p) => p.name).join(", ") : c.type === "channel" ? channelName(c) : `# ${((c.teamId ?? c.projectId) as unknown as { name?: string })?.name ?? ""}`]));
-  const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const safe = escapeRegex(q);
   const rows = await scoped(Message, ctx).find({ conversationId: { $in: convs.map((c) => c._id) }, deletedAt: null, body: { $regex: safe, $options: "i" } }).sort({ createdAt: -1 }).limit(limit).populate(pop("senderId", "name")).lean();
   return rows.map((m) => ({ id: String(m._id), conversationId: String(m.conversationId), conversation: names.get(String(m.conversationId)) ?? "", sender: senderOf(m.senderId)?.name ?? null, body: m.body, createdAt: m.createdAt }));
 }

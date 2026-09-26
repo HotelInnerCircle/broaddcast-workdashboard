@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { Client } from "@/models/Client";
 import { Project } from "@/models/Project";
@@ -66,7 +67,7 @@ export async function listProjects(ctx: CompanyContext, query: z.infer<typeof li
   if (query.includeArchived !== "true") filter.archivedAt = null;
   if (query.status) filter.status = query.status;
   if (query.clientId) filter.clientId = new Types.ObjectId(query.clientId);
-  if (query.q) filter.name = { $regex: query.q, $options: "i" };
+  if (query.q) filter.name = { $regex: escapeRegex(query.q), $options: "i" };
   const dal = scoped(Project, ctx);
   const [total, rows] = await Promise.all([
     dal.countDocuments(filter),

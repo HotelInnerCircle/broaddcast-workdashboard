@@ -9,7 +9,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { api, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
-import { relativeTime } from "@/lib/utils/dates";
+
+import { RelativeTime } from "@/components/ui/relative-time";
 
 interface Comment { id: string; author: { id: string; name: string; avatarUrl: string | null } | null; body: string; mentions: string[]; createdAt: string }
 interface Candidate { id: string; name: string; avatarUrl: string | null }
@@ -50,7 +51,7 @@ export function TaskComments({ taskId }: { taskId: string }) {
             <li key={c.id} className="flex gap-3">
               {c.author && <Avatar name={c.author.name} src={c.author.avatarUrl} size="sm" />}
               <div className="min-w-0 flex-1 rounded-lg bg-muted/60 px-3 py-2 text-sm">
-                <div className="flex items-center justify-between gap-2"><span className="font-medium">{c.author?.name ?? "Unknown"}</span><span className="flex items-center gap-2 text-xs text-muted-foreground">{relativeTime(c.createdAt)}{(c.author?.id === me.userId || me.role === "COMPANY_ADMIN" || me.role === "MANAGER") && <button onClick={() => remove(c.id)} aria-label="Delete comment" className="hover:text-danger"><Trash2 className="size-3.5" /></button>}</span></div>
+                <div className="flex items-center justify-between gap-2"><span className="font-medium">{c.author?.name ?? "Unknown"}</span><span className="flex items-center gap-2 text-xs text-muted-foreground"><RelativeTime value={c.createdAt} />{(c.author?.id === me.userId || me.role === "COMPANY_ADMIN" || me.role === "MANAGER") && <button onClick={() => remove(c.id)} aria-label="Delete comment" className="hover:text-danger"><Trash2 className="size-3.5" /></button>}</span></div>
                 <p className="mt-1 whitespace-pre-wrap">{c.body.split(/(@[\w][\w .'-]*?(?=\s@|[,.!?:;]|\s{2}|$))/g).map((part, i) => (part.startsWith("@") && names.has(part.slice(1).trim()) ? <span key={i} className="rounded bg-primary-soft px-1 font-medium text-primary">{part}</span> : <span key={i}>{part}</span>))}</p>
               </div>
             </li>

@@ -62,12 +62,13 @@ export async function employeeReport(ctx: CompanyContext, f: Filter) {
   const extra: Record<string, unknown> = {};
   if (f.clientId) extra.clientId = new Types.ObjectId(f.clientId);
   if (f.projectId) extra.projectId = new Types.ObjectId(f.projectId);
-  const [tasks, dailyCounts, attendance] = await Promise.all([
+  const [tasks, dailyDocs, attendance] = await Promise.all([
     scoped(Task, ctx).find({ ...taskScope, ...extra, assignedTo: { $in: ids }, archivedAt: null }).select("assignedTo status dueDate completedAt estimatedMinutes actualMinutes").lean(),
-    scoped(DailyReport, ctx).aggregate<{ _id: Types.ObjectId; n: number }>([{ $match: { userId: { $in: ids }, date: { $gte: f.from, $lte: f.to } } }, { $group: { _id: "$userId", n: { $sum: 1 } } }]),
+    scoped(DailyReport, ctx).find({ userId: { $in: ids }, date: { $gte: f.from, $lte: f.to } }).select("userId date completed submittedAt").sort({ date: -1 }).lean(),
     listAttendance(ctx, { from: f.from, to: f.to, userId: f.userId }),
   ]);
-  const daily = new Map(dailyCounts.map((d) => [String(d._id), d.n]));
+  const daily = new Map<string, number>();
+  for (const d of dailyDocs) daily.set(String(d.userId), (daily.get(String(d.userId)) ?? 0) + 1);
   const workingDays = clock.days(f.from, f.to).filter((d) => clock.isWorkingDay(d) && d < clock.dayOf(new Date())).length;
   const rows = users.map((u) => {
     const mine = tasks.filter((t) => String(t.assignedTo) === u.id);
@@ -90,7 +91,33 @@ export async function employeeReport(ctx: CompanyContext, f: Filter) {
     };
   });
   const totals = rows.reduce((t, r) => ({ trackedSeconds: t.trackedSeconds + r.trackedSeconds, tasksCompleted: t.tasksCompleted + r.tasksCompleted, tasksOverdue: t.tasksOverdue + r.tasksOverdue, dailyReports: t.dailyReports + r.dailyReports }), { trackedSeconds: 0, tasksCompleted: 0, tasksOverdue: 0, dailyReports: 0 });
-  return { rows, totals: { ...totals, trackedHours: hours(totals.trackedSeconds), people: rows.length, workingDays }, byDay: Object.entries(base.totals.byDay).sort(([a], [b]) => a.localeCompare(b)).map(([date, s]) => ({ date, hours: hours(s) })) };
+
+  /*
+   * What each person actually wrote, day by day (A99): the daily report they
+   * submitted, and the notes they typed against the clock. A summary row can say
+   * "12 of 14 reports"; it cannot say what was in them, and that is usually the
+   * thing being looked for. Keyed by person and day so both sources line up.
+   */
+  const nameOf = new Map(users.map((u) => [u.id, u.name]));
+  const byKey = new Map<string, { date: string; userId: string; name: string; completed: string; notes: string[]; seconds: number }>();
+  const at = (userId: string, date: string) => {
+    const key = userId + "|" + date;
+    let row = byKey.get(key);
+    if (!row) { row = { date, userId, name: nameOf.get(userId) ?? "", completed: "", notes: [], seconds: 0 }; byKey.set(key, row); }
+    return row;
+  };
+  for (const d of dailyDocs) at(String(d.userId), d.date as string).completed = (d.completed as string) ?? "";
+  for (const e of base.entries) {
+    const row = at(e.userId, e.date);
+    row.seconds += e.elapsedSeconds;
+    const note = [e.task?.name, e.notes].filter(Boolean).join(" - ").trim();
+    if (note && !row.notes.includes(note)) row.notes.push(note);
+  }
+  const submissions = [...byKey.values()]
+    .filter((r) => r.completed || r.notes.length)
+    .sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
+
+  return { rows, totals: { ...totals, trackedHours: hours(totals.trackedSeconds), people: rows.length, workingDays }, submissions, byDay: Object.entries(base.totals.byDay).sort(([a], [b]) => a.localeCompare(b)).map(([date, s]) => ({ date, hours: hours(s) })) };
 }
 export function employeeReportTable(r: Awaited<ReturnType<typeof employeeReport>>, f: Filter): ExportTable {
   return {
@@ -98,6 +125,34 @@ export function employeeReportTable(r: Awaited<ReturnType<typeof employeeReport>
     columns: [{ key: "name", label: "Employee", width: 22 }, { key: "team", label: "Team", width: 14 }, { key: "trackedHours", label: "Tracked hours", width: 10, align: "right" }, { key: "tasksCompleted", label: "Completed", width: 9, align: "right" }, { key: "tasksOpen", label: "Open", width: 8, align: "right" }, { key: "tasksOverdue", label: "Overdue", width: 8, align: "right" }, { key: "estVsAct", label: "Est vs actual (min)", width: 14 }, { key: "projectsWorked", label: "Projects", width: 8, align: "right" }, { key: "clientsWorked", label: "Clients", width: 8, align: "right" }, { key: "dailyReports", label: "Daily reports", width: 10, align: "right" }, { key: "attendance", label: "Attendance P/L/H/A/Lv", width: 16 }],
     rows: r.rows.map((x) => ({ name: x.name, team: x.team ?? "", trackedHours: x.trackedHours, tasksCompleted: x.tasksCompleted, tasksOpen: x.tasksOpen, tasksOverdue: x.tasksOverdue, estVsAct: `${x.estimatedMinutes} / ${x.actualMinutes}`, projectsWorked: x.projectsWorked, clientsWorked: x.clientsWorked, dailyReports: `${x.dailyReports}/${x.workingDays}`, attendance: `${x.attendance.present}/${x.attendance.late}/${x.attendance.halfDay}/${x.attendance.absent}/${x.attendance.leave}` })),
     totals: { name: "Total", trackedHours: r.totals.trackedHours, tasksCompleted: r.totals.tasksCompleted, tasksOverdue: r.totals.tasksOverdue },
+    /*
+     * What people actually wrote, on its own sheet (A99). The summary above can
+     * only ever say how many reports were submitted; this says what was in them,
+     * alongside the notes typed against the clock that day. Kept out of the
+     * summary because prose does not belong on a row of counts - and truncated
+     * prose is worse than none, since it reads as though that is all there was.
+     */
+    sections: r.submissions.length
+      ? [{
+          title: "Submissions",
+          columns: [
+            { key: "date", label: "Date", width: 12 },
+            { key: "name", label: "Employee", width: 20 },
+            { key: "hours", label: "Hours", width: 8, align: "right" },
+            { key: "completed", label: "Daily report", width: 60 },
+            { key: "notes", label: "Work notes", width: 44 },
+          ],
+          rows: r.submissions.map((s) => ({
+            date: s.date,
+            name: s.name,
+            hours: hours(s.seconds),
+            // Newlines are folded: a raw one inside a CSV cell ends the row for
+            // most importers, and the whole point here is that it arrives intact.
+            completed: s.completed.replace(/\s*\r?\n\s*/g, " "),
+            notes: s.notes.join("; "),
+          })),
+        }]
+      : undefined,
   };
 }
 
@@ -290,3 +345,50 @@ export async function dailyReportsForDay(ctx: CompanyContext, date: string, q: {
   return { date, rows, submitted: rows.filter((r) => r.report).length, total: rows.length };
 }
 
+
+/**
+ * The daily-report view as a flat table (A98).
+ *
+ * One line per person per day, whether or not they submitted - a missing report
+ * is the thing a manager is usually looking for, so leaving those lines out
+ * would make the export answer a different question from the screen. The tracked
+ * hours and the per-client split sit beside the text, because "what did you do"
+ * and "what did the clock say" are read together.
+ */
+export function dailyReportsTable(r: Awaited<ReturnType<typeof dailyReportsForRange>>, tz: string): ExportTable {
+  const rows: Record<string, string | number | null | undefined>[] = [];
+  for (const day of r.days) {
+    for (const row of day.rows) {
+      rows.push({
+        date: day.date,
+        weekday: day.isWorkingDay ? "" : "Non-working",
+        user: row.user.name,
+        team: row.user.team ?? "",
+        status: row.report ? "Submitted" : "Missing",
+        submittedAt: row.report ? formatInTimeZone(new Date(row.report.submittedAt), tz, "dd MMM yyyy, hh:mm a") : "",
+        hours: hours(row.trackedSeconds),
+        clients: row.byClient.map((c) => `${c.name} (${hours(c.seconds)}h)`).join(", "),
+        // Excel and CSV both treat a newline inside a cell as the end of the row
+        // unless it is quoted just so; one line per report avoids the argument.
+        completed: (row.report?.completed ?? "").replace(/\s*\r?\n\s*/g, " "),
+      });
+    }
+  }
+  return {
+    title: "Daily reports",
+    subtitle: `${r.from} to ${r.to} - ${r.submitted} of ${r.total} submitted`,
+    columns: [
+      { key: "date", label: "Date", width: 12 },
+      { key: "weekday", label: "Day", width: 12 },
+      { key: "user", label: "Employee", width: 22 },
+      { key: "team", label: "Team", width: 16 },
+      { key: "status", label: "Report", width: 11 },
+      { key: "submittedAt", label: "Submitted at", width: 22 },
+      { key: "hours", label: "Hours", width: 8, align: "right" },
+      { key: "clients", label: "Clients", width: 32 },
+      { key: "completed", label: "What they completed", width: 60 },
+    ],
+    rows,
+    totals: { clients: "Total", hours: Number((r.trackedSeconds / 3600).toFixed(2)) },
+  };
+}

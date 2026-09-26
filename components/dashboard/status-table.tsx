@@ -5,7 +5,8 @@ import { Badge, StatusDot } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
-import { relativeTime, formatDuration } from "@/lib/utils/dates";
+import { formatDuration } from "@/lib/utils/dates";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { formatHMS } from "@/hooks/useTimer";
 
 export interface StatusRow {
@@ -53,7 +54,7 @@ export function StatusTable({ rows, title = "Employee status", description }: { 
                     <TD label="Timer" className="font-mono text-xs tabular-nums">{r.current ? <span className={r.current.status === "RUNNING" ? "text-success" : "text-muted-foreground"}>{formatHMS(r.current.elapsedSeconds)}{r.current.status === "PAUSED" && " (paused)"}</span> : <span className="text-muted-foreground">00:00:00</span>}</TD>
                     <TD label="Today" className="tabular-nums">{r.todaySeconds ? formatDuration(r.todaySeconds) : "-"}</TD>
                     <TD label="Status"><span className="inline-flex items-center gap-1.5 text-xs font-medium"><StatusDot color={p.color} />{p.label}</span></TD>
-                    <TD label="Last active" className="text-xs text-muted-foreground max-2xl:hidden">{relativeTime(r.lastActiveAt)}</TD>
+                    <TD label="Last active" className="text-xs text-muted-foreground max-2xl:hidden"><RelativeTime value={r.lastActiveAt} /></TD>
                     <TD hideOnMobile><Link href={`/employees/${r.id}`} className="text-xs text-primary hover:underline">View</Link></TD>
                   </TR>
                 );

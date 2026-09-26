@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { api, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useDesignations } from "@/hooks/usePickers";
-import { formatDate, relativeTime } from "@/lib/utils/dates";
+import { formatDate } from "@/lib/utils/dates";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { COMPANY_ROLES, ROLE_LABEL, type CompanyRole } from "@/types";
 import type { EmployeeRow, TeamOption } from "./types";
 
@@ -83,7 +84,7 @@ export function EmployeeSheet({ employee, teams, managers, onClose, onSaved }: {
             </div>
             <dl className="grid grid-cols-2 gap-3 rounded-lg bg-muted/60 p-3 text-xs">
               <div><dt className="text-muted-foreground">Joined</dt><dd className="font-medium">{formatDate(employee.joiningDate)}</dd></div>
-              <div><dt className="text-muted-foreground">Last active</dt><dd className="font-medium">{relativeTime(employee.lastActiveAt)}</dd></div>
+              <div><dt className="text-muted-foreground">Last active</dt><dd className="font-medium"><RelativeTime value={employee.lastActiveAt} /></dd></div>
             </dl>
             <Field label="Name" htmlFor="emp-name" error={errors.name?.message}><Input id="emp-name" {...register("name")} /></Field>
             <Field label="Role" htmlFor="emp-role" hint={self ? "You cannot change your own role." : "Changing the role signs the person out everywhere."}>

@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { Client } from "@/models/Client";
 import { Project } from "@/models/Project";
@@ -32,7 +33,10 @@ export async function listClients(ctx: CompanyContext, query: z.infer<typeof lis
   const filter: Record<string, unknown> = { ...scope };
   if (query.includeArchived !== "true") filter.archivedAt = null;
   if (query.status) filter.status = query.status;
-  if (query.q) filter.$or = [{ name: { $regex: query.q, $options: "i" } }, { contactPerson: { $regex: query.q, $options: "i" } }, { email: { $regex: query.q, $options: "i" } }];
+  // Escaped: a search box is not a regex box. Unescaped, "(a+)+$" pins a CPU core
+  // (catastrophic backtracking) and metacharacters let someone probe for data they
+  // cannot read directly.
+  if (query.q) { const q = escapeRegex(query.q); filter.$or = [{ name: { $regex: q, $options: "i" } }, { contactPerson: { $regex: q, $options: "i" } }, { email: { $regex: q, $options: "i" } }]; }
   const dal = scoped(Client, ctx);
   const [total, rows] = await Promise.all([dal.countDocuments(filter), dal.find(filter).sort(toSort(query.sort, "name")).skip(skipFor(query)).limit(query.limit).lean()]);
   const ids = rows.map((r) => r._id);

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api/client";
 import { useRealtime } from "@/hooks/useRealtime";
-import { relativeTime } from "@/lib/utils/dates";
+
+import { RelativeTime } from "@/components/ui/relative-time";
 import { cn } from "@/lib/utils/cn";
 
 export interface NotificationItem { id: string; type: string; title: string; body: string | null; link: string | null; readAt: string | null; createdAt: string }
@@ -44,7 +45,7 @@ export function NotificationBell() {
           {items === null ? <p className="p-4 text-sm text-muted-foreground">Loading...</p> : items.length === 0 ? <p className="p-6 text-center text-sm text-muted-foreground">You&apos;re all caught up.</p> : items.map((n) => (
             <button key={n.id} onClick={() => openItem(n)} className={cn("flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm hover:bg-muted", !n.readAt && "bg-primary-soft/40")}>
               <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", TYPE_ICON[n.type] ?? "bg-muted-foreground")} />
-              <span className="min-w-0 flex-1"><span className={cn("block truncate", !n.readAt && "font-medium")}>{n.title}</span>{n.body && <span className="block truncate text-xs text-muted-foreground">{n.body}</span>}<span className="block text-[11px] text-muted-foreground">{relativeTime(n.createdAt)}</span></span>
+              <span className="min-w-0 flex-1"><span className={cn("block truncate", !n.readAt && "font-medium")}>{n.title}</span>{n.body && <span className="block truncate text-xs text-muted-foreground">{n.body}</span>}<span className="block text-[11px] text-muted-foreground"><RelativeTime value={n.createdAt} /></span></span>
               {!n.readAt && <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />}
             </button>
           ))}

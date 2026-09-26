@@ -55,7 +55,10 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+    // method="post" is not redundant with onSubmit: if the script ever fails to load or hydrate,
+    // the browser submits the form itself, and the default method is GET - which would put the
+    // password in the URL, the history, and every access log on the way. POST keeps it in a body.
+    <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <FormAlert kind="error" message={error} />
       <Field label="Email" htmlFor="email" error={errors.email?.message}>
         <Input id="email" type="email" autoComplete="email" placeholder="you@company.com" aria-invalid={!!errors.email} {...register("email")} />

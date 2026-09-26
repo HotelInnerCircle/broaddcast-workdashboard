@@ -67,3 +67,6 @@ android/key.properties
 # Desktop app (Electron) - build output and its own dependencies
 desktop/node_modules/
 desktop/dist/
+
+# End-to-end runs: screenshots and the throwaway company details
+.e2e

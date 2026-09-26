@@ -11,7 +11,7 @@ import { audit } from "@/lib/audit";
 import { buildClock, companyClock, personClock, type CompanyClock } from "@/lib/time/company-clock";
 import type { CompanyContext } from "@/lib/auth/context";
 import type { AttendanceStatus } from "@/types";
-import { employeeScopeFilter } from "./scope";
+import { employeeScopeFilter, requireVisibleEmployee } from "./scope";
 import { finalizeEntry } from "./timerService";
 
 type Doc = HydratedDocument<AttendanceDoc>;
@@ -88,7 +88,9 @@ export async function listAttendance(ctx: CompanyContext, q: { from: string; to:
   const clock = await companyClock(ctx.companyId);
   const scope = await employeeScopeFilter(ctx);
   const userFilter: Record<string, unknown> = { ...scope, archivedAt: null, status: { $ne: "deactivated" } };
-  if (q.userId) userFilter._id = new Types.ObjectId(q.userId);
+  // Asking about one person must be checked, not merely filtered: an employee
+  // may only ask about themselves, and gets a 403 rather than an empty table.
+  if (q.userId) userFilter._id = await requireVisibleEmployee(ctx, q.userId);
   const users = await scoped(User, ctx).find(userFilter).select("name avatarUrl joiningDate createdAt role").sort({ name: 1 }).lean();
   const userIds = users.map((u) => u._id);
   const records = await scoped(Attendance, ctx).find({ userId: { $in: userIds }, date: { $gte: q.from, $lte: q.to }, ...(q.flagged ? { "flags.autoClosed": true, "flags.reviewed": false } : {}) }).populate(pop("userId", "name avatarUrl")).sort({ date: -1 }).lean();
@@ -116,8 +118,8 @@ export async function listAttendance(ctx: CompanyContext, q: { from: string; to:
 
 /** Leave is set manually by an admin/manager (spec 7.5, no request workflow). */
 export async function setLeave(ctx: CompanyContext, input: { userId: string; date: string; note?: string | null }, ip: string | null) {
-  const scope = await employeeScopeFilter(ctx);
-  const user = await scoped(User, ctx).findOne({ ...scope, _id: new Types.ObjectId(input.userId), archivedAt: null }).select("name").lean();
+  const id = await requireVisibleEmployee(ctx, input.userId);
+  const user = await scoped(User, ctx).findOne({ _id: id, archivedAt: null }).select("name").lean();
   if (!user) throw Errors.notFound("Employee");
   const rec = await scoped(Attendance, ctx).findOneAndUpdate(
     { userId: user._id, date: input.date },

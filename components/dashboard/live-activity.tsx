@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { EmptyState } from "@/components/ui/empty-state";
 import { api } from "@/lib/api/client";
 import { useRealtime } from "@/hooks/useRealtime";
-import { relativeTime } from "@/lib/utils/dates";
+
+import { RelativeTime } from "@/components/ui/relative-time";
 
 interface Item { id: string; action: string; summary: string | null; actorName: string | null; createdAt: string }
 const DOT: Record<string, string> = { timer: "bg-success", attendance: "bg-info", task: "bg-primary", client: "bg-chart-3", project: "bg-chart-7", announcement: "bg-chart-4", user: "bg-muted-foreground", daily_report: "bg-chart-5" };
@@ -26,7 +27,7 @@ export function LiveActivity() {
             {items.map((a) => (
               <li key={a.id} className="flex items-start gap-2 animate-in">
                 <span className={`mt-1.5 size-2 shrink-0 rounded-full ${DOT[a.action.split(".")[0]] ?? "bg-border"}`} />
-                <span className="min-w-0 flex-1"><span className="block truncate">{a.summary ?? a.action}</span><span className="text-xs text-muted-foreground">{a.actorName ?? "System"} - {relativeTime(a.createdAt)}</span></span>
+                <span className="min-w-0 flex-1"><span className="block truncate">{a.summary ?? a.action}</span><span className="text-xs text-muted-foreground">{a.actorName ?? "System"} - <RelativeTime value={a.createdAt} /></span></span>
               </li>
             ))}
           </ul>

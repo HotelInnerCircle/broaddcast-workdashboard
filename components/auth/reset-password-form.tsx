@@ -33,7 +33,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
+    <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
       <FormAlert kind="error" message={error} />
       <Field label="New password" htmlFor="password" error={errors.password?.message} hint="At least 8 characters with a letter and a number.">
         <PasswordInput id="password" autoComplete="new-password" aria-invalid={!!errors.password} {...register("password")} />

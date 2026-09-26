@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  No plaintext HTTP, ever, and no user-added certificate authorities.
+
+  The app is a WebView pointed at the live site, so the session cookie travels on
+  every request it makes. Android 9 and up already refuse cleartext by default,
+  but this states it rather than inheriting it - and `trust-anchors` with only the
+  system store means a certificate installed on the device (by an employer's MDM,
+  or by somebody who had the phone for five minutes) cannot be used to sit in the
+  middle of that traffic and read it.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

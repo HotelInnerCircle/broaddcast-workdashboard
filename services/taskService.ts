@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { Project } from "@/models/Project";
 import { Task, type TaskAttachment } from "@/models/Task";
@@ -54,7 +55,7 @@ export async function listTasks(ctx: CompanyContext, query: z.infer<typeof listT
   if (query.clientId) filter.clientId = new Types.ObjectId(query.clientId);
   if (query.status) filter.status = query.status;
   if (query.priority) filter.priority = query.priority;
-  if (query.q) filter.title = { $regex: query.q, $options: "i" };
+  if (query.q) filter.title = { $regex: escapeRegex(query.q), $options: "i" };
   if (query.dueFrom || query.dueTo) filter.dueDate = { ...(query.dueFrom ? { $gte: query.dueFrom } : {}), ...(query.dueTo ? { $lte: query.dueTo } : {}) };
   if (query.overdue === "true") {
     // dueKey < today  <=>  dueDate < start of today in the company timezone (exact, so totals stay correct)

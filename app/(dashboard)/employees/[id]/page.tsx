@@ -11,7 +11,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ProjectStatusBadge } from "@/components/ui/status-badge";
 import { StatsCard } from "@/components/dashboard/stats-card";
-import { formatDate, formatDateTime, formatDuration, relativeTime } from "@/lib/utils/dates";
+import { formatDate, formatDateTime, formatDuration } from "@/lib/utils/dates";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { formatHMS } from "@/hooks/useTimer";
 
 export const metadata = { title: "Employee" };
@@ -44,7 +45,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                 <div className="flex justify-between"><dt className="text-muted-foreground">Team</dt><dd>{p.team?.name ?? "-"}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Manager</dt><dd>{p.manager?.name ?? "-"}</dd></div>
                 <div className="flex justify-between"><dt className="text-muted-foreground">Joined</dt><dd>{formatDate(p.joiningDate)}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted-foreground">Last active</dt><dd>{relativeTime(p.lastActiveAt)}</dd></div>
+                <div className="flex justify-between"><dt className="text-muted-foreground">Last active</dt><dd><RelativeTime value={p.lastActiveAt} /></dd></div>
               </dl>
             </CardContent>
           </Card>
@@ -71,7 +72,7 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
                 {d.activity.length === 0 ? <p className="text-sm text-muted-foreground">No activity yet.</p> : (
                   <ol className="relative space-y-4 border-l border-border pl-4">
                     {d.activity.map((a) => (
-                      <li key={a.id} className="text-sm"><span className={`absolute -left-[5px] mt-1.5 size-2 rounded-full ${ICON[a.action] ?? "bg-border"}`} /><p>{a.summary ?? a.action}</p><p className="text-xs text-muted-foreground">{relativeTime(a.createdAt)}</p></li>
+                      <li key={a.id} className="text-sm"><span className={`absolute -left-[5px] mt-1.5 size-2 rounded-full ${ICON[a.action] ?? "bg-border"}`} /><p>{a.summary ?? a.action}</p><p className="text-xs text-muted-foreground"><RelativeTime value={a.createdAt} /></p></li>
                     ))}
                   </ol>
                 )}

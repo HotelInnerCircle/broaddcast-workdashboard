@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { formatInTimeZone } from "date-fns-tz";
 import { scoped } from "@/lib/db/scoped";
 import { Errors } from "@/lib/api/errors";
 import { personClock } from "@/lib/time/company-clock";
@@ -18,10 +19,18 @@ export interface LedgerDay {
   workSeconds: number;
   /** Does this day earn pay? Loss of Pay and unexplained absence do not. */
   payable: boolean;
+  /** Minutes after the shift start that the person clocked in; null when there is no clock-in. */
+  lateByMinutes: number | null;
+  /** Minutes before the shift end that they clocked out; null while the day is still open. */
+  earlyByMinutes: number | null;
+  /** How many swipes were recorded, so the screen knows the day has something to show. */
+  swipes: number;
 }
 
 export interface Ledger {
   userId: string; userName: string; month: string; shiftName: string | null;
+  /** The shift window the late/early figures are measured against, as "HH:mm". */
+  shiftStart: string; shiftEnd: string;
   /** The day this person started; everything before it is outside their employment. */
   joinedOn: string;
   days: LedgerDay[];
@@ -58,16 +67,43 @@ export async function attendanceLedger(ctx: CompanyContext, userId: string, mont
   // 25th shows twenty-four absences and a payslip built on it would be wrong.
   const joined = clock.dayOf(new Date((user.joiningDate ?? user.createdAt) as unknown as string));
 
-  const [rows, holidays, leaves] = await Promise.all([
+  const { AttendanceSwipe } = await import("@/models/AttendanceSwipe");
+  const [rows, holidays, leaves, swipeCounts] = await Promise.all([
     scoped(Attendance, ctx).find({ userId: uid, date: { $gte: first, $lte: last } }).lean(),
     scoped(Holiday, ctx).find({ date: { $gte: first, $lte: last } }).lean(),
     scoped(LeaveRequest, ctx).find({
       userId: uid, status: "APPROVED", startDate: { $lte: last }, endDate: { $gte: first },
     }).lean(),
+    // Only the count: the photos and coordinates are fetched for the one day
+    // somebody opens, not for all thirty-one of them.
+    scoped(AttendanceSwipe, ctx).aggregate<{ _id: string; n: number }>([
+      { $match: { userId: uid, date: { $gte: first, $lte: last } } },
+      { $group: { _id: "$date", n: { $sum: 1 } } },
+    ]),
   ]);
+  const swipesBy = new Map(swipeCounts.map((c) => [c._id, c.n]));
   const byDate = new Map(rows.map((r) => [r.date as string, r]));
   const holidayBy = new Map(holidays.map((h) => [h.date as string, h.name as string]));
   const leaveOn = (day: string) => leaves.find((l) => (l.startDate as string) <= day && (l.endDate as string) >= day);
+
+  /**
+   * Minutes into the day that the shift starts and ends, for measuring lateness.
+   * An overnight shift ends on the next calendar day, so its end is past midnight
+   * and comparing raw clock times would make every night worker hours early.
+   */
+  const atMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const shiftStart = atMinutes(clock.workingHours.start);
+  const shiftEndRaw = atMinutes(clock.workingHours.end);
+  const overnight = shiftEndRaw <= shiftStart;
+  const shiftEnd = overnight ? shiftEndRaw + 24 * 60 : shiftEndRaw;
+  /** Minutes into the company-timezone day that this instant falls on. */
+  const minutesOf = (iso: Date | string) => {
+    const [hh, mm] = formatInTimeZone(new Date(iso), clock.timezone, "HH:mm").split(":").map(Number);
+    return hh * 60 + mm;
+  };
 
   const days: LedgerDay[] = [];
   const s = { workingDays: 0, present: 0, late: 0, halfDay: 0, absent: 0, leave: 0, lossOfPay: 0, holidays: 0, weekOffs: 0, payableDays: 0, totalHours: 0 };
@@ -107,15 +143,36 @@ export async function attendanceLedger(ctx: CompanyContext, userId: string, mont
     if (payable && kind !== "Upcoming" && kind !== "Before joining") s.payableDays++;
     s.totalHours += (rec?.workSeconds as number) ?? 0;
 
+    // Late in / early out, in minutes, and only where both ends of the
+    // comparison exist - a day with no clock-out is unfinished, not early.
+    let lateByMinutes: number | null = null;
+    let earlyByMinutes: number | null = null;
+    if (rec?.clockIn && kind !== "Week off" && kind !== "Holiday") {
+      const inAt = minutesOf(rec.clockIn as unknown as string);
+      lateByMinutes = Math.max(0, inAt - shiftStart);
+      if (rec.clockOut) {
+        let outAt = minutesOf(rec.clockOut as unknown as string);
+        if (overnight && outAt < inAt) outAt += 24 * 60;
+        earlyByMinutes = Math.max(0, shiftEnd - outAt);
+      }
+    }
+
     days.push({
       date, weekday, kind, detail,
       clockIn: rec?.clockIn ? new Date(rec.clockIn as unknown as string).toISOString() : null,
       clockOut: rec?.clockOut ? new Date(rec.clockOut as unknown as string).toISOString() : null,
       workSeconds: (rec?.workSeconds as number) ?? 0,
       payable,
+      lateByMinutes,
+      earlyByMinutes,
+      swipes: swipesBy.get(date) ?? 0,
     });
   }
 
   s.totalHours = Math.round((s.totalHours / 3600) * 10) / 10;
-  return { userId, userName: user.name as string, month, shiftName: clock.shiftName, joinedOn: joined, days, summary: s };
+  return {
+    userId, userName: user.name as string, month,
+    shiftName: clock.shiftName, shiftStart: clock.workingHours.start, shiftEnd: clock.workingHours.end,
+    joinedOn: joined, days, summary: s,
+  };
 }

@@ -13,7 +13,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useChat } from "@/hooks/useChat";
 import { api } from "@/lib/api/client";
 import { can } from "@/lib/permissions";
-import { relativeTime } from "@/lib/utils/dates";
+
+import { RelativeTime } from "@/components/ui/relative-time";
 import { cn } from "@/lib/utils/cn";
 import { askDesktopPermission, playMessageChime, setSoundEnabled, soundEnabled } from "@/lib/chat-sound";
 import { ConversationList } from "./conversation-list";
@@ -84,7 +85,7 @@ export function ChatView() {
                   <button key={h.id} onClick={() => { chat.setActiveId(h.conversationId); setQ(""); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-muted">
                     <span className="block truncate">{h.body}</span>
                     {/* Channel labels already start with "#"; a DM label is just a person's name. */}
-                    <span className="text-xs text-muted-foreground">{h.sender} {h.conversation.startsWith("#") ? "in" : "in chat with"} {h.conversation} &middot; {relativeTime(h.createdAt)}</span>
+                    <span className="text-xs text-muted-foreground">{h.sender} {h.conversation.startsWith("#") ? "in" : "in chat with"} {h.conversation} &middot; <RelativeTime value={h.createdAt} /></span>
                   </button>
                 ))}
               </div>

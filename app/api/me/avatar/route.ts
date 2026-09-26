@@ -3,11 +3,15 @@ import { ok } from "@/lib/api/response";
 import { Errors } from "@/lib/api/errors";
 import { requireCompanySession } from "@/lib/auth/context";
 import { validateUpload, sniffMatches } from "@/lib/storage";
+import { rateLimit } from "@/lib/rate-limit";
 import { setAvatar } from "@/services/profileService";
 
 /** A profile photo. Images only, and the bytes have to be the image they claim to be. */
 export const POST = route(async (req) => {
   const ctx = await requireCompanySession();
+  // Each replacement resizes an image and deletes the previous object; nobody
+  // changes their photo five times a minute for an innocent reason.
+  rateLimit(`avatar:${ctx.userId}`, 5, 60_000);
   const form = await req.formData();
   const file = form.get("photo");
   if (!(file instanceof File)) throw Errors.bad("PHOTO_REQUIRED", "Choose a photo");

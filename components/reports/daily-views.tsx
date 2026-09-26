@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ExportButtons } from "@/components/reports/export-buttons";
 import { useSearchParams } from "next/navigation";
 import { addDays, format, startOfMonth, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, FileText, CheckCircle2, Lock } from "lucide-react";
@@ -16,7 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { api, ClientApiError } from "@/lib/api/client";
 import { useAuth } from "@/hooks/useAuth";
-import { dayKey, formatDate, formatDateTime, formatDuration, relativeTime } from "@/lib/utils/dates";
+import { dayKey, formatDate, formatDateTime, formatDuration } from "@/lib/utils/dates";
+import { RelativeTime } from "@/components/ui/relative-time";
 import type { TeamOption } from "@/components/employees/types";
 
 const key = (d: Date) => format(d, "yyyy-MM-dd");
@@ -70,12 +72,14 @@ export function DailyReportForm() {
   };
 
   const existing = history?.find((r) => r.date === date);
+  // Fragments rather than strings, so the timestamp can be a <RelativeTime> and
+  // not a value baked in at render time that then disagrees on hydration.
   const lockedNote = existing
-    ? "Locked - submitted " + relativeTime(existing.submittedAt) + ". Reports can only be changed on the day itself."
-    : "Locked - nothing was submitted on this day.";
+    ? <>Locked - submitted <RelativeTime value={existing.submittedAt} />. Reports can only be changed on the day itself.</>
+    : <>Locked - nothing was submitted on this day.</>;
   const openNote = existing
-    ? "Submitted " + relativeTime(existing.submittedAt) + ". You can keep editing it until the day ends."
-    : "Not submitted yet.";
+    ? <>Submitted <RelativeTime value={existing.submittedAt} />. You can keep editing it until the day ends.</>
+    : <>Not submitted yet.</>;
 
   return (
     <>
@@ -171,19 +175,25 @@ export function DailyReportsManagerView() {
 
   useEffect(() => { if (me.role !== "TEAM_LEAD") api<TeamOption[]>("/api/teams").then(setTeams).catch(() => setTeams([])); }, [me.role]);
 
-  const load = useCallback(async () => {
-    setError(null);
-    setData(null);
+  /** The filters on screen, as a query string - shared by the load and the download. */
+  const query = useMemo(() => {
     const qs = new URLSearchParams({ from: filters.from, to: filters.to });
     if (filters.userId) qs.set("userId", filters.userId);
     if (filters.teamId) qs.set("teamId", filters.teamId);
     if (filters.status) qs.set("status", filters.status);
+    return qs.toString();
+  }, [filters]);
+
+  const load = useCallback(async () => {
+    setError(null);
+    setData(null);
+    const qs = query;
     const mine = ++request.current;
     try {
       const next = await api<RangeData>("/api/reports/daily?" + qs);
       if (request.current === mine) setData(next);
     } catch (e) { if (request.current === mine) setError(e instanceof ClientApiError ? e.message : "Failed to load"); }
-  }, [filters]);
+  }, [query]);
   useEffect(() => { void load(); }, [load]);
 
   const set = (patch: Partial<DailyFilters>) => setFilters((f) => ({ ...f, ...patch }));
@@ -206,9 +216,11 @@ export function DailyReportsManagerView() {
         title="Daily reports"
         description={chosen ? chosen.name + " - what they completed, next to their tracked time." : "What everyone completed, next to their tracked time."}
         actions={
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <Button variant="outline" size="icon" onClick={() => step(-1)} aria-label="Previous"><ChevronLeft /></Button>
             <Button variant="outline" size="icon" onClick={() => step(1)} disabled={filters.to >= key(new Date())} aria-label="Next"><ChevronRight /></Button>
+            {/* Downloads exactly what the filters above are showing. */}
+            <ExportButtons href={"/api/reports/daily?" + query} disabled={!data} />
           </div>
         }
       />

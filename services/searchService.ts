@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { User } from "@/models/User";
 import { Client } from "@/models/Client";
@@ -10,7 +11,7 @@ import { can } from "@/lib/permissions";
 import { employeeScopeFilter, clientScopeFilter, projectScopeFilter, taskScopeFilter } from "./scope";
 import { searchMessages } from "./chatService";
 
-const rx = (q: string) => ({ $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" });
+const rx = (q: string) => ({ $regex: escapeRegex(q), $options: "i" });
 const name = (v: unknown) => (v && typeof v === "object" && "name" in v ? (v as { name: string }).name : null);
 
 /**

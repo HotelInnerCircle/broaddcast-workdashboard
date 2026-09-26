@@ -8,7 +8,7 @@ import { companyClock } from "@/lib/time/company-clock";
 import { distanceMeters, isValidCoord } from "@/lib/geo";
 import { stampPhoto } from "@/lib/attendance/stamp";
 import { notify, notifyMany } from "@/services/notificationService";
-import { employeeScopeFilter } from "@/services/scope";
+import { employeeScopeFilter, requireVisibleEmployee } from "@/services/scope";
 import { AttendanceSwipe, type AttendanceSwipeDoc } from "@/models/AttendanceSwipe";
 import { WorkSite } from "@/models/WorkSite";
 import { Team } from "@/models/Team";
@@ -267,7 +267,9 @@ export async function listSwipes(
   const visibleIds = visible.map((v) => v._id as Types.ObjectId);
 
   const filter: Record<string, unknown> = { userId: { $in: visibleIds } };
-  if (q.userId) filter.userId = new Types.ObjectId(q.userId);
+  // A swipe carries a photo and a location, so this one is checked rather than
+  // filtered: assigning over the visible ids would expose both to anyone asking.
+  if (q.userId) filter.userId = await requireVisibleEmployee(ctx, q.userId);
   if (q.status) filter.status = q.status;
   if (q.from || q.to) filter.date = { ...(q.from ? { $gte: q.from } : {}), ...(q.to ? { $lte: q.to } : {}) };
 

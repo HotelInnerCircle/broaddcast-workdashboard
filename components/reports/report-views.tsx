@@ -12,6 +12,7 @@ import { formatDate, formatDateTime, formatDuration } from "@/lib/utils/dates";
 import { formatHMS } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils/cn";
 import { ReportShell } from "./report-shell";
+import { EntriesTable } from "./entries-table";
 import { ChartCard, HBars, Trend, PairedBars, Donut } from "./charts";
 
 const h = (n: number) => `${n}h`;
@@ -19,7 +20,7 @@ const named = (rows: { name: string; hours: number }[]) => rows.slice(0, 8).map(
 const timeOf = (d: string | Date) => formatDateTime(d).split(", ")[1];
 
 // ------------------------------------------------------------------ Time
-interface TimeData { totals: { seconds: number; hours: number; entries: number; people: number; days: number }; days: { date: string; hours: number }[]; byUser: { id: string; name: string; hours: number }[]; byClient: { id: string; name: string; hours: number }[]; byProject: { id: string; name: string; hours: number }[]; entries: { id: string; date: string; user: { name: string } | null; client: { name: string | null } | null; project: { name: string | null } | null; task: { id: string; name: string | null } | null; start: string; end: string | null; elapsedSeconds: number; status: string }[] }
+interface TimeData { totals: { seconds: number; hours: number; entries: number; people: number; days: number }; days: { date: string; hours: number }[]; byUser: { id: string; name: string; hours: number }[]; byClient: { id: string; name: string; hours: number }[]; byProject: { id: string; name: string; hours: number }[]; entries: { id: string; date: string; user: { id?: string; name: string } | null; client: { name: string | null } | null; project: { name: string | null } | null; task: { id: string; name: string | null } | null; start: string; end: string | null; elapsedSeconds: number; status: string }[] }
 export function TimeReportView() {
   return (
     <ReportShell<TimeData> title="Time report" description="Tracked hours by day, employee, client and project. Every figure is a sum of timesheet entries." endpoint="/api/reports/time">
@@ -38,13 +39,9 @@ export function TimeReportView() {
             <ChartCard title="Hours by project" empty={d.byProject.length === 0}><HBars data={named(d.byProject)} /></ChartCard>
           </div>
           <Card>
-            <CardHeader><CardTitle>Entries</CardTitle><CardDescription>{d.entries.length} entries - identical to the timesheet for the same filters.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Entries</CardTitle><CardDescription>One line per person per day. Open a line to see the sessions behind it.</CardDescription></CardHeader>
             <CardContent className="p-0 pt-0">
-              <Table cards={false} className="table-sticky-1">
-                <THead><TR><TH>Date</TH><TH>Employee</TH><TH>Client</TH><TH>Project</TH><TH>Task</TH><TH>Start</TH><TH>End</TH><TH className="text-right">Duration</TH></TR></THead>
-                <TBody>{d.entries.slice(0, 300).map((e) => <TR key={e.id}><TD className="whitespace-nowrap">{formatDate(`${e.date}T12:00:00Z`)}</TD><TD>{e.user?.name}</TD><TD className="text-muted-foreground">{e.client?.name}</TD><TD className="text-muted-foreground">{e.project?.name}</TD><TD><Link href={`/tasks/${e.task?.id}`} className="hover:underline">{e.task?.name}</Link></TD><TD className="whitespace-nowrap">{timeOf(e.start)}</TD><TD className="whitespace-nowrap">{e.end ? timeOf(e.end) : "-"}</TD><TD className="text-right font-mono tabular-nums">{formatHMS(e.elapsedSeconds)}</TD></TR>)}</TBody>
-              </Table>
-              <div className="flex justify-end border-t border-border px-5 py-3 text-sm"><span className="text-muted-foreground">Total&nbsp;</span><span className="font-semibold tabular-nums">{formatHMS(d.totals.seconds)}</span></div>
+              <EntriesTable entries={d.entries} totalSeconds={d.totals.seconds} />
             </CardContent>
           </Card>
         </div>

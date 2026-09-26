@@ -2,16 +2,21 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 const secure = (process.env.APP_URL ?? "").startsWith("https://");
+const dev = process.env.NODE_ENV !== "production";
 const imagekit = new URL(process.env.IMAGEKIT_URL_ENDPOINT || "https://ik.imagekit.io").origin;
 
 /**
  * Content-Security-Policy (A59). Next.js needs inline scripts/styles for hydration and Tailwind, so
  * those stay 'unsafe-inline'; everything else is locked to this origin plus Razorpay checkout and the
  * ImageKit endpoint. Socket.IO connects same-origin (ws/wss).
+ *
+ * 'unsafe-eval' is added in development only: `next dev` compiles modules through eval for hot
+ * reloading, and without it the page never hydrates - the login form falls back to a native submit
+ * and nothing on the site works. The production bundle needs no eval, so production does not get it.
  */
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com",
+  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} https://checkout.razorpay.com`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${imagekit} https://*.razorpay.com`,
   "font-src 'self' data:",
