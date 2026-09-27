@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Users, UserPlus, Search, RefreshCw, XCircle, Mail, Pencil } from "lucide-react";
+import { Users, UserPlus, Search, RefreshCw, XCircle, Mail, Pencil, Hash } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -37,6 +37,27 @@ export function EmployeesView() {
   const [page, setPage] = useState(1);
   const [inviteOpen, setInviteOpen] = useState(params.get("invite") === "1");
   const [selected, setSelected] = useState<EmployeeRow | null>(null);
+  const [assigning, setAssigning] = useState(false);
+
+  /*
+   * Codes for anyone who joined before codes existed (A95), reachable at last.
+   * The endpoint has been there since A95 with nothing calling it, which is why
+   * accounts made before then - including the company's founding admin - still
+   * had none, and why the code badge on the phone's home screen was blank for
+   * exactly the person most likely to be asked for their number.
+   *
+   * Oldest first, so the numbering follows the order people actually joined.
+   */
+  const assignCodes = async () => {
+    setAssigning(true);
+    try {
+      const res = await api<{ assigned: number }>("/api/employees/backfill-codes", { method: "POST" });
+      toast.success(res.assigned === 0 ? "Everybody already has a code" : `Gave a code to ${res.assigned} ${res.assigned === 1 ? "person" : "people"}`);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof ClientApiError ? e.message : "Could not assign codes");
+    } finally { setAssigning(false); }
+  };
 
   const load = useCallback(async () => {
     setError(null);
@@ -69,7 +90,17 @@ export function EmployeesView() {
       <PageHeader
         title="Employees"
         description={me.role === "COMPANY_ADMIN" ? "Everyone in your company." : "People within your scope."}
-        actions={canInvite && <Button onClick={() => setInviteOpen(true)}><UserPlus />Add employee</Button>}
+        actions={
+          <>
+            {/* Only offered while somebody is actually missing one. */}
+            {canEdit && rows?.some((r) => !r.employeeCode) && (
+              <Button variant="outline" onClick={() => void assignCodes()} loading={assigning}>
+                <Hash />Assign missing codes
+              </Button>
+            )}
+            {canInvite && <Button onClick={() => setInviteOpen(true)}><UserPlus />Add employee</Button>}
+          </>
+        }
       />
       <Card>
         <CardHeader className="flex-row flex-wrap items-center gap-3">

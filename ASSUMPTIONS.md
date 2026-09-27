@@ -784,3 +784,12 @@ The owner asked how uploads could be compressed so raw photographs do not fill t
 - **Where:** `lib/storage/compress.ts`, `lib/images/shrink.ts`, and the seven pickers and six upload paths they are wired into.
 
 **Still worth doing:** `payrollStartDay` has no settings screen, CI does not run the tests, and the rate limiter is in-process so it resets on every Vercel cold start.
+
+### A110. The founding admin had no employee code (bug, 27 Sep 2026)
+The code badge added to the phone's home screen in A107 was blank for the owner. The markup was right; the account had no code.
+
+- **Codes were assigned in two places, and the founding admin went through neither.** Everyone invited or added gets one; the company's first `COMPANY_ADMIN` is created by `createCompany` and was not. So the one person most likely to be asked to read their number out did not have one, and their payslip printed "-" in the ID field.
+- **The backfill endpoint that would have fixed it had never had a caller.** Written in A95, no button, no UI, unreachable except by hand. It is on the Employees page now, offered only while somebody is actually missing a code.
+- **Why the tests passed while this was live:** the employee-codes suite ran the backfill as its *first* action, so every later check looked at a company where codes had already been quietly repaired. A check now runs before it, and it was confirmed to fail on the unfixed build - 13/14 - rather than assumed to.
+- **Existing companies need the button pressed once.** Assigning codes writes a permanent identifier that then appears on payslips, and the app offers no way to take one back, so it is a decision rather than a migration that runs itself.
+- **Where:** `services/superAdminService.ts`, `components/employees/employees-view.tsx`, `tests/e2e/suites/employee-codes.mjs`.

@@ -14,6 +14,19 @@ export default async function run({ browser, lab, check }) {
   const admin = await signedIn(browser, lab.people.admin.email, lab.pw);
   const stamp = Date.now();
 
+  /* ---------- the founding admin, before anything has been backfilled ---------- */
+  /*
+   * First, deliberately, because the backfill below would hide what this
+   * catches. The company's own admin was created without a code while every
+   * other path assigned one, so the code badge on the phone's home screen was
+   * blank for the person most likely to be asked to read their number out, and
+   * their payslip printed "-". Nothing noticed for two weeks: every check here
+   * ran after a backfill had quietly put it right.
+   */
+  const mine = await call(admin, "/api/me/profile", null, "GET");
+  check("the founding admin has a code without a backfill",
+    Boolean(mine.json?.data?.profile?.employeeCode), mine.json?.data?.profile?.employeeCode);
+
   /* ---------- nobody is left without one ---------- */
   // How many the backfill assigns depends on who predates codes, so what is
   // worth asserting is the state it leaves behind, not the count.

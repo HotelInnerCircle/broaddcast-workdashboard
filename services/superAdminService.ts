@@ -16,6 +16,7 @@ import type { Model } from "mongoose";
 import { scoped, unscopedOptions } from "@/lib/db/scoped";
 import { Invite } from "@/models/Invite";
 import { Session } from "@/models/Session";
+import { nextEmployeeCode } from "./employeeCodeService";
 import { Team } from "@/models/Team";
 import { Client } from "@/models/Client";
 import { Project } from "@/models/Project";
@@ -164,12 +165,18 @@ export async function createCompany(ctx: SessionContext, input: CreateCompanyInp
   const tenant = { companyId: String(company._id) };
   if (input.adminPassword) {
     // Direct credentials (A56): active account now; the Super Admin hands the password over.
-    const admin = await scoped(User, tenant).create({ name: input.adminName, email: input.adminEmail, role: "COMPANY_ADMIN", status: "active", passwordHash: await hashPassword(input.adminPassword), joiningDate: new Date() });
+    const admin = await scoped(User, tenant).create({ name: input.adminName, email: input.adminEmail, role: "COMPANY_ADMIN", status: "active", passwordHash: await hashPassword(input.adminPassword), joiningDate: new Date(), employeeCode: await nextEmployeeCode(String(company._id)) });
     await audit({ ctx, companyId: company._id, entity: "company", entityId: company._id, action: "company.created", summary: `${ctx.name} created company "${company.name}"`, after: { name: company.name, slug, planId: plan ? String(plan._id) : null }, crossTenant: true, ip });
     await audit({ ctx, companyId: company._id, entity: "user", entityId: admin._id, action: "user.created", summary: `${ctx.name} created Company Admin ${input.adminEmail} with a password`, after: { email: input.adminEmail, role: "COMPANY_ADMIN", method: "direct" }, crossTenant: true, ip });
     return { id: String(company._id), name: company.name, slug, planId: plan ? String(plan._id) : null, admin: { id: String(admin._id), name: admin.name, email: admin.email }, inviteId: null, inviteLink: null };
   }
-  const admin = await scoped(User, tenant).create({ name: input.adminName, email: input.adminEmail, role: "COMPANY_ADMIN", status: "invited" });
+  /*
+   * With a code, like anybody else who joins (A107). The founding admin was
+   * being created before codes existed and never picked one up, so the code
+   * badge on their home screen had nothing to show and their payslip said "-".
+   * They are the first person in the company, so they get the first number.
+   */
+  const admin = await scoped(User, tenant).create({ name: input.adminName, email: input.adminEmail, role: "COMPANY_ADMIN", status: "invited", employeeCode: await nextEmployeeCode(String(company._id)) });
   const token = generateToken(32);
   const invite = await scoped(Invite, tenant).create({
     email: input.adminEmail, role: "COMPANY_ADMIN", teamId: null, managerId: null, userId: admin._id,
