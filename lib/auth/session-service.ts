@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { ensureEmployeeCode } from "@/services/employeeCodeService";
 import { Session } from "@/models/Session";
 import { User } from "@/models/User";
 import { Company } from "@/models/Company";
@@ -111,6 +112,22 @@ export async function resolveSession(token: string | null | undefined): Promise<
     };
   }
 
+  /*
+   * A code, if this account somehow has none (A111). Accounts made before codes
+   * existed - including the company's own founding admin - had nothing to show
+   * on the home screen and printed "-" on their payslip. Minting it here means
+   * an existing company repairs itself the next time somebody opens the app,
+   * rather than waiting for an administrator to remember a button.
+   *
+   * Costs a field check for everybody who already has one, which is everybody
+   * after the first time.
+   */
+  const employeeCode = await ensureEmployeeCode(
+    String(user._id),
+    user.companyId ? String(user.companyId) : null,
+    user.employeeCode as string | null,
+  );
+
   const lastSeen = session.lastSeenAt?.getTime() ?? 0;
   if (Date.now() - lastSeen > TOUCH_INTERVAL_MS) {
     const now = new Date();
@@ -129,7 +146,7 @@ export async function resolveSession(token: string | null | undefined): Promise<
     name: user.name,
     email: user.email,
     avatarUrl: user.avatarUrl ?? null,
-    employeeCode: (user.employeeCode as string | null) ?? null,
+    employeeCode,
     teamId: user.teamId ? String(user.teamId) : null,
     managerId: user.managerId ? String(user.managerId) : null,
     company,

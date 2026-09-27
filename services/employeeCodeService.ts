@@ -53,3 +53,46 @@ export async function backfillEmployeeCodes(ctx: CompanyContext): Promise<{ assi
   }
   return { assigned };
 }
+
+/**
+ * Give this person a code if they have none, right now (A111).
+ *
+ * Called when a session is resolved, so an account that predates codes picks one
+ * up the next time its owner opens the app - no button, no migration to
+ * remember. It is the only way an existing company ever gets fixed: the people
+ * missing codes are by definition the ones nobody has touched since codes were
+ * introduced, so waiting for an edit would wait forever.
+ *
+ * Costs nothing for the overwhelming majority: somebody who already has a code
+ * is a field check and no query at all. It runs once per person, ever.
+ *
+ * The update is conditional on the code still being null, so two requests
+ * arriving together cannot give one person two different numbers - the second
+ * matches nothing and re-reads what the first wrote. A burnt number from the
+ * counter is a gap in the sequence, which is harmless; two people sharing a
+ * code, or one person's code changing after it appeared on a payslip, is not.
+ *
+ * Never throws. A code is a convenience, and failing to mint one must not be
+ * able to stop somebody signing in.
+ */
+export async function ensureEmployeeCode(
+  userId: string,
+  companyId: string | null,
+  current: string | null | undefined,
+): Promise<string | null> {
+  if (current) return current;
+  if (!companyId) return null; // the Super Admin belongs to no company
+  try {
+    const code = await nextEmployeeCode(companyId);
+    const res = await User.updateOne(
+      { _id: new Types.ObjectId(userId), $or: [{ employeeCode: null }, { employeeCode: { $exists: false } }] },
+      { $set: { employeeCode: code } },
+    );
+    if (res.modifiedCount === 1) return code;
+    // Somebody else got there first: use theirs, never a second one.
+    const fresh = await User.findById(userId).select("employeeCode").lean();
+    return (fresh?.employeeCode as string | null) ?? null;
+  } catch {
+    return null;
+  }
+}

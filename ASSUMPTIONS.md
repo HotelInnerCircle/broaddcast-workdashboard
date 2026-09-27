@@ -793,3 +793,14 @@ The code badge added to the phone's home screen in A107 was blank for the owner.
 - **Why the tests passed while this was live:** the employee-codes suite ran the backfill as its *first* action, so every later check looked at a company where codes had already been quietly repaired. A check now runs before it, and it was confirmed to fail on the unfixed build - 13/14 - rather than assumed to.
 - **Existing companies need the button pressed once.** Assigning codes writes a permanent identifier that then appears on payslips, and the app offers no way to take one back, so it is a decision rather than a migration that runs itself.
 - **Where:** `services/superAdminService.ts`, `components/employees/employees-view.tsx`, `tests/e2e/suites/employee-codes.mjs`.
+
+### A111. Codes assign themselves (owner request, 27 Sep 2026)
+A110 fixed new companies and put the backfill behind a button. The owner's own home screen was still blank, and they asked for it to be automatic rather than something somebody has to press.
+
+- **A code is minted when the session is resolved**, so an account that predates codes picks one up the next time its owner opens the app. This is the only thing that ever repairs an existing company: the people missing codes are by definition the ones nobody has touched since codes were introduced, so waiting for an edit waits forever, and a button waits for somebody to remember it.
+- **It costs nothing once done.** Somebody who already has a code is a field check on a document already in hand - no query. It runs once per person, ever.
+- **The write is conditional on the code still being absent**, so two requests arriving together cannot hand one person two numbers: the second matches nothing and reads back what the first wrote. A number burnt from the counter leaves a gap in the sequence, which is harmless - two people sharing a code, or somebody's code changing after it has appeared on a payslip, is not.
+- **It never throws.** A code is a convenience; failing to mint one must not be able to stop somebody signing in.
+- **The button stays**, for assigning the whole company at once rather than person by person as they next sign in.
+- **Verified:** the code is cleared through the API and then simply used - no repair call, because the point is that there is nothing to call - and it comes back, different from everybody else's. 17 checks in the suite now.
+- **Where:** `services/employeeCodeService.ts`, `lib/auth/session-service.ts`.

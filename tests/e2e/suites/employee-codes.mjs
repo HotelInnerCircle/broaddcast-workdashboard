@@ -51,6 +51,28 @@ export default async function run({ browser, lab, check }) {
   check("the new joiner has a code", Boolean(fresh?.employeeCode), fresh?.employeeCode);
   check("and it is not one already used", codes.indexOf(fresh?.employeeCode) === -1, fresh?.employeeCode);
 
+  /* ---------- an account with no code repairs itself ---------- */
+  /*
+   * The case that actually happened: accounts made before codes existed had
+   * none, and nothing ever gave them one - the backfill had no caller, so the
+   * owner's own home screen showed a blank where their number should be. A code
+   * is now minted when the session is resolved, which means an existing company
+   * fixes itself the next time somebody opens the app instead of waiting for an
+   * administrator to remember a button.
+   *
+   * Cleared through the API here, which is the only way to reach the state from
+   * outside, and then simply used - no repair call, because the point is that
+   * there is nothing to call.
+   */
+  const cleared = await call(admin, `/api/employees/${lab.ids.emp}`, { employeeCode: null }, "PATCH");
+  check("a code can be cleared", cleared.status === 200 && !cleared.json?.data?.employeeCode, `status=${cleared.status} code=${cleared.json?.data?.employeeCode}`);
+
+  const emp = await signedIn(browser, lab.people.emp.email, lab.pw);
+  const healed = await call(emp, "/api/me/profile", null, "GET");
+  const back = healed.json?.data?.profile?.employeeCode;
+  check("simply opening the app gives them one back", Boolean(back), back);
+  check("and it is nobody else's", back && !codes.includes(back), back);
+
   /* ---------- HR can type their own ---------- */
   const custom = await call(admin, `/api/employees/${fresh.id}`, { employeeCode: `LEGACY-${stamp}` }, "PATCH");
   check("a custom code can be set", custom.status === 200, `status=${custom.status} ${JSON.stringify(custom.json?.error ?? "")}`);

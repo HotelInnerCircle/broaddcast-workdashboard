@@ -98,10 +98,13 @@ export default async function run({ browser, lab, check }) {
    * employee, whose scope is themselves alone, reaching somebody else's.
    */
   const lead = await signedIn(browser, lab.people.lead.email, lab.pw);
-  await call(lead, "/api/attendance/clock-in", {});
-  await call(lead, "/api/timer/start", { clientId, notes: "Lead's own work", force: false });
+  const leadIn = await call(lead, "/api/attendance/clock-in", {});
+  const leadStart = await call(lead, "/api/timer/start", { clientId, notes: "Lead's own work", force: false });
   const leadStop = await stopTimerWithProof(lead, "Lead's own work");
-  check("the lead records a picture of their own", leadStop.status === 200, `status=${leadStop.status}`);
+  // The start and the clock-in are reported too: a 404 from the stop only means
+  // "nothing was running", which says nothing about why.
+  check("the lead records a picture of their own", leadStop.status === 200,
+    `stop=${leadStop.status} ${JSON.stringify(leadStop.json?.error ?? "")} | start=${leadStart.status} ${JSON.stringify(leadStart.json?.error ?? "")} | clockIn=${leadIn.status} ${JSON.stringify(leadIn.json?.error ?? "")}`);
   const leadEntries = await call(lead, `/api/time-entries?from=${TODAY()}&to=${TODAY()}&userId=${lab.ids.lead}`, null, "GET");
   const leadEntry = (leadEntries.json?.data?.entries ?? []).find((e) => e.hasProof);
   const stolen = await call(emp, `/api/work-proof/timer/${leadEntry?.id}`, null, "GET");
