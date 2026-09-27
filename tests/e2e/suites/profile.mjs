@@ -66,4 +66,44 @@ export default async function run({ browser, lab, check }) {
   check("the photo can be changed", Boolean(await emp.$('button[aria-label="Change profile photo"]')));
   check("the menu is still there", /Attendance/.test(body) && /Sign out/.test(body));
   await shot(emp, "profile-page");
+
+  /* ---------- the photo reaches the home screen ---------- */
+  /*
+   * It never did (A112). The avatar lived on the profile page, and the one
+   * screen that greets you by name drew a letter in a circle instead - which is
+   * what the owner was looking at when they said their profile was not coming.
+   *
+   * Uploaded through the API and then looked for in the rendered page, because
+   * the upload was never the broken part: the home screen simply did not ask
+   * for it.
+   */
+  const up = await emp.evaluate(async () => {
+    const c = document.createElement("canvas");
+    c.width = 300; c.height = 300;
+    const x = c.getContext("2d");
+    x.fillStyle = "#12b886"; x.fillRect(0, 0, 300, 300);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.8));
+    const fd = new FormData();
+    fd.append("photo", new File([blob], "me.jpg", { type: "image/jpeg" }));
+    const r = await fetch("/api/me/avatar", { method: "POST", body: fd });
+    return { status: r.status, json: await r.json().catch(() => null) };
+  });
+  check("a profile photo can be uploaded", up.status === 200, `status=${up.status}`);
+
+  await emp.goto(`${lab.base}/`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await wait(3000);
+  /*
+   * Painted, not merely present. An <img> whose src 404s is still an <img> in
+   * the DOM and still matches a selector - naturalWidth is the only thing that
+   * says the browser actually decoded a picture, and a signed storage link that
+   * has gone stale is exactly the way this breaks in the field.
+   */
+  const photo = await emp.evaluate(() => {
+    const img = Array.from(document.querySelectorAll("img")).find((i) => /avatars/.test(i.getAttribute("src") ?? ""));
+    if (!img) return { found: false };
+    return { found: true, loaded: img.complete && img.naturalWidth > 0, width: img.naturalWidth, src: img.getAttribute("src").slice(0, 60) };
+  });
+  check("the home screen asks for the photo", photo.found, "no img with an avatar src");
+  check("and the browser actually loads it", photo.loaded, JSON.stringify(photo));
+  await shot(emp, "home-with-photo");
 }

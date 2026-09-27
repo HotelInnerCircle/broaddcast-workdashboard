@@ -69,7 +69,28 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
             <p className="mt-2.5 font-display text-[29px] leading-tight">{greeting}</p>
           </div>
           <div className="shrink-0 text-center">
-            <span className="flex size-[68px] items-center justify-center rounded-full border-[3px] border-white/35 bg-[#d4a27e] text-[23px] font-bold text-[#2a2620]">{initials}</span>
+            {/*
+              Their own photograph, when they have uploaded one (A112). This was
+              initials unconditionally - the avatar was on the profile screen and
+              nowhere else, so the one place that greets you by name showed a
+              letter. The initials stay as the fallback, and are what a broken or
+              expired link falls back to rather than a torn-image icon.
+            */}
+            <span className="relative flex size-[68px] items-center justify-center overflow-hidden rounded-full border-[3px] border-white/35 bg-[#d4a27e] text-[23px] font-bold text-[#2a2620]">
+              {initials}
+              {me.avatarUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- a signed storage URL, like <Avatar> renders
+                <img
+                  src={me.avatarUrl}
+                  alt=""
+                  // Laid over the initials rather than instead of them, so a link
+                  // that has expired or will not load uncovers the letters
+                  // instead of leaving an empty circle or a torn-image icon.
+                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  className="absolute inset-0 size-full object-cover"
+                />
+              )}
+            </span>
             <p className="mt-1.5 text-[11.5px] font-medium text-white/80">{formatDate(new Date(), timezone)}</p>
           </div>
         </div>

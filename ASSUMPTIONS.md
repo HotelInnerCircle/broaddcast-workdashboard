@@ -804,3 +804,11 @@ A110 fixed new companies and put the backfill behind a button. The owner's own h
 - **The button stays**, for assigning the whole company at once rather than person by person as they next sign in.
 - **Verified:** the code is cleared through the API and then simply used - no repair call, because the point is that there is nothing to call - and it comes back, different from everybody else's. 17 checks in the suite now.
 - **Where:** `services/employeeCodeService.ts`, `lib/auth/session-service.ts`.
+
+### A112. The profile photo on the home screen (owner request, 27 Sep 2026)
+The owner said their profile was not coming through on the home screen. It was not: the avatar was drawn as initials in a circle, unconditionally, and the screen never looked at `avatarUrl` at all. Uploading a photo worked and had always worked - the only screen that greets you by name simply did not ask for it.
+
+- **The photo is laid over the initials rather than shown instead of them**, so a link that will not load uncovers the letters rather than leaving an empty circle or a torn-image icon. Avatar links are signed and expire, so this is a real state and not a theoretical one.
+- **The test asserts the browser decoded a picture, not that an `<img>` exists.** The first version checked the tag was in the DOM and passed against a screenshot showing an empty circle - a tag whose `src` 404s is still a tag and still matches a selector. `naturalWidth > 0` is the only thing that says a picture actually arrived. A stale signed link is exactly how this breaks in the field, and the weaker check would have called it fine.
+- **The screenshot was looked at, which is what caught the weak assertion.** The test image was also a brown almost identical to the header behind it, so a rendered photo and a missing one looked the same; it is a colour nothing else in the app uses now.
+- **Where:** `components/dashboard/mobile-home.tsx`, `tests/e2e/suites/profile.mjs`.
