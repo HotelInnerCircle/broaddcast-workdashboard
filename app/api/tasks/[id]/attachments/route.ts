@@ -12,7 +12,9 @@ export const POST = route(async (req, { params }) => {
   const file = form.get("file");
   if (!(file instanceof File)) throw Errors.bad("FILE_REQUIRED", "Attach a file");
   const { ext, mime } = validateUpload(file);
-  await checkLimit(ctx.companyId, "storage", { addBytes: file.size });
+  // "Already full?" only. The stored size is not known until the image has been
+  // shrunk, so addAttachment charges for it there (A109).
+  await checkLimit(ctx.companyId, "storage");
   const buffer = Buffer.from(await file.arrayBuffer());
   if (!sniffMatches(buffer, mime)) throw Errors.bad("UNSUPPORTED_FILE", "File content does not match its type");
   return created(await addAttachment(ctx, (await params).id, { buffer, name: file.name, mime, ext }, clientIp(req)));

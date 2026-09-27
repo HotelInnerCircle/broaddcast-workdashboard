@@ -51,6 +51,22 @@ const CompanySchema = new Schema(
      * day - a person with no camera to hand, or a job that produces nothing to
      * photograph, otherwise cannot record their time at all.
      */
+    /**
+     * Checking the face on a swipe (A108).
+     *
+     * Off by default, and that is deliberate: switch it on before people have
+     * enrolled and nobody can swipe. Enrol first, then turn it on.
+     *
+     * The threshold is the distance below which two faces count as the same
+     * person. It is a setting because it is a trade - lower rejects somebody who
+     * grew a beard, higher accepts their brother - and 0.6 is where to start.
+     */
+    faceCheck: {
+      enabled: { type: Boolean, default: false },
+      threshold: { type: Number, default: 0.6, min: 0.1, max: 1.5 },
+      /** After this many failed tries, record the swipe for review rather than refusing it. */
+      maxRetries: { type: Number, default: 3, min: 1, max: 10 },
+    },
     workProof: {
       timer: { type: Boolean, default: true },
       dailyReport: { type: Boolean, default: true },

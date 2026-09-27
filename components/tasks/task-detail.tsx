@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Archive, ArchiveRestore, Pencil, Paperclip, Play, Square, Trash2, Upload, Clock, CalendarDays, User, MessageSquare } from "lucide-react";
@@ -40,7 +41,7 @@ export function TaskDetailView({ task }: { task: TaskDetail }) {
   const upload = async (file: File) => {
     setUploading(true);
     try {
-      const fd = new FormData(); fd.append("file", file);
+      const fd = new FormData(); fd.append("file", await shrinkImage(file, "attachment"));
       await api(`/api/tasks/${task.id}/attachments`, { method: "POST", body: fd });
       toast.success("Attachment added"); router.refresh();
     } catch (e) { if (!showLimitError(e)) toast.error(e instanceof ClientApiError ? e.message : "Upload failed"); } finally { setUploading(false); }

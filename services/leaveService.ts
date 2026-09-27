@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { compressImage } from "@/lib/storage/compress";
 import { scoped } from "@/lib/db/scoped";
 import { Errors } from "@/lib/api/errors";
 import { audit } from "@/lib/audit";
@@ -143,11 +144,13 @@ export async function createLeave(
 
   let attachmentKey: string | null = null;
   if (attachment) {
-    const { mime, ext } = validateUpload(attachment);
-    const buf = Buffer.from(await attachment.arrayBuffer());
-    if (!sniffMatches(buf, mime)) throw Errors.bad("BAD_FILE", "That file is not the type it claims to be");
-    attachmentKey = `companies/${ctx.companyId}/leave/${crypto.randomUUID()}.${ext}`;
-    await storage().put({ key: attachmentKey, body: buf, contentType: mime });
+    const { mime } = validateUpload(attachment);
+    const raw = Buffer.from(await attachment.arrayBuffer());
+    if (!sniffMatches(raw, mime)) throw Errors.bad("BAD_FILE", "That file is not the type it claims to be");
+    // A109: usually a photograph of a certificate. A PDF passes through untouched.
+    const small = await compressImage(raw, mime, "attachment");
+    attachmentKey = `companies/${ctx.companyId}/leave/${crypto.randomUUID()}.${small.ext}`;
+    await storage().put({ key: attachmentKey, body: small.buffer, contentType: small.contentType });
   }
 
   const steps = await buildChain(ctx, uid);

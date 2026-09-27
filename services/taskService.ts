@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { compressImage } from "@/lib/storage/compress";
 import { escapeRegex } from "@/lib/utils/regex";
 import { scoped, pop } from "@/lib/db/scoped";
 import { Project } from "@/models/Project";
@@ -8,6 +9,7 @@ import { AuditLog } from "@/models/AuditLog";
 import { Errors } from "@/lib/api/errors";
 import { audit } from "@/lib/audit";
 import { storage } from "@/lib/storage";
+import { checkLimit } from "@/lib/limits";
 import { realtime } from "@/lib/realtime";
 import { notify } from "./notificationService";
 import { paginationSchema, toSort, skipFor, meta as pageMeta } from "@/lib/api/pagination";
@@ -177,12 +179,17 @@ export async function updateTask(ctx: CompanyContext, id: string, input: UpdateT
 export async function addAttachment(ctx: CompanyContext, id: string, file: { buffer: Buffer; name: string; mime: string; ext: string }, ip: string | null) {
   const task = await findInScope(ctx, id);
   if (!task || task.archivedAt) throw Errors.notFound("Task");
+  // A109: images shrunk on the way in; documents pass through as they are.
+  const small = await compressImage(file.buffer, file.mime, "attachment");
+  // Charged for what is stored rather than what was uploaded, which is only
+  // knowable here, after compression.
+  await checkLimit(ctx.companyId, "storage", { addBytes: small.buffer.length });
   const key = `companies/${ctx.companyId}/tasks/${task._id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  await storage().put({ key, body: file.buffer, contentType: file.mime });
-  task.attachments.push({ key, name: file.name, size: file.buffer.length, mime: file.mime, uploadedBy: new Types.ObjectId(ctx.userId) } as never);
+  await storage().put({ key, body: small.buffer, contentType: small.contentType });
+  task.attachments.push({ key, name: file.name, size: small.buffer.length, mime: small.contentType, uploadedBy: new Types.ObjectId(ctx.userId) } as never);
   await task.save();
   const att = task.attachments[task.attachments.length - 1] as TaskAttachment;
-  await audit({ ctx, companyId: ctx.companyId, entity: "task", entityId: task._id, action: "task.attachment_added", summary: `${ctx.name} attached ${file.name}`, after: { name: file.name, size: file.buffer.length }, ip });
+  await audit({ ctx, companyId: ctx.companyId, entity: "task", entityId: task._id, action: "task.attachment_added", summary: `${ctx.name} attached ${file.name}`, after: { name: file.name, size: small.buffer.length }, ip });
   return { id: String(att._id), name: att.name, size: att.size, mime: att.mime, uploadedBy: String(att.uploadedBy), createdAt: att.createdAt, url: await storage().getSignedUrl(key, 3600) };
 }
 

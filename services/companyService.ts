@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { compressImage } from "@/lib/storage/compress";
 import { Company } from "@/models/Company";
 import { User } from "@/models/User";
 import { Team } from "@/models/Team";
@@ -55,6 +56,7 @@ export async function updateCompany(ctx: CompanyContext, input: UpdateCompanyInp
   if (input.payrollStartDay !== undefined) c.set("payrollStartDay", input.payrollStartDay);
   if (input.approvalChain !== undefined) c.set("approvalChain", input.approvalChain);
   if (input.workProof !== undefined) c.set("workProof", { ...(c.workProof ?? {}), ...input.workProof });
+  if (input.faceCheck !== undefined) c.set("faceCheck", { ...(c.faceCheck ?? {}), ...input.faceCheck });
   if (input.designations !== undefined) c.set("designations", dedupe(input.designations));
   if (input.services !== undefined) c.set("services", dedupe(input.services));
   if (input.hiddenNav !== undefined) {
@@ -67,9 +69,12 @@ export async function updateCompany(ctx: CompanyContext, input: UpdateCompanyInp
   return after;
 }
 
-export async function setCompanyLogo(ctx: CompanyContext, buffer: Buffer, ext: string, mime: string, ip: string | null) {
+export async function setCompanyLogo(ctx: CompanyContext, raw: Buffer, _ext: string, mime: string, ip: string | null) {
+  // A109: resized, and kept as a PNG so a logo with transparency stays usable.
+  const { buffer, contentType, ext } = await compressImage(raw, mime, "logo");
+  void _ext;
   const key = `companies/${ctx.companyId}/logo-${Date.now()}.${ext}`;
-  await storage().put({ key, body: buffer, contentType: mime });
+  await storage().put({ key, body: buffer, contentType });
   const url = await storage().getSignedUrl(key, 60 * 60 * 24 * 365);
   await Company.updateOne({ _id: ctx.companyId }, { $set: { logoUrl: url } });
   await audit({ ctx, companyId: ctx.companyId, entity: "company", entityId: ctx.companyId, action: "company.logo_updated", summary: "Company logo updated", ip });

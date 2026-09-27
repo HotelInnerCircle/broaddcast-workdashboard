@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
 import { AtSign, Paperclip, Plus, Send, Smile, X } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar } from "@/components/ui/avatar";
@@ -41,14 +42,21 @@ export function Composer({ chat, members, editing, replyTo, onClearEdit, onClear
   // Object URLs are per-file and revoked as soon as the file leaves the tray.
   useEffect(() => () => { staged.forEach((s) => s.preview && URL.revokeObjectURL(s.preview)); }, [staged]);
 
-  const addFiles = (list: FileList | null) => {
+  const addFiles = async (list: FileList | null) => {
     if (!list?.length) return;
     const room = MAX_FILES - staged.length;
     if (room <= 0) { toast.error(`You can send ${MAX_FILES} files at a time`); return; }
     const picked = Array.from(list).slice(0, room);
     if (picked.length < list.length) toast.error(`Only the first ${room} file${room === 1 ? "" : "s"} were added`);
-    setStaged((s) => [...s, ...picked.map((file) => ({ file, preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null, id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 7)}` }))]);
+    /*
+     * Photographs are resized before they are staged (A109). This is where the
+     * largest files in the app arrive - ten pictures straight off a camera roll
+     * is fifty megabytes - and the preview, the upload and the stored file then
+     * all come from the same shrunk bytes. Documents pass through untouched.
+     */
     setEmojiOpen(false);
+    const ready = await Promise.all(picked.map((f) => shrinkImage(f, "attachment")));
+    setStaged((s) => [...s, ...ready.map((file) => ({ file, preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null, id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 7)}` }))]);
   };
   const dropStaged = (id: string) => setStaged((s) => { const gone = s.find((x) => x.id === id); if (gone?.preview) URL.revokeObjectURL(gone.preview); return s.filter((x) => x.id !== id); });
 
@@ -131,7 +139,7 @@ export function Composer({ chat, members, editing, replyTo, onClearEdit, onClear
       )}
 
       <div className="flex items-end gap-1">
-        <input ref={fileRef} type="file" multiple className="hidden" accept={ACCEPT} onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        <input ref={fileRef} type="file" multiple className="hidden" accept={ACCEPT} onChange={(e) => { void addFiles(e.target.files); e.target.value = ""; }} />
         <Button variant="ghost" size="icon" aria-label="Attach files" title="Attach photos or documents" onClick={() => fileRef.current?.click()} disabled={Boolean(editing)}><Paperclip /></Button>
         {!compact && <Button variant="ghost" size="icon" aria-label="Mention someone" title="Mention" onClick={() => { setText((t) => (t.endsWith(" ") || t === "" ? `${t}@` : `${t} @`)); setMentionOpen(true); areaRef.current?.focus(); }}><AtSign /></Button>}
         <Textarea
@@ -139,7 +147,7 @@ export function Composer({ chat, members, editing, replyTo, onClearEdit, onClear
           rows={1}
           value={text}
           onChange={(e) => onChange(e.target.value)}
-          onPaste={(e) => { const files = e.clipboardData.files; if (files.length) { e.preventDefault(); addFiles(files); } }}
+          onPaste={(e) => { const files = e.clipboardData.files; if (files.length) { e.preventDefault(); void addFiles(files); } }}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void submit(); } if (e.key === "Escape") { setMentionOpen(false); setEmojiOpen(false); } }}
           placeholder={staged.length > 0 ? "Add a caption..." : "Write a message"}
           className="max-h-32 min-h-10 flex-1 resize-none rounded-2xl"

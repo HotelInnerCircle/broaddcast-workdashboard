@@ -1,5 +1,6 @@
 import { Errors } from "@/lib/api/errors";
 import { storage, validateUpload, sniffMatches } from "@/lib/storage";
+import { compressImage } from "./compress";
 import { Company } from "@/models/Company";
 
 export interface StoredProof { proofKey: string; proofName: string; proofSize: number; proofType: string }
@@ -27,13 +28,21 @@ export async function storeWorkProof(
   kind: "timer" | "daily",
   ownerId: string,
 ): Promise<StoredProof> {
-  const { mime, ext } = validateUpload(file, { imagesOnly: true });
-  const buffer = Buffer.from(await file.arrayBuffer());
-  if (!sniffMatches(buffer, mime)) throw Errors.bad("BAD_IMAGE", "That file is not the image it claims to be");
+  const { mime } = validateUpload(file, { imagesOnly: true });
+  const raw = Buffer.from(await file.arrayBuffer());
+  if (!sniffMatches(raw, mime)) throw Errors.bad("BAD_IMAGE", "That file is not the image it claims to be");
+
+  /*
+   * Shrunk before it is stored (A109). Two of these a day per person is a lot of
+   * megabytes to keep for pictures nobody views above about a thousand pixels -
+   * and re-encoding drops the EXIF, so a screenshot stops carrying the
+   * coordinates the phone put in it.
+   */
+  const { buffer, contentType, ext } = await compressImage(raw, mime, "proof");
 
   const key = `companies/${companyId}/work-proof/${kind}/${ownerId}-${Date.now()}.${ext}`;
-  await storage().put({ key, body: buffer, contentType: mime });
-  return { proofKey: key, proofName: file.name || `proof.${ext}`, proofSize: buffer.length, proofType: mime };
+  await storage().put({ key, body: buffer, contentType });
+  return { proofKey: key, proofName: file.name || `proof.${ext}`, proofSize: buffer.length, proofType: contentType };
 }
 
 /** A short-lived link to a stored proof. */

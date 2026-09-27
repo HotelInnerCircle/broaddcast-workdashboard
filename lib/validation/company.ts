@@ -15,6 +15,11 @@ export const updateCompanySchema = z.object({
   employeeCodePadding: z.number().int().min(1).max(8).optional(),
   payrollStartDay: z.number().int().min(1).max(31).optional(),
   workProof: z.object({ timer: z.boolean().optional(), dailyReport: z.boolean().optional() }).optional(),
+  faceCheck: z.object({
+    enabled: z.boolean().optional(),
+    threshold: z.number().min(0.1).max(1.5).optional(),
+    maxRetries: z.number().int().min(1).max(10).optional(),
+  }).optional(),
   approvalChain: z.array(z.enum(["TEAM_LEAD", "MANAGER", "HR"]))
     .min(1)
     .refine((a) => new Set(a).size === a.length, "A step cannot appear twice")

@@ -19,6 +19,8 @@ export interface SwipeRow {
   id: string; userId: string; userName: string; type: string; at: string; date: string;
   photoUrl: string; lat: number; lng: number; accuracyMeters: number | null;
   siteName: string | null; distanceMeters: number | null; withinGeofence: boolean;
+  /** What the face check made of it (A108): matched, mismatch, or not checked. */
+  faceVerdict: string; faceDistance: number | null;
   status: string; currentStep: string | null;
   approvals: Array<{ step: string; decision: string; decidedByName: string | null; decidedAt: string | null; note: string | null }>;
   note: string | null;
@@ -69,6 +71,8 @@ export async function serializeSwipe(s: Record<string, unknown>, names: Map<stri
     siteName: (s.siteName as string | null) ?? null,
     distanceMeters: (s.distanceMeters as number | null) ?? null,
     withinGeofence: Boolean(s.withinGeofence),
+    faceVerdict: (s.faceVerdict as string | undefined) ?? "unverified",
+    faceDistance: (s.faceDistance as number | null) ?? null,
     status: s.status as string,
     currentStep: idx !== null && approvals[idx] ? (approvals[idx].step as string) : null,
     approvals: approvals.map((a) => ({
@@ -100,7 +104,7 @@ export async function namesFor(ctx: CompanyContext, docs: Array<Record<string, u
  */
 export async function createSwipe(
   ctx: CompanyContext,
-  input: { type: "ON_DUTY" | "OFF_DUTY"; lat: number; lng: number; accuracyMeters?: number; note?: string },
+  input: { type: "ON_DUTY" | "OFF_DUTY"; lat: number; lng: number; accuracyMeters?: number; note?: string; faceDescriptor?: unknown; faceAttempts?: number },
   photo: File,
   ip: string | null,
 ): Promise<SwipeRow> {
@@ -138,7 +142,20 @@ export async function createSwipe(
   const key = `companies/${ctx.companyId}/swipes/${date}/${crypto.randomUUID()}.jpg`;
   await storage().put({ key, body: stamped.buffer, contentType: stamped.contentType });
 
-  const chain = within ? { steps: [] as Array<{ step: "TEAM_LEAD" | "MANAGER" | "HR"; approverId: Types.ObjectId | null }> } : await buildChain(ctx, uid);
+  /*
+   * The face check (A108). A mismatch does not throw the swipe away: it records
+   * it and sends it for review, the same road an off-site swipe already takes.
+   * Refusing outright would mean somebody with a new beard, a bandage or bad
+   * light simply cannot clock in - and that becomes an argument about pay.
+   */
+  const { checkFace } = await import("./faceService");
+  const face = await checkFace(ctx, input.faceDescriptor);
+  const faceFailed = face.verdict === "mismatch";
+
+  const autoApprove = within && !faceFailed;
+  const chain = autoApprove
+    ? { steps: [] as Array<{ step: "TEAM_LEAD" | "MANAGER" | "HR"; approverId: Types.ObjectId | null }> }
+    : await buildChain(ctx, uid);
   const swipe = await scoped(AttendanceSwipe, ctx).create({
     userId: uid, date, type: input.type, at,
     photoKey: key,
@@ -147,7 +164,10 @@ export async function createSwipe(
     siteName: (nearest?.name as string | undefined) ?? null,
     distanceMeters: nearest ? best : null,
     withinGeofence: within,
-    status: within ? "APPROVED" : "PENDING",
+    faceVerdict: face.verdict,
+    faceDistance: face.distance,
+    faceAttempts: Math.max(0, Math.min(20, Math.trunc(Number(input.faceAttempts) || 0))),
+    status: autoApprove ? "APPROVED" : "PENDING",
     currentStep: within ? null : 0,
     approvals: chain.steps.map((s) => ({ step: s.step, approverId: s.approverId, decision: "PENDING" })),
     note: input.note ?? null,

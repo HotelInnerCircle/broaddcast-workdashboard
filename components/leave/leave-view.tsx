@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
 import { Camera, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiPaged, ClientApiError } from "@/lib/api/client";
@@ -113,7 +114,7 @@ export function LeaveView({ canDecide, myUserId }: { canDecide: boolean; myUserI
             className="w-full resize-none rounded-2xl bg-muted px-5 py-4 text-[15px] outline-none ring-1 ring-transparent focus:ring-primary" />
 
           <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            onChange={(e) => { const f = e.target.files?.[0] ?? null; void (async () => setFile(f ? await shrinkImage(f, "attachment") : null))(); }} />
           <button type="button" onClick={() => fileRef.current?.click()}
             className="flex size-24 flex-col items-center justify-center gap-1 rounded-2xl bg-muted text-muted-foreground hover:text-primary">
             {file ? <><Check className="size-6 text-success" /><span className="px-1 text-[10px] leading-tight">Attached</span></> : <Camera className="size-8" />}

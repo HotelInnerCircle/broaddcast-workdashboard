@@ -49,6 +49,18 @@ const AttendanceSwipeSchema = new Schema(
     /** Distance to the nearest site. Null only when the company has no sites at all. */
     distanceMeters: { type: Number, default: null },
     withinGeofence: { type: Boolean, required: true },
+    /**
+     * What the face check made of it (A108).
+     *
+     * "unverified" means it was not checked - nobody enrolled, the company has
+     * it switched off, or no face was found in the picture. That is deliberately
+     * not the same as "mismatch", which means it was checked and it was not them.
+     */
+    faceVerdict: { type: String, enum: ["matched", "mismatch", "unverified"], default: "unverified" },
+    /** How far from the enrolled face, so a decision can be explained months later. */
+    faceDistance: { type: Number, default: null },
+    /** How many tries it took, when somebody had to retake. */
+    faceAttempts: { type: Number, default: 0 },
 
     status: { type: String, enum: SWIPE_STATUSES, required: true },
     /** Index into `approvals` of the step waiting on someone. Null once settled. */

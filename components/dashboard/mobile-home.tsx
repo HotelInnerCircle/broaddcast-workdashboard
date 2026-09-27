@@ -52,7 +52,20 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
         <div className="relative flex items-start gap-4">
           <div className="min-w-0 flex-1">
             <p className="truncate text-xl font-bold leading-tight">Hi {me.name.split(" ")[0]}</p>
-            <p className="mt-0.5 truncate text-[12.5px] text-white/75">{me.company?.name ?? ""}</p>
+            <div className="mt-0.5 flex items-center gap-2">
+              {/*
+                The employee code, on the home screen (A107). It is what somebody
+                is asked for on a call with HR, on a form, or at a gate - and
+                hunting for it three screens deep is the reason people photograph
+                it instead. Monospaced so it reads out digit by digit.
+              */}
+              {me.employeeCode && (
+                <span className="shrink-0 rounded-md bg-white/15 px-2 py-0.5 font-mono text-[11.5px] font-semibold tracking-wide text-white">
+                  {me.employeeCode}
+                </span>
+              )}
+              <p className="truncate text-[12.5px] text-white/75">{me.company?.name ?? ""}</p>
+            </div>
             <p className="mt-2.5 font-display text-[29px] leading-tight">{greeting}</p>
           </div>
           <div className="shrink-0 text-center">

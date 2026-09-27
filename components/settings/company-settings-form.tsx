@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,7 +61,7 @@ export function CompanySettingsForm({ company, mode = "settings" }: { company: C
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", await shrinkImage(file, "logo"));
       const res = await api<{ logoUrl: string }>("/api/admin/company/logo", { method: "POST", body: fd });
       setLogo(res.logoUrl);
       toast.success("Logo updated");

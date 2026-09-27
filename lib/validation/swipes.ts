@@ -35,6 +35,10 @@ export const swipeCreateSchema = z.object({
   lng: z.coerce.number().min(-180).max(180),
   accuracyMeters: z.coerce.number().min(0).max(100000).optional(),
   note: z.string().trim().max(300).optional(),
+  /** The face, as 128 numbers, computed in the browser (A108). Optional: the company may not ask for one. */
+  faceDescriptor: z.string().max(4000).optional(),
+  /** How many retakes it took, for the record. */
+  faceAttempts: z.coerce.number().int().min(0).max(20).optional(),
 });
 
 export const swipeDecisionSchema = z.object({

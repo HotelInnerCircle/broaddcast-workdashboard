@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
+import { FaceEnrolment } from "@/components/attendance/face-enrolment";
 import Link from "next/link";
 import { Camera, ChevronRight, Pencil, Save, X } from "lucide-react";
 import { toast } from "sonner";
@@ -74,7 +76,7 @@ export function ProfileDetails({ profile, reporting, onChanged }: { profile: Pro
     setUploading(true);
     try {
       const fd = new FormData();
-      fd.append("photo", file);
+      fd.append("photo", await shrinkImage(file, "avatar"));
       await api("/api/me/avatar", { method: "POST", body: fd });
       onChanged(); toast.success("Photo updated");
     } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not upload the photo"); }
@@ -172,6 +174,9 @@ export function ProfileDetails({ profile, reporting, onChanged }: { profile: Pro
           <p className="mt-0.5 leading-relaxed">{profile.updateRequest}</p>
         </div>
       )}
+
+      {/* Enrolling a face lives with the rest of what is yours, not in a setting somewhere. */}
+      <FaceEnrolment />
 
       {reporting.length > 0 && (
         <Section title="REPORTING LIST">

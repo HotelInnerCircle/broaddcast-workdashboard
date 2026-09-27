@@ -106,6 +106,7 @@ export async function resolveSession(token: string | null | undefined): Promise<
         timer: (c.workProof as { timer?: boolean } | undefined)?.timer !== false,
         dailyReport: (c.workProof as { dailyReport?: boolean } | undefined)?.dailyReport !== false,
       },
+      faceCheck: { enabled: (c.faceCheck as { enabled?: boolean } | undefined)?.enabled === true },
       hiddenNav: ((c.hiddenNav as Record<string, string[]> | undefined)?.[user.role] ?? []),
     };
   }
@@ -128,6 +129,7 @@ export async function resolveSession(token: string | null | undefined): Promise<
     name: user.name,
     email: user.email,
     avatarUrl: user.avatarUrl ?? null,
+    employeeCode: (user.employeeCode as string | null) ?? null,
     teamId: user.teamId ? String(user.teamId) : null,
     managerId: user.managerId ? String(user.managerId) : null,
     company,

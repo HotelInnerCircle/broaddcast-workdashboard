@@ -1,8 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
 import { toast } from "sonner";
 import { api, apiPaged, ClientApiError } from "@/lib/api/client";
 import { distanceMeters } from "@/lib/geo";
+import { useAuth } from "@/hooks/useAuth";
+import { describePhoto } from "@/lib/face/client";
 
 export interface Site { id: string; name: string; lat: number; lng: number; radiusMeters: number; active: boolean }
 export interface Fix { lat: number; lng: number; accuracy: number }
@@ -22,6 +25,11 @@ export function useSwipe(active: boolean) {
   const [locError, setLocError] = useState<string | null>(null);
   const [onDuty, setOnDuty] = useState<boolean | null>(null);
   const [sending, setSending] = useState(false);
+  const me = useAuth();
+  /** Only read a face when the company checks them - the model is 6 MB. */
+  const faceRequired = me.company?.faceCheck?.enabled === true;
+  /** Retakes so far, sent with the swipe so a run of failures is visible to HR. */
+  const attempts = useRef(0);
   const started = useRef(false);
 
   const loadDuty = useCallback(async () => {
@@ -68,11 +76,18 @@ export function useSwipe(active: boolean) {
   /** The one action that makes sense right now. Null until we know which it is. */
   const nextType: "ON_DUTY" | "OFF_DUTY" | null = onDuty === null ? null : onDuty ? "OFF_DUTY" : "ON_DUTY";
 
-  const submit = useCallback(async (photo: File, note: string): Promise<boolean> => {
+  const submit = useCallback(async (raw: File, note: string): Promise<boolean> => {
     if (!fix) { toast.error("Waiting for your location"); return false; }
     if (!nextType) { toast.error("Checking your last swipe"); return false; }
     setSending(true);
     try {
+      /*
+       * Resized before it leaves the phone (A109). Two swipes a day per person
+       * of five megabytes each is a lot of mobile data for a photograph nobody
+       * looks at above a thousand pixels - and the face below is read from the
+       * shrunk bytes deliberately, so what was matched is what got stored.
+       */
+      const photo = await shrinkImage(raw, "proof");
       const form = new FormData();
       form.append("photo", photo);
       form.append("type", nextType);
@@ -80,9 +95,31 @@ export function useSwipe(active: boolean) {
       form.append("lng", String(fix.lng));
       form.append("accuracyMeters", String(Math.round(fix.accuracy)));
       if (note.trim()) form.append("note", note.trim());
-      const res = await api<{ status: string; siteName: string | null }>("/api/attendance/swipes", { method: "POST", body: form });
+
+      /*
+       * The face, read from the photo that was just taken (A108). Only when the
+       * company asks for it - otherwise nobody pays for a 6 MB model download to
+       * record a swipe that is not going to be checked.
+       *
+       * What is sent is the descriptor, never a verdict: the server decides
+       * whether it matched. A failure to read a face is not a failure to swipe -
+       * the swipe goes anyway, marked unverified, and a person is looked at
+       * rather than turned away by a camera in bad light.
+       */
+      if (faceRequired) {
+        const read = await describePhoto(photo);
+        if (read?.descriptor) form.append("faceDescriptor", JSON.stringify(read.descriptor));
+        form.append("faceAttempts", String(attempts.current));
+      }
+
+      const res = await api<{ status: string; siteName: string | null; faceVerdict?: string }>("/api/attendance/swipes", { method: "POST", body: form });
       const what = nextType === "ON_DUTY" ? "on duty" : "off duty";
-      if (res.status === "APPROVED") toast.success(`Swiped ${what} at ${res.siteName}`);
+      if (res.faceVerdict === "mismatch") {
+        attempts.current += 1;
+        toast.warning(`Swiped ${what} - your face was not recognised`, {
+          description: "It has been recorded and sent for approval. If this keeps happening, enrol your face again from your profile.",
+        });
+      } else if (res.status === "APPROVED") toast.success(`Swiped ${what} at ${res.siteName}`);
       else toast.warning(`Swiped ${what} - it needs approval`, { description: "You are outside every work site. Your team lead has been told." });
       await loadDuty();
       return true;
@@ -90,7 +127,7 @@ export function useSwipe(active: boolean) {
       toast.error(e instanceof ClientApiError ? e.message : "Could not record the swipe");
       return false;
     } finally { setSending(false); }
-  }, [fix, nextType, loadDuty]);
+  }, [fix, nextType, loadDuty, faceRequired]);
 
   return { sites: activeSites, fix, locating, locError, locate, onDuty, nextType, nearest, inside, sending, submit };
 }

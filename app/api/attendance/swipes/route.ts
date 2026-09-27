@@ -34,8 +34,23 @@ export const POST = route(async (req) => {
     type: form.get("type"),
     lat: form.get("lat"),
     lng: form.get("lng"),
+    faceDescriptor: form.get("faceDescriptor") ?? undefined,
+    faceAttempts: form.get("faceAttempts") ?? undefined,
     accuracyMeters: form.get("accuracyMeters") ?? undefined,
     note: form.get("note") ?? undefined,
   });
-  return created(await createSwipe(ctx, input, photo, clientIp(req)));
+
+  /*
+   * The descriptor travels as JSON inside the multipart body, because form
+   * fields are strings. Parsed here rather than in the service, and anything
+   * unparseable becomes "no face" rather than an error - a phone that could not
+   * read a face has not done anything wrong, and the swipe still needs to be
+   * recorded so somebody can look at the photograph.
+   */
+  let faceDescriptor: unknown = undefined;
+  if (input.faceDescriptor) {
+    try { faceDescriptor = JSON.parse(input.faceDescriptor); } catch { faceDescriptor = undefined; }
+  }
+
+  return created(await createSwipe(ctx, { ...input, faceDescriptor }, photo, clientIp(req)));
 });

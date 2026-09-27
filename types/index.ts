@@ -27,6 +27,8 @@ export interface SessionContext {
   name: string;
   email: string;
   avatarUrl: string | null;
+  /** Shown on the phone home screen so somebody can read it out without hunting (A107). */
+  employeeCode: string | null;
   teamId: string | null;
   managerId: string | null;
   company: {
@@ -40,6 +42,8 @@ export interface SessionContext {
     hiddenNav: string[];
     /** Whether a picture of the work is required when recording it (A105). */
     workProof: { timer: boolean; dailyReport: boolean };
+    /** Whether swipes are face-checked (A108); the phone only loads the model if so. */
+    faceCheck: { enabled: boolean };
   } | null;
 }
 

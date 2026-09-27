@@ -28,6 +28,22 @@ const UserSchema = new Schema(
     /** A95: the code people are known by - EMP001, or whatever HR set. Unique inside a company. */
     employeeCode: { type: String, default: null },
     /**
+     * The enrolled face, as 128 numbers rather than a photograph (A108).
+     *
+     * This is biometric data. Under the DPDP Act it needs consent to collect, a
+     * reason to keep and deletion on request - so the moment consent was given
+     * is stored beside it, and there is an endpoint to remove it. A descriptor
+     * cannot be turned back into a picture of a face, but it still identifies
+     * one, so it is treated as what it is.
+     *
+     * Not selected by default: it has no business travelling to a screen with an
+     * ordinary user query.
+     */
+    faceDescriptor: { type: [Number], default: null, select: false },
+    faceEnrolledAt: { type: Date, default: null },
+    /** How many captures were averaged into it; more is steadier. */
+    faceSamples: { type: Number, default: 0 },
+    /**
      * What a payslip has to print besides the money (A103): whose it is, the
      * statutory numbers, and where the payment goes. Kept on the person rather
      * than on the salary structure, because none of it changes when pay changes.

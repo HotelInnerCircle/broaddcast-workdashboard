@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { shrinkImage } from "@/lib/images/shrink";
 import { Camera, X, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
@@ -30,6 +31,20 @@ export function ProofField({
 }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [shrinking, setShrinking] = useState(false);
+
+  /*
+   * Resized here, in the browser, before it is uploaded (A109). A phone camera
+   * makes four or five megabytes; on a site with one bar of signal that is the
+   * difference between a swipe that completes and one that times out. The
+   * picture that arrives is the same one the server would have produced anyway.
+   */
+  const choose = async (picked: File | null) => {
+    if (!picked) { onChange(null); return; }
+    setShrinking(true);
+    try { onChange(await shrinkImage(picked, "proof")); }
+    finally { setShrinking(false); }
+  };
 
   useEffect(() => {
     if (!value) { setPreview(null); return; }
@@ -54,7 +69,7 @@ export function ProofField({
         capture="environment"
         className="hidden"
         aria-label={label}
-        onChange={(e) => { onChange(e.target.files?.[0] ?? null); e.target.value = ""; }}
+        onChange={(e) => { const f = e.target.files?.[0] ?? null; e.target.value = ""; void choose(f); }}
       />
 
       {preview ? (
@@ -80,7 +95,7 @@ export function ProofField({
           )}
         >
           <Camera className="size-4" />
-          Take or choose a picture
+          {shrinking ? "Preparing the picture..." : "Take or choose a picture"}
         </button>
       )}
 

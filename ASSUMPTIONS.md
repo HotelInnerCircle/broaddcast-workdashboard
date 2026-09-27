@@ -714,3 +714,73 @@ The owner sent a real April 2026 payslip and asked for it to be generated rather
 - **Where:** `lib/payroll/{compute,payslip-pdf}.ts`, `models/{SalaryStructure,Payslip,User,Company}.ts`, `services/payrollService.ts`, `app/api/payroll/**`, `components/payroll/*`.
 
 **Not built yet:** TDS is typed in rather than computed across the year, gratuity and bonus are absent, and nothing pays anybody - a bank advice file comes before any payout API.
+
+### A104. The order things are approved in, set by the admin (owner request, 26 Sep 2026)
+The chain was fixed in code - team lead, then manager, then HR. The owner asked to be able to set that sequence, so it is now a company setting: `approvalChain` on the company, drag the three steps into the order this company uses, and **leave and off-site swipes both follow it**, because one chain is the point.
+
+- **HR is always last, whatever order is chosen.** Not a UI nicety - a chain that ends anywhere else has a request settled by somebody who cannot see the whole picture, and HR then finds out afterwards. The editor lets the first two move and pins the last.
+- **A step is skipped when there is nobody distinct to fill it.** A team lead does not approve their own leave; somebody with no manager does not wait forever for one. This was already true and stays true under reordering - the alternative is requests stranded with nobody able to decide them.
+- **Removing a step does not touch requests already in flight.** The chain a request was created under is the chain it is judged by, so changing the setting on the 15th does not silently re-open or auto-approve anything pending.
+- **Where:** `models/Company.ts`, `services/approvalChain.ts`, `components/settings/approval-chain-editor.tsx`.
+
+### A105. A picture of the work, not just a description (owner request, 26 Sep 2026)
+The owner asked that stopping the timer and filing a daily report both require a description **and** a photograph. Both now do, controlled per company by `workProof.timer` and `workProof.dailyReport`, **on by default** - the setting arrived switched on and a company that predates it should get the behaviour that was asked for, not the opposite.
+
+- **`capture="environment"` on the input**, so a phone opens the camera rather than the photo library. A laptop ignores it and shows a file picker, so one control serves both.
+- **The hazard this turned up: force-switching timers closed the running one without ever asking for a picture.** Starting a second job while one was running was a legitimate shortcut that quietly became the way around the requirement. It is refused now - stop the first one properly.
+- **And a second: editing a daily report checked whether a picture was *required* but not whether one was *already there*,** so the JSON edit path refused every edit of a report that already had its photo. A test caught it.
+- **Screenshots are stored privately and read through links that expire.** A picture of somebody's work carries a client's name, an inbox, sometimes a face.
+- **Where:** `lib/storage/work-proof.ts`, `components/ui/proof-field.tsx`, `app/api/timer/stop/route.ts`, `app/api/daily-reports/route.ts`.
+
+### A106. The phone home leads with today's swipes, not the timer (owner request, 26 Sep 2026)
+The timer came off the phone's home screen and today's swipes took its place. The timer still exists on `/timer`; what changed is what the screen opens with. The owner's reasoning holds up: on a phone the first question is *did my attendance register*, and a timer at the top of the screen answered a question most people were not asking.
+
+- **Each swipe as a row - on or off duty, the time, the place** - and nothing when there are none, rather than an empty card with a heading.
+- **Where:** `components/dashboard/{mobile-home,today-swipes}.tsx`.
+
+### A107. The employee code on the home screen (owner request, 27 Sep 2026)
+Every employee already had a unique code (A99). It is now on the phone's home screen, under their name, because the code's whole purpose is to be read out - to HR, on a form, over the phone - and hunting for it in a profile screen defeated that.
+
+- **Where:** `components/dashboard/mobile-home.tsx`, `types/index.ts`.
+
+### A108. Checking the face on a swipe, on the device (owner request, 27 Sep 2026)
+The owner asked whether attendance could verify the face in the swipe photo, refuse a mismatch with a retake, and work from a shared device at a door. It does, and the brief they chose was **on-device** - so there is no per-call cost and no face leaving the phone.
+
+**How it works.** `@vladmandic/face-api` runs in the browser, finds the face, and turns it into **128 numbers** - a descriptor. Enrolment averages several captures into one. A swipe sends the descriptor alongside the photo, and the server compares it to the enrolled one: a euclidean distance below the threshold is the same person.
+
+- **The phone sends the descriptor. The server decides.** Never the other way round. A client that reports its own verdict is a client that can report "matched" for anyone, and attendance is exactly the thing somebody has a motive to fake.
+- **The threshold is a company setting, default 0.6** - the value face-api documents. It is a trade, and it belongs to whoever has to live with it: lower rejects somebody who grew a beard, higher accepts their brother.
+- **Failing to read a face is not failing to swipe.** No face found, bad light, a phone that could not load the models: the swipe is recorded as `unverified` and flagged for somebody to look at. A camera in a dark stairwell must not be able to stop somebody being paid - and the photograph is there for a human to check.
+- **A mismatch asks for a retake, up to `maxRetries` (default 3), and then records it for review** rather than refusing forever. Same reasoning.
+- **The distance is stored on the swipe**, so a decision can be explained months later instead of being an unarguable verdict.
+- **Off by default, and that order matters:** switch the check on before people have enrolled and nobody can swipe. Enrol first. There is a register showing HR who has and has not.
+- **A face can be removed, by its owner, always.** It is their data.
+- **The cost is 6.5 MB of model weights**, served from `public/models` and downloaded only when the company has the check switched on - nobody pays for that to record a swipe that is not going to be checked.
+- **Not built: liveness.** Nothing here can tell a face from a photograph of a face held up to the camera. Doing it properly means a challenge - blink, turn your head - and it is the obvious next piece if this is used at an unattended door. Said plainly because the feature reads as more secure than it is.
+- **Verified:** unit checks on the descriptor maths (distance, averaging, the threshold either side, malformed input) and 30 browser checks - enrolling, the register, a swipe carrying a descriptor, a mismatch asking for a retake, the models loading under the production CSP, and the check being off until switched on.
+- **Where:** `lib/face/{match,client}.ts`, `services/faceService.ts`, `components/attendance/face-enrolment.tsx`, `app/api/face/**`, `app/api/me/face/**`, `models/{User,Company,AttendanceSwipe}.ts`.
+
+### A109. Pictures stored in kilobytes, not megabytes (owner request, 27 Sep 2026)
+The owner asked how uploads could be compressed so raw photographs do not fill the storage. An audit found **only swipe photos were compressed** - the other six paths stored whatever arrived, including the work-proof pictures added in A105. A phone camera produces four or five megabytes; an avatar shown at forty pixels was stored at four thousand.
+
+**Two passes, because they solve different problems.**
+
+- **In the browser, before the upload** (`lib/images/shrink.ts`). This is not about the storage bill, it is about the upload: on a site with one bar of signal, five megabytes is the difference between a swipe that completes and one that times out. The phone sends about two hundred kilobytes instead.
+- **On the server, before storing** (`lib/storage/compress.ts`), on every path. The browser pass cannot be trusted to have happened - an old browser, a codec the canvas will not read, or a request that never came from the app at all.
+
+**The sizes, by where the picture is actually shown** rather than one global number: avatar 512px, work proof 1280px, chat and task and leave attachments 1920px, a logo 512px and still a PNG so its transparency survives. A 12 megapixel photo becomes 60 KB, 200 KB and 400 KB respectively. For fifty people taking two proof photos a day that is roughly eleven gigabytes a month down to four hundred megabytes.
+
+**Two things fall out of this that are worth having on their own.**
+- **EXIF is dropped.** A photograph from a phone carries the coordinates it was taken at, and a chat attachment was quietly telling everybody in the channel where somebody lives.
+- **Orientation is applied first.** `rotate()` before the metadata goes, or every portrait photo from a phone is stored on its side with the flag that explained why now missing.
+
+**The hazards, and what was done about them.**
+- **Re-encoding can make a small image bigger** - an 8px PNG icon becomes a larger JPEG. Both passes keep the original when that happens. The first version of the check compared the output width against the *target* rather than the *input*, which called every image under 1920px "resized" so the guard never fired; it stored files three times the size they arrived at. A test caught it, which is why the test asserts bytes rather than intent.
+- **The extension and the MIME type have to agree** or the server refuses the upload as an unsupported type. A PNG re-encoded as a JPEG is renamed to `.jpg`. Getting this wrong fails the upload while telling the person their file type is unsupported, which it is not.
+- **The storage quota was charging the raw size.** Usage is measured from what is stored so it self-corrects, but the pre-check would have refused a 5 MB photo that ends up taking 300 KB. It now asks "already full?" up front and charges for what actually landed.
+- **Nothing may break an upload.** Every failure path returns the original file: a file sharp cannot read has already passed the magic-byte check, and an upload that fails because of the optimiser is worse than one that is a little large. A GIF is left alone entirely rather than losing its animation to a canvas.
+- **The original is not kept, deliberately.** Keeping both is how a storage bill grows quietly, and nothing here wants the raw file.
+- **Verified:** 44 unit checks - real images made by sharp rather than fixtures, since the point of the exercise is a number of kilobytes - plus the full browser suite passing with compression active on every path.
+- **Where:** `lib/storage/compress.ts`, `lib/images/shrink.ts`, and the seven pickers and six upload paths they are wired into.
+
+**Still worth doing:** `payrollStartDay` has no settings screen, CI does not run the tests, and the rate limiter is in-process so it resets on every Vercel cold start.

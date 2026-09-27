@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { compressImage } from "@/lib/storage/compress";
 import { scoped } from "@/lib/db/scoped";
 import { Errors } from "@/lib/api/errors";
 import { storage } from "@/lib/storage";
@@ -103,11 +104,14 @@ export async function reportingList(ctx: CompanyContext): Promise<ReportingItem[
 }
 
 /** Replaces the avatar, removing the old object so a company's storage does not grow forever. */
-export async function setAvatar(ctx: CompanyContext, buffer: Buffer, mime: string, ext: string): Promise<string> {
+export async function setAvatar(ctx: CompanyContext, raw: Buffer, mime: string, _ext: string): Promise<string> {
   const u = await scoped(User, ctx).findById(ctx.userId);
   if (!u) throw Errors.notFound("Profile");
+  // A109: a selfie is several megabytes and is shown at forty pixels.
+  const { buffer, contentType, ext } = await compressImage(raw, mime, "avatar");
+  void _ext;
   const key = `companies/${ctx.companyId}/avatars/${ctx.userId}-${Date.now()}.${ext}`;
-  await storage().put({ key, body: buffer, contentType: mime });
+  await storage().put({ key, body: buffer, contentType });
   const url = await storage().getSignedUrl(key, 60 * 60 * 24 * 365);
   const old = u.avatarKey as string | null | undefined;
   u.set("avatarKey", key);
