@@ -157,6 +157,7 @@ export default async function run({ browser, lab, check }) {
    * be reached from an HTTP call.
    */
   const page = emp;
+  await page.context().grantPermissions(["camera"]).catch(() => {});
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Network.enable");
 
@@ -181,6 +182,32 @@ export default async function run({ browser, lab, check }) {
     // The point of the check: the first failure must not be remembered. It was,
     // and pressing the button again did nothing at all until the page reloaded.
     check("trying again after a failure really tries again", recovered);
+
+    /*
+     * And Capture has to come back (A115).
+     *
+     * The reported symptom was a Capture button spinning for ever with the
+     * camera already open and the model already downloaded - the face read
+     * itself never returned, so `setBusy(false)` never ran and the only way out
+     * was to kill the app. What is asserted is not that a face is found (there
+     * is no face in a synthetic camera) but that an answer of any kind arrives
+     * and the button is usable again.
+     */
+    const cameraUp = await page.waitForSelector("text=Look at the camera", { timeout: 120_000 })
+      .then(() => true).catch(() => false);
+    check("the camera opens after the model is ready", cameraUp);
+
+    if (cameraUp) {
+      const began = Date.now();
+      await page.click('button:has-text("Capture")');
+      const answered = await page.waitForSelector("text=/No face found|Come a little closer|could not be read|struggling to read|Good\\.|That is enough/", { timeout: 60_000 })
+        .then((el) => el.textContent()).catch(() => null);
+      check("Capture always comes back with an answer", Boolean(answered),
+        answered ?? `nothing after ${((Date.now() - began) / 1000).toFixed(0)}s`);
+
+      const stuck = await page.$('button:has-text("Capture")[disabled]');
+      check("and the button is usable again afterwards", !stuck);
+    }
   }
 
   // Off again for the suites that follow.

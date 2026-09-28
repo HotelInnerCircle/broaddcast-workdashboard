@@ -833,3 +833,15 @@ Three ledger checks failed overnight with nothing having changed in the ledger. 
 - **Both now read from next month**, which is wholly in the future and always contains Sundays. The assertions are unchanged in what they claim; they simply no longer depend on how much of this month happens to be left.
 - **Worth saying plainly:** these would have failed on the 28th of any month with this shape, and the suite has been green every day until the one it was run on. A test that passes because of the date is a test that is not being run.
 - **Where:** `tests/e2e/suites/ledger.mjs`.
+
+### A115. Capture spun for ever, with the camera already open (owner report, 28 Sep 2026)
+A113 fixed the download. The owner then sent a photograph of the screen that showed what was actually wrong: the camera was live, the model was loaded, "0 of 4 captured" - and the **Capture** button was spinning. The download had never been the problem at that stage; the face read itself never came back.
+
+- **`await readFace(...)` never settled**, so `setBusy(false)` never ran. On iOS every browser is WebKit, and tf.js on WebKit's WebGL can stop inside an inference - not slowly, not with an error, simply never resolving. The only way out was killing the app.
+- **Every read now has twenty seconds.** Far longer than the half-second it takes when the GPU path works, short enough that somebody holding a phone to their face gets an answer. The button resets in a `finally`, so it cannot be left spinning whatever happens underneath.
+- **The model is warmed up during setup.** The first inference on a device compiles shaders and uploads weights - twenty seconds on a phone against half a second for every run after. That is now paid while the screen says it is getting ready and the person knows they are waiting, rather than on the one tap that matters. This is the most likely cause of what was reported.
+- **`'wasm-unsafe-eval'` added to the CSP.** Without it a browser whose WebGL is unusable has nothing left but the CPU path, which is slow enough to look like a hang. It permits WebAssembly only - not `eval`, not `new Function`.
+- **Detector input cut from 416 to 320.** A third less work for a face that fills the frame, which is the only kind this accepts - anything under 15% of the width is rejected anyway.
+- **The reason this reached somebody's phone: the test harness launched Chrome with no camera at all.** `getUserMedia` could never succeed, so every camera path was untestable and therefore untested. The harness now starts with a synthetic camera, and the suite drives the real screen: the camera opens, Capture comes back with an answer, and the button is usable again afterwards. 37 checks in the face suite.
+- **Found from a photograph of the screen**, which named the stage precisely. The stage before it had been fixed the same day and looked identical from the outside.
+- **Where:** `lib/face/client.ts`, `components/attendance/face-enrolment.tsx`, `next.config.ts`, `tests/e2e/harness.mjs`, `tests/e2e/suites/face-check.mjs`.

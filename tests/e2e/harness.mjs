@@ -54,7 +54,19 @@ export function findChrome() {
 
 export async function launch() {
   const { chromium } = require("playwright-core");
-  return chromium.launch({ executablePath: findChrome(), headless: process.env.E2E_HEADED !== "1" });
+  return chromium.launch({
+    executablePath: findChrome(),
+    headless: process.env.E2E_HEADED !== "1",
+    /*
+     * A synthetic camera, so the screens that open one can be driven at all.
+     * Without these `getUserMedia` simply fails in headless Chrome, and every
+     * camera path - enrolling a face, capturing a swipe - was untestable and
+     * therefore untested. There is no face in the fake stream, which is fine:
+     * what these prove is that the camera opens and the read comes back, not
+     * that a particular person was recognised.
+     */
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+  });
 }
 
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));

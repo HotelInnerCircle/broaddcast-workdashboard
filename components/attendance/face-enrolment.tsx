@@ -84,8 +84,12 @@ export function FaceEnrolment() {
   const capture = async () => {
     if (!video.current) return;
     setBusy(true);
-    const read = await readFace(video.current);
-    setBusy(false);
+    // In a finally, so the button can never be left spinning. `readFace` has its
+    // own clock on it now and always settles, but the one thing this screen must
+    // never do again is stick on a capture that will not come back.
+    let read;
+    try { read = await readFace(video.current); }
+    finally { setBusy(false); }
     if (!read.ok || !read.descriptor) { setHint(read.message); return; }
     const next = [...samples, read.descriptor];
     setSamples(next);

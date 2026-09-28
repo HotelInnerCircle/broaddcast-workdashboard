@@ -100,6 +100,7 @@ export async function loadFaceModels(onProgress: (pct: number) => void = () => {
         api.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
         api.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
       ]);
+      await warmUp(api);
     } catch {
       // Cleared, so that pressing the button again is a real second attempt.
       // Left set, a rejected promise is handed straight back to every retry and
@@ -120,7 +121,77 @@ export class FaceModelError extends Error {
   constructor(message: string) { super(message); this.name = "FaceModelError"; }
 }
 
-export type FaceReadFailure = "no-face" | "many-faces" | "too-small" | "failed";
+/**
+ * One throwaway inference on a blank square, while the screen still says it is
+ * getting ready (A115).
+ *
+ * The first run of a model is far slower than every run after it: the shaders
+ * are compiled and the weights are pushed to the GPU on that pass, and on a
+ * phone it is the difference between twenty seconds and half a second. Paying
+ * that during setup - where there is already a progress line and a person who
+ * knows they are waiting - means the first Capture answers immediately instead
+ * of appearing to hang on the one tap that matters.
+ *
+ * Its own failure is not fatal. If the warm-up cannot finish, the read that
+ * follows has its own clock on it and will say so in the person's terms.
+ */
+async function warmUp(api: FaceApi): Promise<void> {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = DETECT_SIZE;
+    canvas.height = DETECT_SIZE;
+    const gc = canvas.getContext("2d");
+    if (!gc) return;
+    gc.fillStyle = "#808080";
+    gc.fillRect(0, 0, DETECT_SIZE, DETECT_SIZE);
+    await withTimeout(
+      () => api.detectAllFaces(canvas, new api.TinyFaceDetectorOptions({ inputSize: DETECT_SIZE, scoreThreshold: 0.4 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptors()
+        .run(),
+      READ_TIMEOUT_MS,
+    );
+  } catch {
+    // Warming up is an optimisation. Never let it stop an enrolment.
+  }
+}
+
+export type FaceReadFailure = "no-face" | "many-faces" | "too-small" | "slow" | "failed";
+
+/**
+ * How long one face read may take before it is abandoned (A115).
+ *
+ * Twenty seconds is far longer than the half-second this takes when the GPU
+ * path is working, and short enough that somebody holding a phone up to their
+ * face gets an answer rather than a spinner.
+ */
+const READ_TIMEOUT_MS = 20_000;
+
+/**
+ * The detector's input square. 320 rather than 416: a third less work for a
+ * face that fills the frame, which is the only kind this accepts anyway - the
+ * "too small" guard below rejects anything under 15% of the width.
+ */
+const DETECT_SIZE = 320;
+
+const TIMED_OUT = Symbol("timed-out");
+
+/**
+ * Resolves to the work's value, or to TIMED_OUT if it takes too long or throws.
+ *
+ * It takes a thunk rather than a promise so the caller can hand over a chained
+ * face-api task by its own `run()` - the task type is a thenable of its own and
+ * is not assignable to PromiseLike.
+ */
+function withTimeout<T>(work: () => Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(TIMED_OUT), ms);
+    work().then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      () => { clearTimeout(timer); resolve(TIMED_OUT); },
+    );
+  });
+}
 
 export interface FaceRead {
   ok: boolean;
@@ -134,6 +205,7 @@ const MESSAGES: Record<FaceReadFailure, string> = {
   "no-face": "No face found. Hold the camera at arm's length in good light.",
   "many-faces": "More than one face in the picture. Make sure it is only you.",
   "too-small": "Come a little closer so your face fills more of the frame.",
+  slow: "This device is struggling to read faces. Try once more, or use a different phone.",
   failed: "The face could not be read. Try once more.",
 };
 
@@ -155,10 +227,25 @@ export async function readFace(input: HTMLVideoElement | HTMLImageElement | HTML
     const api = await loadApi();
     await loadFaceModels();
 
-    const found = await api
-      .detectAllFaces(input, new api.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.4 }))
-      .withFaceLandmarks(true)
-      .withFaceDescriptors();
+    /*
+     * Raced against a clock (A115).
+     *
+     * On iOS every browser is WebKit, and tf.js on WebKit's WebGL can stop
+     * dead inside an inference - not slowly, not with an error, simply never
+     * resolving. The await above it then never returns, the Capture button
+     * spins for ever and the only way out is to kill the app. Whatever the
+     * cause, a face read that has not finished in this long is not going to,
+     * and saying so is infinitely better than a spinner with no end.
+     */
+    const found = await withTimeout(
+      () => api
+        .detectAllFaces(input, new api.TinyFaceDetectorOptions({ inputSize: DETECT_SIZE, scoreThreshold: 0.4 }))
+        .withFaceLandmarks(true)
+        .withFaceDescriptors()
+        .run(),
+      READ_TIMEOUT_MS,
+    );
+    if (found === TIMED_OUT) return fail("slow");
 
     if (found.length === 0) return fail("no-face");
     if (found.length > 1) return fail("many-faces");

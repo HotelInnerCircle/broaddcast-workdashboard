@@ -16,7 +16,11 @@ const imagekit = new URL(process.env.IMAGEKIT_URL_ENDPOINT || "https://ik.imagek
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} https://checkout.razorpay.com`,
+  // 'wasm-unsafe-eval' lets TensorFlow compile WebAssembly for the face check
+  // (A115). It permits WebAssembly only - not eval, not new Function - and
+  // without it a browser whose WebGL path is unusable has nothing left to fall
+  // back to but the CPU, which is slow enough to look like a hang.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${dev ? " 'unsafe-eval'" : ""} https://checkout.razorpay.com`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${imagekit} https://*.razorpay.com`,
   "font-src 'self' data:",
