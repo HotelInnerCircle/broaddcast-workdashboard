@@ -812,3 +812,24 @@ The owner said their profile was not coming through on the home screen. It was n
 - **The test asserts the browser decoded a picture, not that an `<img>` exists.** The first version checked the tag was in the DOM and passed against a screenshot showing an empty circle - a tag whose `src` 404s is still a tag and still matches a selector. `naturalWidth > 0` is the only thing that says a picture actually arrived. A stale signed link is exactly how this breaks in the field, and the weaker check would have called it fine.
 - **The screenshot was looked at, which is what caught the weak assertion.** The test image was also a brown almost identical to the header behind it, so a rendered photo and a missing one looked the same; it is a colour nothing else in the app uses now.
 - **Where:** `components/dashboard/mobile-home.tsx`, `tests/e2e/suites/profile.mjs`.
+
+### A113. The face model looked broken because it was only slow (owner report, 28 Sep 2026)
+The owner said face verification "was not capturing, taking loading only". It was downloading. The weights are 6.5 MB and on mobile data that is a minute or more - but the screen showed one unchanging line for all of it, so a slow download and a broken one were indistinguishable. Four separate faults, only one of which was about speed.
+
+- **No progress.** `loadFromUri` reports none, so the hint never moved. The bytes are now fetched first and counted as they arrive, and `loadFromUri` reads them out of the HTTP cache afterwards. Measured on a throttled connection: 0% to 99% over 79 seconds, which is a wait somebody will sit through rather than a screen they close.
+- **No timeout.** A stalled download on a phone never rejects - the promise simply stays pending and the screen waits for ever. It gives up out loud after two minutes now.
+- **A failed load was remembered.** `modelsPromise ??=` caches a *rejected* promise, so pressing the button again handed back the same failure without attempting anything; only a full page reload cleared it. Both cached promises are dropped on failure now.
+- **The error blamed the camera.** One `catch` covered both the model download and `getUserMedia`, so a connection that dropped told somebody to check their camera - sending them to fix the wrong thing. `FaceModelError` separates them.
+- **The weights are cached for a year, immutable.** They were served `max-age=0, must-revalidate`, so every launch paid a round trip per file before using bytes it already had. A new model would be a new file name.
+- **Verified in a real browser with the network cut**, because none of this is reachable from an HTTP call: the failure is reported, it does not mention the camera, and trying again after it really does try again. 34 checks in the face suite now.
+- **What this was not:** a 404. Chasing one locally led to a dead end - a different project was occupying port 3000 and answering every request, so the model files appeared to be missing. Production had been serving them correctly the whole time.
+- **Where:** `lib/face/client.ts`, `components/attendance/face-enrolment.tsx`, `next.config.ts`, `tests/e2e/suites/face-check.mjs`.
+
+### A114. The ledger tests ran out of month (test fix, 28 Sep 2026)
+Three ledger checks failed overnight with nothing having changed in the ledger. The date had moved from the 27th to the 28th, and that was the whole story.
+
+- **The suite spends the days it needs.** `futureWeekdays()` returns what is left of the month; the first becomes a test holiday and the second a test leave day. On Monday the 28th there were exactly two - the 29th and the 30th - so both were consumed and nothing remained to assert as "Upcoming". The existing guard asked for at least two, which is the precise number at which the last check starves.
+- **And the calendar took the other one.** The check wanted a Sunday on or after the join date, but the test's employee is created today and the month's last Sunday was the 27th.
+- **Both now read from next month**, which is wholly in the future and always contains Sundays. The assertions are unchanged in what they claim; they simply no longer depend on how much of this month happens to be left.
+- **Worth saying plainly:** these would have failed on the 28th of any month with this shape, and the suite has been green every day until the one it was run on. A test that passes because of the date is a test that is not being run.
+- **Where:** `tests/e2e/suites/ledger.mjs`.

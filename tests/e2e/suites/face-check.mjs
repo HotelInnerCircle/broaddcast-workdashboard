@@ -141,6 +141,48 @@ export default async function run({ browser, lab, check }) {
   const stealOther = await call(emp, `/api/me/face?userId=${lab.ids.hr}`, null, "DELETE");
   check("an employee cannot remove somebody else's", stealOther.status === 403, `status=${stealOther.status}`);
 
+  /* ---------- the model download, when the connection is against you ---------- */
+  /*
+   * The weights are 6.5 MB and on mobile data that is a minute or more (A113).
+   * Three things went wrong there and none of them were visible from the API:
+   *
+   * - the screen showed one unchanging line, so a slow download and a broken
+   *   one looked identical and people closed the app;
+   * - a failed load was cached, so pressing the button again replayed the same
+   *   failure without attempting anything - the only cure was a full reload;
+   * - the error said the camera could not be opened, sending somebody to check
+   *   the wrong thing entirely.
+   *
+   * Driven through the real screen with the network cut, because none of it can
+   * be reached from an HTTP call.
+   */
+  const page = emp;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Network.enable");
+
+  await page.goto(`${lab.base}/profile`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  const card = await page.waitForSelector("text=Face check", { timeout: 30_000 }).then(() => true).catch(() => false);
+  check("the enrolment card is on the profile", card);
+
+  if (card) {
+    await page.click('input[type="checkbox"]').catch(() => {});
+
+    await cdp.send("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
+    await page.click('button:has-text("Enrol my face")');
+    const complaint = await page.waitForSelector("text=/could not be downloaded|taking too long/", { timeout: 60_000 })
+      .then((el) => el.textContent()).catch(() => null);
+    check("a model that will not download says so", Boolean(complaint), complaint ?? "(no message appeared)");
+    check("and does not blame the camera", !/camera/i.test(complaint ?? ""), complaint ?? "");
+
+    await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await page.click('button:has-text("Enrol my face")');
+    const recovered = await page.waitForSelector("text=/Look at the camera|Getting the face model ready - /", { timeout: 90_000 })
+      .then(() => true).catch(() => false);
+    // The point of the check: the first failure must not be remembered. It was,
+    // and pressing the button again did nothing at all until the page reloaded.
+    check("trying again after a failure really tries again", recovered);
+  }
+
   // Off again for the suites that follow.
   await call(admin, "/api/admin/company", { faceCheck: { enabled: false } }, "PATCH");
 }

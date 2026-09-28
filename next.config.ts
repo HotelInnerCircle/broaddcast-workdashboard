@@ -41,6 +41,17 @@ const nextConfig: NextConfig = {
   images: { remotePatterns: [{ protocol: "https", hostname: "**" }] },
   async headers() {
     return [
+      /*
+       * The face model weights never change - a new model would be a new file
+       * name - and they are 6.5 MB (A113). Served with the default
+       * `max-age=0, must-revalidate` every launch pays a round trip per file
+       * before it may use bytes it already has. Marked immutable, it is one
+       * download per device and nothing after that.
+       */
+      {
+        source: "/models/face/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
       {
         source: "/(.*)",
         headers: [

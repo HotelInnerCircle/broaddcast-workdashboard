@@ -22,22 +22,102 @@ let modelsPromise: Promise<void> | null = null;
 
 const MODEL_URL = "/models/face";
 
+/** The weight files, largest first so the slow one starts immediately. */
+const WEIGHTS = ["face_recognition_model.bin", "tiny_face_detector_model.bin", "face_landmark_68_tiny_model.bin"];
+
+/**
+ * How long to wait before calling it dead (A113).
+ *
+ * A stalled download on a phone never rejects on its own - the promise simply
+ * stays pending, and the screen sits on "loading" until somebody force-closes
+ * the app. Better to give up out loud after two minutes than to spin silently.
+ */
+const LOAD_TIMEOUT_MS = 120_000;
+
 async function loadApi(): Promise<FaceApi> {
-  apiPromise ??= import("@vladmandic/face-api");
+  apiPromise ??= import("@vladmandic/face-api").catch((e) => {
+    // A rejected promise must not be cached, or every retry replays the same
+    // failure without so much as attempting the download again.
+    apiPromise = null;
+    throw e;
+  });
   return apiPromise;
 }
 
-/** Fetches the three models once, and remembers that it did. */
-export async function loadFaceModels(): Promise<void> {
+/**
+ * Downloads the weights, reporting progress.
+ *
+ * face-api's own `loadFromUri` gives no progress and 6.5 MB on mobile data is a
+ * minute or more of a screen that appears to be doing nothing - which is
+ * indistinguishable from broken, so people close the app and report it as
+ * broken. The bytes are pulled here first, counted as they arrive, and then
+ * `loadFromUri` is called and reads them straight out of the HTTP cache.
+ */
+async function fetchWeights(onProgress: (pct: number) => void, signal: AbortSignal): Promise<void> {
+  let total = 0;
+  let done = 0;
+
+  await Promise.all(WEIGHTS.map(async (file) => {
+    const res = await fetch(`${MODEL_URL}/${file}`, { signal });
+    if (!res.ok) throw new Error(`${file} ${res.status}`);
+    // The size comes off this same response rather than a HEAD beforehand: one
+    // request per file instead of two, and no second round trip on a connection
+    // slow enough for any of this to matter. The total grows as the three
+    // responses arrive, so the early percentage is a little pessimistic and
+    // never goes backwards by more than that.
+    total += Number(res.headers.get("content-length") ?? 0);
+
+    // Read to the end whether or not anyone is watching the number: an
+    // unconsumed body is what the browser reports as an aborted request, and it
+    // would leave nothing in the cache for loadFromUri to find.
+    if (!res.body) { await res.arrayBuffer(); return; }
+    const reader = res.body.getReader();
+    for (;;) {
+      const { done: finished, value } = await reader.read();
+      if (finished) break;
+      done += value?.length ?? 0;
+      if (total) onProgress(Math.min(0.99, done / total));
+    }
+  }));
+  onProgress(1);
+}
+
+/**
+ * Fetches the three models once, and remembers that it did.
+ *
+ * `onProgress` runs from 0 to 1 while the weights come down. A failure clears
+ * the cached promise so that pressing the button again is a real second attempt.
+ */
+export async function loadFaceModels(onProgress: (pct: number) => void = () => {}): Promise<void> {
   const api = await loadApi();
   modelsPromise ??= (async () => {
-    await Promise.all([
-      api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-      api.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
-      api.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-    ]);
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), LOAD_TIMEOUT_MS);
+    try {
+      await fetchWeights(onProgress, abort.signal);
+      await Promise.all([
+        api.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        api.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+        api.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+      ]);
+    } catch {
+      // Cleared, so that pressing the button again is a real second attempt.
+      // Left set, a rejected promise is handed straight back to every retry and
+      // nothing is ever downloaded again until the page is reloaded.
+      modelsPromise = null;
+      throw new FaceModelError(abort.signal.aborted
+        ? "The face model is taking too long to download. Check your connection and try again."
+        : "The face model could not be downloaded. Try again in a moment.");
+    } finally {
+      clearTimeout(timer);
+    }
   })();
   return modelsPromise;
+}
+
+/** Distinguishes a model that would not download from a camera that would not open. */
+export class FaceModelError extends Error {
+  constructor(message: string) { super(message); this.name = "FaceModelError"; }
 }
 
 export type FaceReadFailure = "no-face" | "many-faces" | "too-small" | "failed";

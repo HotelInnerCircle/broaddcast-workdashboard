@@ -21,6 +21,23 @@ const WHITESPACE = new RegExp("\\s+", "g");
 const MONTH = () => new Date().toISOString().slice(0, 10).slice(0, 7);
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * The month after this one.
+ *
+ * Week offs and days still to come are asserted against it rather than against
+ * whatever is left of today's month. On the 28th there were two weekdays left,
+ * the test spent one on a holiday and one on a leave day, and then failed
+ * because nothing remained to be "Upcoming" - and the last Sunday had fallen
+ * before the day the test's employee was created, so there was no week off to
+ * find either. Both were the calendar running out, not the ledger being wrong.
+ * Next month is always entirely ahead and always has Sundays in it.
+ */
+const NEXT_MONTH = () => {
+  const d = new Date();
+  const n = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+};
+
 /** Weekdays still to come this month, in order - working days that are not today. */
 function futureWeekdays() {
   const d = new Date();
@@ -92,10 +109,16 @@ export default async function run({ browser, lab, check }) {
     check("casual leave is paid", byDate.get(leaveOn)?.payable === true);
   }
 
-  // A Sunday the person was actually employed for - earlier ones are "Before joining".
-  const weekend = (L?.days ?? []).find((d) => d.weekday === "Sun" && d.date >= L.joinedOn);
-  check("Sunday is a week off", weekend?.kind === "Week off", weekend?.kind);
-  check("nobody is docked for a Sunday", weekend?.payable === true);
+  // Read from next month, which is wholly after the join date and always
+  // contains Sundays - this month may have spent its last one before the
+  // test's employee existed.
+  const nextRes = await call(emp, `/api/reports/ledger?month=${NEXT_MONTH()}`, null, "GET");
+  const N = nextRes.json?.data;
+  check("next month's ledger loads too", nextRes.status === 200 && Boolean(N), `status=${nextRes.status}`);
+
+  const weekend = (N?.days ?? []).find((d) => d.weekday === "Sun");
+  check("Sunday is a week off", weekend?.kind === "Week off", `${weekend?.date} -> ${weekend?.kind}`);
+  check("nobody is docked for a Sunday", weekend?.payable === true, weekend?.date);
 
   const today = TODAY();
   const todayKind = byDate.get(today)?.kind;
@@ -106,8 +129,13 @@ export default async function run({ browser, lab, check }) {
   } else {
     check("today shows the clock-in", ["Present", "Late", "Half Day"].includes(todayKind), todayKind);
   }
-  const upcoming = (L?.days ?? []).filter((d) => d.date > today && d.kind === "Upcoming").length;
-  check("days still to come are not marked absent", upcoming > 0, `${upcoming} upcoming`);
+  // Also next month's, for the same reason: what is left of this one gets spent
+  // on the holiday and the leave day, and on the 28th that was all of it.
+  const upcoming = (N?.days ?? []).filter((d) => d.date > today && d.kind === "Upcoming").length;
+  check("days still to come are not marked absent", upcoming > 0, `${upcoming} upcoming in ${NEXT_MONTH()}`);
+  check("and none of next month is an absence yet",
+    (N?.days ?? []).every((d) => d.kind !== "Absent"),
+    (N?.days ?? []).filter((d) => d.kind === "Absent").slice(0, 3).map((d) => d.date).join(", "));
   const beforeJoining = (L?.days ?? []).filter((d) => d.date < L.joinedOn);
   check("days before the join date are not absences", beforeJoining.every((d) => d.kind === "Before joining"),
     `${beforeJoining.length} days before ${L?.joinedOn}`);

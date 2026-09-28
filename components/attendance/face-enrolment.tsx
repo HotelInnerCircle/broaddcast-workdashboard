@@ -6,7 +6,7 @@ import { ScanFace, Check, Trash2, Loader2, CircleAlert } from "lucide-react";
 import { api, ClientApiError } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { readFace, loadFaceModels, cameraSupported } from "@/lib/face/client";
+import { readFace, loadFaceModels, cameraSupported, FaceModelError } from "@/lib/face/client";
 import { cn } from "@/lib/utils/cn";
 
 interface Status { enrolled: boolean; enrolledAt: string | null; samples: number; required: boolean }
@@ -51,9 +51,20 @@ export function FaceEnrolment() {
   const start = async () => {
     if (!cameraSupported()) { toast.error("This device has no camera the browser can use"); return; }
     setSamples([]);
-    setHint("Loading the face model - this happens once on this device…");
+    /*
+     * The model is 6.5 MB and on mobile data that is a minute or more (A113).
+     * Without a number moving, a slow download and a broken one look exactly
+     * the same, so people wait, then close the app and say the face check does
+     * not work. It downloads once per device; the percentage is what makes the
+     * wait legible rather than suspicious.
+     */
+    setHint("Getting the face model ready - this happens once on this device…");
     try {
-      await loadFaceModels();
+      await loadFaceModels((pct) => setHint(
+        pct >= 1
+          ? "Opening the camera…"
+          : `Getting the face model ready - ${Math.round(pct * 100)}%. This happens once on this device.`,
+      ));
       const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 640, height: 480 } });
       stream.current = s;
       setCapturing(true);
@@ -62,7 +73,11 @@ export function FaceEnrolment() {
       requestAnimationFrame(() => { if (video.current) { video.current.srcObject = s; void video.current.play(); } });
     } catch (e) {
       setHint(null);
-      toast.error(e instanceof Error && e.name === "NotAllowedError" ? "Camera permission was refused" : "The camera could not be opened");
+      // A model that would not download is not a camera that would not open -
+      // telling somebody to check their camera when their connection dropped
+      // sends them to fix the wrong thing.
+      if (e instanceof FaceModelError) toast.error(e.message);
+      else toast.error(e instanceof Error && e.name === "NotAllowedError" ? "Camera permission was refused" : "The camera could not be opened");
     }
   };
 
