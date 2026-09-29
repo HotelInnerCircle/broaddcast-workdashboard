@@ -85,32 +85,46 @@ export function LeaveHistory({ rows, canDecide, myUserId, onDecide, onCancel }: 
 
 /** What is left, and the monthly figure people actually ask about. */
 export function LeaveBalance({ rows }: { rows: BalanceRow[] }) {
-  if (rows.every((r) => r.daysPerYear === 0)) {
+  if (rows.length === 0) {
     return <Card><CardContent className="p-0">
-      <EmptyState icon={ClipboardList} title="No allowances set yet" description="HR sets how many days of each kind people get, in Shifts & holidays." className="py-10" />
+      <EmptyState icon={ClipboardList} title="Nothing to show yet" description="HR sets how many days of each kind people get, in Shifts & holidays." className="py-10" />
     </CardContent></Card>;
   }
+
+  /*
+   * One line per kind, the figure on the right (A123).
+   *
+   * Cards with progress bars were showing things like "0.8 days left of 0.8
+   * earned so far", which is a sentence nobody can act on - there is no way to
+   * book eight tenths of a day, and the bar measured a total that changes every
+   * month. A list answers the question people open this screen with.
+   *
+   * One decimal always, so the column lines up and a half day reads as a half
+   * day rather than as a rounding artefact.
+   */
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {rows.map((r) => (
-        <Card key={r.type}><CardContent className="p-4">
-          <div className="flex items-start justify-between gap-2">
-            <p className="text-[15px] font-semibold">{r.typeLabel}</p>
-            <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">{r.type}</span>
+    <Card>
+      <CardContent className="divide-y divide-border p-0">
+        {rows.map((r) => (
+          <div key={r.type} className="flex items-center justify-between gap-4 px-5 py-3.5">
+            <span className="text-[14.5px] text-muted-foreground">{r.typeLabel}</span>
+            <span className="flex items-baseline gap-2">
+              <span className="font-display text-[22px] leading-none tabular-nums">{r.figure.toFixed(1)}</span>
+              {/*
+                What the number means, because it is not the same for every row:
+                days you have left of what you are given, against days you have
+                used of something you are not given at all.
+              */}
+              <span className="w-44 text-right text-[11px] text-muted-foreground">
+                {r.carriesBalance ? "left" : "taken"}
+                {/* Where part of it came from, so a bigger number than expected explains itself. */}
+                {r.carriedIn > 0 ? ` · ${r.carriedIn} carried` : ""}
+                {r.pending > 0 && r.carriesBalance ? ` · ${r.pending} awaiting` : ""}
+              </span>
+            </span>
           </div>
-          <p className="mt-2 font-display text-[34px] leading-none">{r.remaining}</p>
-          <p className="mt-1 text-[12.5px] text-muted-foreground">
-            day{r.remaining === 1 ? "" : "s"} left of {r.accrued} earned so far
-          </p>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-2 rounded-full bg-primary" style={{ width: `${r.accrued > 0 ? Math.min(100, ((r.taken + r.pending) / r.accrued) * 100) : 0}%` }} />
-          </div>
-          <p className="mt-2 text-[11.5px] text-muted-foreground">
-            {r.taken} taken{r.pending > 0 ? ` \u00b7 ${r.pending} awaiting approval` : ""} &middot; {r.daysPerYear}/year
-            {r.monthlyAccrual ? ` (${Math.round((r.daysPerYear / 12) * 10) / 10} a month)` : " (all up front)"}
-          </p>
-        </CardContent></Card>
-      ))}
-    </div>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

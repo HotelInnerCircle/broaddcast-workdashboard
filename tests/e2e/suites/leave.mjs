@@ -86,7 +86,27 @@ export default async function run({ browser, lab, check }) {
   await shot(emp, "leave-history");
 
   await emp.click('button:has-text("Balance")');
-  check("Balance shows what is left", await waitForText(emp, /left of/, 30_000));
+  /*
+   * The balance is a plain list now (A123): one line per kind, the figure on
+   * the right, one decimal. It used to read "0.8 days left of 0.8 earned so
+   * far" - a sentence nobody can act on, since there is no way to book eight
+   * tenths of a day.
+   */
+  check("Balance shows what is left", await waitForText(emp, /Privilege Leave/, 30_000));
+  const balanceText = await emp.textContent("body");
+  check("every kind is listed, including the ones with no allowance",
+    ["Privilege Leave", "Casual Leave", "Sick Leave", "Comp Off", "Loss of Pay", "On Duty"].every((t) => balanceText.includes(t)),
+    balanceText.slice(0, 200));
+  // Half days are the smallest leave anybody can take, so the figures land on
+  // them - never on a tenth.
+  const figures = await emp.evaluate(() =>
+    Array.from(document.querySelectorAll("main span"))
+      .map((e) => (e.textContent ?? "").trim())
+      .filter((t) => /^[0-9]+[.][0-9]$/.test(t)));
+  check("the figures are whole or half days",
+    figures.length >= 6 && figures.every((f) => f.endsWith(".0") || f.endsWith(".5")),
+    figures.join(" ") || "no figures found at all");
+  check("and it says whether that is days left or days taken", /left/.test(balanceText) && /taken/.test(balanceText));
   await shot(emp, "leave-balance");
 
   /* ---------- the admin decides the order (A104) ---------- */

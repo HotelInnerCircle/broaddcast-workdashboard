@@ -11,7 +11,7 @@ import { buildChain, canDecide, approversFor } from "@/services/approvalChain";
 import { LeaveRequest } from "@/models/LeaveRequest";
 import { LeavePolicy } from "@/models/LeavePolicy";
 import { User } from "@/models/User";
-import { LEAVE_TYPES_WITH_BALANCE, LEAVE_TYPE_LABEL, type LeaveType } from "@/types";
+import { LEAVE_TYPES, LEAVE_TYPES_WITH_BALANCE, LEAVE_TYPE_LABEL, type LeaveType } from "@/types";
 import type { CompanyContext } from "@/lib/auth/context";
 import type { LeaveCreateInput } from "@/lib/validation/leave";
 
@@ -28,6 +28,12 @@ export interface LeaveRow {
 export interface BalanceRow {
   type: LeaveType; typeLabel: string;
   daysPerYear: number; monthlyAccrual: boolean;
+  /** Days brought forward from last year (A124). */
+  carriedIn: number;
+  /** Whether this kind is given to you at all, or only counted. */
+  carriesBalance: boolean;
+  /** The single number the balance screen shows. */
+  figure: number;
   /** Entitlement earned so far this year. */
   accrued: number;
   taken: number; pending: number; remaining: number;
@@ -79,37 +85,131 @@ async function serialize(d: Record<string, unknown>, names: Map<string, string>)
 }
 
 /**
- * What someone has, has taken and has left, per kind (A91).
+ * What someone has, has taken and has left, per kind (A91, carried since A124).
  *
- * Accrual is monthly by default: in September you have earned nine twelfths of the year, not the
- * whole thing. Loss of pay and on duty carry no entitlement - they are recorded, not deducted.
+ * Accrual is monthly: a twelfth of the year's allowance lands at the start of
+ * each month, so in September somebody has earned nine twelfths and not the
+ * whole thing. Loss of pay and on duty carry no entitlement - they are
+ * recorded, not deducted.
+ *
+ * Days nobody used do not vanish on the 1st of January. The balance is folded
+ * forward year by year from the year the person joined: what was left at the
+ * end of one year opens the next, capped where the policy caps it. Before this
+ * every balance reset each January and a year of unused earned leave simply
+ * disappeared - which is somebody's money, since it is owed when they leave.
  */
 export async function leaveBalance(ctx: CompanyContext, userId: string, year?: number): Promise<BalanceRow[]> {
   const y = year ?? new Date().getFullYear();
-  const [policies, taken] = await Promise.all([
-    scoped(LeavePolicy, ctx).find({ year: y }).lean(),
+  const uid = new Types.ObjectId(userId);
+  /*
+   * Every year at once, not just this one. Folding forward needs the whole
+   * history, and fetching it in one query rather than one per year keeps this
+   * to three round trips however long somebody has worked here.
+   */
+  const [allPolicies, allRequests, person] = await Promise.all([
+    scoped(LeavePolicy, ctx).find({}).lean(),
     scoped(LeaveRequest, ctx).find({
-      userId: new Types.ObjectId(userId),
+      userId: uid,
       status: { $in: ["APPROVED", "PENDING"] },
-      startDate: { $gte: `${y}-01-01`, $lte: `${y}-12-31` },
-    }).select("type days status").lean(),
+    }).select("type days status startDate").lean(),
+    scoped(User, ctx).findOne({ _id: uid }).select("joiningDate createdAt").lean(),
   ]);
-  const byType = new Map(policies.map((p) => [p.type as LeaveType, p]));
-  const monthsElapsed = y < new Date().getFullYear() ? 12 : y > new Date().getFullYear() ? 0 : new Date().getMonth() + 1;
 
-  return LEAVE_TYPES_WITH_BALANCE.map((type) => {
+  const policies = allPolicies.filter((p) => p.year === y);
+  const taken = allRequests.filter((r) => String(r.startDate).slice(0, 4) === String(y));
+
+  /*
+   * Where to start folding from: the year they joined. Earlier years are not
+   * theirs, and starting from the first policy the company ever wrote would
+   * credit a new joiner with leave from before they arrived.
+   */
+  const joined = (person?.joiningDate ?? person?.createdAt) as Date | undefined;
+  const firstYear = joined ? new Date(joined).getFullYear() : y;
+  const byType = new Map(policies.map((p) => [p.type as LeaveType, p]));
+  const thisYear = new Date().getFullYear();
+  /*
+   * A month's worth lands on the 1st, so January already holds one twelfth.
+   * getMonth() is zero-based, which is what the +1 is doing.
+   */
+  const monthsIn = (forYear: number) => (forYear < thisYear ? 12 : forYear > thisYear ? 0 : new Date().getMonth() + 1);
+  const monthsElapsed = monthsIn(y);
+
+  /**
+   * What each kind opens this year with: what was left at the end of last year,
+   * as far back as the person's first year, capped where the policy caps it.
+   *
+   * Half days throughout, because that is the smallest leave anybody can take
+   * and a carried balance has to be as bookable as a fresh one.
+   */
+  const openingFor = (type: LeaveType): number => {
+    if (!LEAVE_TYPES_WITH_BALANCE.includes(type)) return 0;
+    let carried = 0;
+    for (let year = firstYear; year < y; year++) {
+      const policy = allPolicies.find((p) => p.year === year && p.type === type);
+      const perYear = (policy?.daysPerYear as number) ?? 0;
+      const accruedThen = type === "COMP_OFF" ? 0
+        : policy?.monthlyAccrual === false ? perYear
+        : (perYear / 12) * monthsIn(year);
+      const usedThen = allRequests
+        .filter((r) => r.type === type && String(r.startDate).slice(0, 4) === String(year))
+        .reduce((n, r) => n + (r.days as number), 0);
+      const closing = Math.max(0, carried + accruedThen - usedThen);
+      // Only what the policy lets through, and only if it lets anything.
+      carried = policy?.carryForward
+        ? (policy.carryForwardMax ? Math.min(closing, policy.carryForwardMax as number) : closing)
+        : 0;
+    }
+    return Math.floor(carried * 2) / 2;
+  };
+
+  /*
+   * Every kind, not only the four that carry an allowance (A123). Loss of pay
+   * and on duty have nothing to run out of - they are recorded, never deducted -
+   * but "how many days of unpaid leave have I had this year" is exactly the
+   * question somebody opens this screen to answer, and leaving them off the list
+   * meant the only place to find out was counting the history by hand.
+   */
+  return LEAVE_TYPES.map((type) => {
     const p = byType.get(type);
     const daysPerYear = (p?.daysPerYear as number) ?? 0;
-    const monthly = p?.monthlyAccrual !== false;
-    const accrued = monthly ? Math.round(((daysPerYear / 12) * monthsElapsed) * 10) / 10 : daysPerYear;
+    /*
+     * Comp off is never earned by the calendar (A123). It is given for working a
+     * day that was yours - a holiday, a weekend - so it accrues when somebody
+     * grants it and at no other time. Accruing it monthly handed people days
+     * off they had not worked for.
+     */
+    const monthly = type !== "COMP_OFF" && p?.monthlyAccrual !== false;
+    /*
+     * Rounded down to the half day, because that is the smallest leave anybody
+     * can actually take (A123). One day a year, nine months in, is 0.75 - which
+     * was shown as "0.8 days left" and meant nothing: there is no way to book
+     * eight tenths of a day. Down rather than up, because rounding up hands out
+     * leave that has not been earned yet, and somebody leaving in March would
+     * be paid for it.
+     */
+    const opening = openingFor(type);
+    const earned = monthly ? (daysPerYear / 12) * monthsElapsed : daysPerYear;
+    const accrued = Math.floor((opening + earned) * 2) / 2;
     const mine = taken.filter((t) => t.type === type);
     const used = mine.filter((t) => t.status === "APPROVED").reduce((n, t) => n + (t.days as number), 0);
     const waiting = mine.filter((t) => t.status === "PENDING").reduce((n, t) => n + (t.days as number), 0);
+    /*
+     * What the number on the screen means differs by kind, so the row says
+     * which: days left for the ones you are given, days used for the ones you
+     * are not. A single "balance" column would have read 0.0 for somebody who
+     * had taken fourteen days of unpaid leave.
+     */
+    const carriesBalance = LEAVE_TYPES_WITH_BALANCE.includes(type);
     return {
       type, typeLabel: LEAVE_TYPE_LABEL[type],
       daysPerYear, monthlyAccrual: monthly, accrued,
+      /** Of the accrued figure, how much was brought in from last year. */
+      carriedIn: opening,
       taken: used, pending: waiting,
-      remaining: Math.round((accrued - used - waiting) * 10) / 10,
+      remaining: Math.floor((accrued - used - waiting) * 2) / 2,
+      carriesBalance,
+      /** The one figure to show: what is left, or what has been used. */
+      figure: carriesBalance ? Math.floor((accrued - used - waiting) * 2) / 2 : used,
     };
   });
 }
@@ -294,17 +394,76 @@ export async function listPolicies(ctx: CompanyContext, year?: number) {
   }));
 }
 
-export async function setPolicy(ctx: CompanyContext, input: { type: LeaveType; year: number; daysPerYear: number; monthlyAccrual?: boolean }, ip: string | null) {
+export async function setPolicy(
+  ctx: CompanyContext,
+  input: { type: LeaveType; year: number; daysPerYear: number; monthlyAccrual?: boolean; carryForward?: boolean; carryForwardMax?: number },
+  ip: string | null,
+) {
   // The scoped helper deliberately has no upsert, so the tenant filter can never be bypassed.
   const existing = await scoped(LeavePolicy, ctx).findOne({ type: input.type, year: input.year });
   if (existing) {
+    /*
+     * Only what was actually sent (A124). This used to write
+     * `monthlyAccrual ?? true` on every save, so changing the number of days
+     * for comp off - which must never accrue by the calendar - quietly turned
+     * accrual back on. A screen that sends one field should not decide the
+     * others.
+     */
     existing.daysPerYear = input.daysPerYear;
-    existing.monthlyAccrual = input.monthlyAccrual ?? true;
+    if (input.monthlyAccrual !== undefined) existing.monthlyAccrual = input.monthlyAccrual;
+    if (input.carryForward !== undefined) existing.carryForward = input.carryForward;
+    if (input.carryForwardMax !== undefined) existing.carryForwardMax = input.carryForwardMax;
     await existing.save();
   } else {
-    await scoped(LeavePolicy, ctx).create({ ...input, monthlyAccrual: input.monthlyAccrual ?? true });
+    const fallback = DEFAULT_LEAVE_PLAN.find((d) => d.type === input.type);
+    await scoped(LeavePolicy, ctx).create({
+      ...input,
+      monthlyAccrual: input.monthlyAccrual ?? fallback?.monthlyAccrual ?? true,
+      carryForward: input.carryForward ?? fallback?.carryForward ?? false,
+      carryForwardMax: input.carryForwardMax ?? fallback?.carryForwardMax ?? 0,
+    });
   }
   await audit({ ctx, companyId: ctx.companyId, entity: "leavePolicy", entityId: null, action: "leave_policy.set",
     summary: `${ctx.name} set ${LEAVE_TYPE_LABEL[input.type]} to ${input.daysPerYear} day(s) for ${input.year}`, after: input, ip });
   return listPolicies(ctx, input.year);
+}
+
+/**
+ * The leave a company starts with (A123).
+ *
+ * A new company had no policy at all, which meant every balance read zero and
+ * somebody had to invent the numbers before anybody could book a day off. These
+ * are the ordinary Indian allowances - they are a starting point, not a legal
+ * opinion, and HR can change any of them on the leave policy screen.
+ *
+ * Comp off is deliberately zero and does not accrue: it is earned by working a
+ * day that was yours, granted one at a time, not handed out by the calendar.
+ */
+export const DEFAULT_LEAVE_PLAN: Array<{ type: LeaveType; daysPerYear: number; monthlyAccrual: boolean; carryForward: boolean; carryForwardMax: number }> = [
+  /*
+   * Earned leave carries, capped (A124). It is earned by working and is owed in
+   * money when somebody leaves, so letting it run away uncapped turns into a
+   * liability nobody planned for - thirty days is the usual ceiling.
+   */
+  { type: "PL", daysPerYear: 15, monthlyAccrual: true, carryForward: true, carryForwardMax: 30 },
+  // Casual and sick leave are meant to be used in the year they are given.
+  { type: "CL", daysPerYear: 12, monthlyAccrual: true, carryForward: false, carryForwardMax: 0 },
+  { type: "SL", daysPerYear: 12, monthlyAccrual: true, carryForward: false, carryForwardMax: 0 },
+  // Comp off is granted for a day worked, one at a time, never by the calendar.
+  { type: "COMP_OFF", daysPerYear: 0, monthlyAccrual: false, carryForward: false, carryForwardMax: 0 },
+];
+
+/**
+ * Give a company the starting plan for a year, without touching anything
+ * already set. Safe to run again: it only fills what is missing, so a company
+ * that has decided on its own numbers keeps them.
+ */
+export async function seedLeavePlan(companyId: string, year: number): Promise<{ added: number }> {
+  const cid = new Types.ObjectId(companyId);
+  const existing = await LeavePolicy.find({ companyId: cid, year }).select("type").lean();
+  const have = new Set(existing.map((p) => p.type as string));
+  const missing = DEFAULT_LEAVE_PLAN.filter((d) => !have.has(d.type));
+  if (missing.length === 0) return { added: 0 };
+  await LeavePolicy.insertMany(missing.map((d) => ({ companyId: cid, year, ...d })));
+  return { added: missing.length };
 }

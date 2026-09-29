@@ -920,3 +920,23 @@ The owner said the app was slow and asked for reasons. Measured rather than gues
 - **recharts arrived with every page that imported a chart card**, whether a chart was on screen or not, because nothing in the app used `next/dynamic` at all. The charts are now fetched when one is actually rendered; `/reports/time` ships 189 B of page JavaScript instead of carrying the largest library in the app.
 
 **A correction worth recording.** I told the owner to check their Atlas and Vercel regions, calling it the biggest available win. It was not: their functions already run in Mumbai, and 33 ms from a home connection to Atlas is consistent with the cluster being in India too - from a Vercel function in the same region that is a few milliseconds, not 33. The number I measured was my own laptop's distance to the database, and I presented it as the server's. Production timings tell a different story: `/login` takes 300 ms consistently, ten hits in a row with no improvement - so not cold starts - on a page that touches no database at all. That is Next.js rendering plus function invocation on a Hobby plan, and it is where the remaining time is.
+
+### A123. The leave balance says something a person can act on (owner report, 29 Sep 2026)
+The owner's balance screen read *"0.8 days left of 0.8 earned so far"*. The arithmetic was right - one day a year, nine months in, is 0.75 - and everything around it was wrong.
+
+- **The company had no leave plan.** A new company was created with no policy at all, so every balance read zero until somebody invented numbers; theirs had been set to one day a year. New companies now start with the ordinary Indian allowances - PL 15, CL 12, SL 12 - as a starting point HR can change, not a legal opinion.
+- **Accrual lands on half days, rounded down.** There is no way to book eight tenths of a day. Down rather than up, because rounding up hands out leave nobody has earned, and somebody leaving in March is paid for it.
+- **Comp off no longer accrues by the calendar.** It is given for working a day that was yours, one at a time. Accruing it monthly handed people days off they had not worked for.
+- **The screen is a list, matching the reference the owner sent:** one line per kind, the figure on the right, one decimal. Cards with progress bars were measuring a total that changes every month.
+- **Loss of pay and on duty are on it too**, as the reference has them. They carry no entitlement, so the figure is days *taken*, and each row says which - "0.0" would otherwise read identically for somebody who had taken fourteen days unpaid.
+- **A test that was checking the old wording** now checks the new format, and reads the figures out of the rows rather than out of `textContent`: run together as "Privilege Leave8.0left", a word boundary never lands between a label and a digit, because both are word characters.
+
+### A124. Unused leave survives the year (owner request, 29 Sep 2026)
+The owner asked that leave be added at the start of each month and that unused days remain. The first was already true - a twelfth lands on the 1st, which is why September shows nine twelfths. The second was not: **every balance reset on the 1st of January** and a year of unused earned leave simply disappeared.
+
+- **The balance folds forward year by year** from the year the person joined. What was left at the end of one year opens the next. Their whole history is fetched in one query rather than one per year, so this stays three round trips however long somebody has worked there.
+- **Carrying is per kind, and capped.** Earned leave carries, up to thirty days; casual and sick lapse, because they are meant to be used in the year they are given. A cap is what stops a balance growing for a decade into a liability nobody planned for - it is owed in money when somebody leaves.
+- **It starts from their joining year**, not from the first policy the company ever wrote, or a new joiner would be credited with leave from before they arrived.
+- **A debt is never carried.** More taken than earned is something to settle, not a negative opening balance that quietly eats next year's leave.
+- **A bug found on the way:** `setPolicy` wrote `monthlyAccrual ?? true` on every save, so changing the number of days for comp off - which must never accrue - quietly turned accrual back on. It now writes only the fields it was actually sent.
+- **Verified:** 7 unit checks on the fold - what carries, what lapses, the cap, an uncapped policy, never carrying a debt, part-year accrual, and half-day rounding.

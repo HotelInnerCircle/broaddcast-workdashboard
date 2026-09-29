@@ -162,6 +162,14 @@ export async function createCompany(ctx: SessionContext, input: CreateCompanyInp
   const company = await Company.create({ name: input.name, slug, planId: plan?._id ?? null, ...(input.timezone ? { timezone: input.timezone } : {}) });
   if (plan) await applyPlan(company._id, plan._id, { cycle: "monthly", provider: "manual", payment: { orderId: null, paymentId: null, amount: 0, currency: plan.currency ?? "INR", note: `Assigned by ${ctx.name} at creation` } });
 
+  /*
+   * The leave a company starts with (A123). Without it every balance reads zero
+   * and somebody has to invent the numbers before anybody can book a day off -
+   * which is how a company ended up on one casual leave a year.
+   */
+  const { seedLeavePlan } = await import("./leaveService");
+  await seedLeavePlan(String(company._id), new Date().getFullYear());
+
   const tenant = { companyId: String(company._id) };
   if (input.adminPassword) {
     // Direct credentials (A56): active account now; the Super Admin hands the password over.

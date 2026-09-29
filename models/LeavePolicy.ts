@@ -16,6 +16,22 @@ const LeavePolicySchema = new Schema(
     daysPerYear: { type: Number, required: true, min: 0, max: 365 },
     /** Accrue month by month, or hand the whole year over on day one. */
     monthlyAccrual: { type: Boolean, default: true },
+    /**
+     * Whether days nobody used survive into next year (A124).
+     *
+     * Earned leave normally does and casual leave normally does not - it is
+     * meant to be taken in the year it is given, and a company that let it pile
+     * up would owe years of it to anybody who left. Which way round is a
+     * decision each company makes, so it is stored rather than assumed.
+     */
+    carryForward: { type: Boolean, default: false },
+    /**
+     * The most that may be carried, in days. Zero means no limit.
+     *
+     * A cap is what stops a balance growing for a decade and turning into a
+     * liability nobody planned for: somebody resigning is owed what they hold.
+     */
+    carryForwardMax: { type: Number, default: 0, min: 0, max: 365 },
   },
   { timestamps: true },
 );

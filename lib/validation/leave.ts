@@ -33,4 +33,7 @@ export const leavePolicySchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
   daysPerYear: z.coerce.number().min(0).max(365),
   monthlyAccrual: z.boolean().optional(),
+  /** Whether unused days survive the year, and the most that may (A124). */
+  carryForward: z.boolean().optional(),
+  carryForwardMax: z.coerce.number().min(0).max(365).optional(),
 });

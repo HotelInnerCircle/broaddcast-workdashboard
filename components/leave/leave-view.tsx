@@ -17,6 +17,12 @@ export interface LeaveRow {
 export interface BalanceRow {
   type: LeaveType; typeLabel: string; daysPerYear: number; monthlyAccrual: boolean;
   accrued: number; taken: number; pending: number; remaining: number;
+  /** Days brought forward from last year (A124). */
+  carriedIn: number;
+  /** Whether this kind is given to you at all, or only counted (A123). */
+  carriesBalance: boolean;
+  /** The single number the balance screen shows: days left, or days taken. */
+  figure: number;
 }
 
 const BLANK = { type: "" as LeaveType | "", startDate: "", endDate: "", note: "" };
