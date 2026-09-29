@@ -38,15 +38,24 @@ const NEXT_MONTH = () => {
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
 };
 
-/** Weekdays still to come this month, in order - working days that are not today. */
-function futureWeekdays() {
-  const d = new Date();
+/**
+ * Every weekday in a month, given as YYYY-MM.
+ *
+ * The holiday and the leave day are placed in *next* month rather than in what
+ * is left of this one. Taking them from the remainder of the current month
+ * meant the suite ran out of calendar: on the 28th there were two weekdays
+ * left, exactly enough, and on the 29th there was one - so the whole suite
+ * refused to run and thirty-five checks quietly stopped happening. Next month
+ * has eighteen at worst, always.
+ */
+function weekdaysIn(month) {
+  const [y, m] = month.split("-").map(Number);
   const out = [];
-  for (let i = 1; i <= 28; i++) {
-    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + i);
-    if (x.getMonth() !== d.getMonth()) break;
+  for (let day = 1; day <= 31; day++) {
+    const x = new Date(y, m - 1, day);
+    if (x.getMonth() !== m - 1) break;
     if (x.getDay() === 0 || x.getDay() === 6) continue;
-    out.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`);
+    out.push(`${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
   }
   return out;
 }
@@ -55,12 +64,8 @@ export default async function run({ browser, lab, check }) {
   const [hr, lead, mgr, emp] = await signedInEach(browser, lab.pw,
     [lab.people.hr.email, lab.people.lead.email, lab.people.mgr.email, lab.people.emp.email]);
 
-  const days = futureWeekdays();
-  if (days.length < 2) {
-    // Late in a month there is no room left to place a holiday and a leave day.
-    check("there are working days left this month to test with", false, `${days.length} weekdays remain`);
-    return;
-  }
+  const days = weekdaysIn(NEXT_MONTH());
+  check("there are working days to test with", days.length >= 2, `${days.length} weekdays in ${NEXT_MONTH()}`);
 
   // Today: a real clock-in, so one day is Present or Late rather than Absent,
   // and a swipe so the day has something to open. Made here rather than relying
@@ -73,7 +78,11 @@ export default async function run({ browser, lab, check }) {
 
   const holidayOn = days[0];
   await call(hr, "/api/holidays", { date: holidayOn, name: "Founders Day" });
-  await call(hr, "/api/leave/policies", { type: "CL", year: new Date().getFullYear(), daysPerYear: 12 }, "PUT");
+  // Both years, because next month is January when this runs in December and
+  // the allowance is held per year.
+  for (const year of new Set([new Date().getFullYear(), Number(NEXT_MONTH().slice(0, 4))])) {
+    await call(hr, "/api/leave/policies", { type: "CL", year, daysPerYear: 12 }, "PUT");
+  }
 
   // The leave suite may already hold some of these dates, so take the first day
   // that is actually free rather than assuming.
@@ -99,22 +108,27 @@ export default async function run({ browser, lab, check }) {
   check("it covers the whole month", L?.days?.length >= 28, `${L?.days?.length} days`);
 
   const byDate = new Map((L?.days ?? []).map((d) => [d.date, d]));
-  check("the holiday shows as a holiday", byDate.get(holidayOn)?.kind === "Holiday", `${holidayOn} -> ${byDate.get(holidayOn)?.kind}`);
-  check("and names it", byDate.get(holidayOn)?.detail === "Founders Day", byDate.get(holidayOn)?.detail);
-  check("a holiday still earns pay", byDate.get(holidayOn)?.payable === true);
 
-  if (leaveOn) {
-    check("approved leave shows as leave", byDate.get(leaveOn)?.kind === "Leave", `${leaveOn} -> ${byDate.get(leaveOn)?.kind}`);
-    check("and names the type", byDate.get(leaveOn)?.detail === "Casual Leave", byDate.get(leaveOn)?.detail);
-    check("casual leave is paid", byDate.get(leaveOn)?.payable === true);
-  }
-
-  // Read from next month, which is wholly after the join date and always
-  // contains Sundays - this month may have spent its last one before the
-  // test's employee existed.
+  /*
+   * Next month carries the holiday and the leave day, and is wholly after the
+   * join date, so it is also where the week off and the upcoming days are read
+   * from. This month is only asked about today - the clock-in, and the days
+   * before somebody joined.
+   */
   const nextRes = await call(emp, `/api/reports/ledger?month=${NEXT_MONTH()}`, null, "GET");
   const N = nextRes.json?.data;
   check("next month's ledger loads too", nextRes.status === 200 && Boolean(N), `status=${nextRes.status}`);
+  const byNext = new Map((N?.days ?? []).map((d) => [d.date, d]));
+
+  check("the holiday shows as a holiday", byNext.get(holidayOn)?.kind === "Holiday", `${holidayOn} -> ${byNext.get(holidayOn)?.kind}`);
+  check("and names it", byNext.get(holidayOn)?.detail === "Founders Day", byNext.get(holidayOn)?.detail);
+  check("a holiday still earns pay", byNext.get(holidayOn)?.payable === true);
+
+  if (leaveOn) {
+    check("approved leave shows as leave", byNext.get(leaveOn)?.kind === "Leave", `${leaveOn} -> ${byNext.get(leaveOn)?.kind}`);
+    check("and names the type", byNext.get(leaveOn)?.detail === "Casual Leave", byNext.get(leaveOn)?.detail);
+    check("casual leave is paid", byNext.get(leaveOn)?.payable === true);
+  }
 
   const weekend = (N?.days ?? []).find((d) => d.weekday === "Sun");
   check("Sunday is a week off", weekend?.kind === "Week off", `${weekend?.date} -> ${weekend?.kind}`);

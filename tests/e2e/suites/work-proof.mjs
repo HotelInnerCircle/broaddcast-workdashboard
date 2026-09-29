@@ -145,8 +145,18 @@ export default async function run({ browser, lab, check }) {
   await phone.goto(`${lab.base}/employee/dashboard`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   const shown = await waitForText(phone, /TODAY.S SWIPES/i, 30_000);
   check("the phone home leads with today's swipes", shown, "the card never appeared");
+  /*
+   * Visibility, not text. The desktop timer hero is hidden on a phone with
+   * `hidden md:flex` - hidden by CSS, still in the DOM - so reading
+   * `textContent("body")` finds it either way. This check only ever passed
+   * because a timer happened to be running at this point, which made that
+   * component render its other branch and take the words away with it. It was
+   * never testing what it claimed to.
+   */
   const home = (await phone.textContent("body")) ?? "";
-  check("and no longer with the running timer", !/No timer running/i.test(home));
+  const hero = phone.locator("text=/No timer running|Pick a client and start tracking/");
+  const heroShown = (await hero.count()) > 0 ? await hero.first().isVisible() : false;
+  check("and no longer with the running timer", !heroShown, "the desktop timer hero is visible on a phone");
   check("it says how many there are", /today|None yet/i.test(home), home.replace(WHITESPACE, " ").slice(0, 160));
   await shot(phone, "mobile-home-swipes");
 }
