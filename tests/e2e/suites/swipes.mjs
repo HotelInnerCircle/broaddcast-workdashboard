@@ -84,4 +84,39 @@ export default async function run({ browser, lab, check }) {
     `hr=${hrList.json?.data?.length} emp=${empList.json?.data?.length}`);
   const queue = await call(admin, "/api/attendance/swipes?mine=true", null, "GET");
   check("a queue lists only pending ones", (queue.json?.data ?? []).every((s) => s.status === "PENDING"));
+
+  /* ---------- the swipe is what makes the day count (A121) ---------- */
+  /*
+   * Clocking in and out is gone. It was a second thing to remember for the same
+   * fact, and the one that fed payroll was the one with no photograph, no place
+   * and no approval behind it - so a day could be paid on a button nobody could
+   * check. The attendance record is derived from the swipes now.
+   */
+  const today = new Date().toISOString().slice(0, 10);
+  const day = await call(emp, `/api/attendance?from=${today}&to=${today}`, null, "GET");
+  const mine = (day.json?.data?.rows ?? []).find((r) => r.date === today);
+  check("swiping on duty creates the day's attendance", Boolean(mine?.clockIn), JSON.stringify(mine ?? {}));
+  check("and it counts as present or late, not absent", ["Present", "Late", "Half Day"].includes(mine?.status), mine?.status);
+
+  const goneAway = await call(emp, "/api/attendance/clock-in", {}, "POST");
+  check("there is no clocking in any more", goneAway.status === 404, `status=${goneAway.status}`);
+
+  /*
+   * And it follows the swipes when one stops counting. Recomputed from what
+   * still stands rather than nudged, so a rejection cannot leave the day
+   * half-corrected - a person marked present by a swipe that was thrown out is
+   * exactly the discrepancy this whole change exists to remove.
+   */
+  const pendingOne = (queue.json?.data ?? [])[0];
+  if (pendingOne) {
+    const owner = pendingOne.userId;
+    const before = await call(hr, `/api/attendance?from=${today}&to=${today}&userId=${owner}`, null, "GET");
+    const had = (before.json?.data?.rows ?? []).find((r) => r.date === today && r.clockIn);
+    const rejected = await call(hr, `/api/attendance/swipes/${pendingOne.id}/decision`, { decision: "REJECTED", note: "not at a site" }, "PATCH");
+    check("a pending swipe can be rejected", [200, 201].includes(rejected.status), `status=${rejected.status}`);
+    const after = await call(hr, `/api/attendance?from=${today}&to=${today}&userId=${owner}`, null, "GET");
+    const still = (after.json?.data?.rows ?? []).find((r) => r.date === today && r.clockIn);
+    check("and the day is worked out again without it",
+      had ? true : !still, `before=${Boolean(had)} after=${Boolean(still)}`);
+  }
 }

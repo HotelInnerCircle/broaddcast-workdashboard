@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { entryHref, entrySubtitle, entryTitle } from "./mini-timer";
 import Link from "next/link";
-import { Play, Pause, Square, Coffee, LogIn, LogOut, Clock, RotateCcw, ChevronDown, Timer as TimerIcon } from "lucide-react";
+import { Play, Pause, Square, Coffee, Clock, RotateCcw, ChevronDown, Timer as TimerIcon, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NativeSelect, Textarea } from "@/components/ui/input";
@@ -230,11 +230,11 @@ export function TimerPage() {
             <CardHeader><CardTitle>Attendance</CardTitle><CardDescription>{att?.clockIn ? `Clocked in at ${formatDateTime(att.clockIn).split(", ")[1]}${att.clockOut ? `, out at ${formatDateTime(att.clockOut).split(", ")[1]}` : ""}` : "You have not clocked in today."}</CardDescription></CardHeader>
             <CardContent className="flex items-center justify-between gap-3 pt-0">
               {att?.status && <Badge variant={att.status === "Late" ? "warning" : att.status === "Half Day" ? "danger" : "success"}>{att.status}</Badge>}
-              {clockedIn ? <Button variant="outline" onClick={() => void t.clockOut()}><LogOut />Clock out</Button> : att?.clockOut ? <span className="text-sm text-muted-foreground">Day complete</span> : <Button onClick={() => void t.clockIn()}><LogIn />Clock in</Button>}
+              {att?.clockOut ? <span className="text-sm text-muted-foreground">Day complete</span> : <Button asChild><Link href="/swipe"><Fingerprint />{clockedIn ? "Swipe off duty" : "Swipe on duty"}</Link></Button>}
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle>Daily summary</CardTitle><CardDescription>Work time comes from timers; session time from clock-in to clock-out.</CardDescription></CardHeader>
+            <CardHeader><CardTitle>Daily summary</CardTitle><CardDescription>Work time comes from timers; session time from the first swipe on duty to the last off.</CardDescription></CardHeader>
             <CardContent className="space-y-3 pt-0">
               <Row label="Work time" value={formatHM((t.summary?.workSeconds ?? 0) + (running ? 0 : 0))} tone="text-success" />
               <Row label="Break time" value={formatHM(t.summary?.breakSeconds ?? 0)} tone="text-warning" />

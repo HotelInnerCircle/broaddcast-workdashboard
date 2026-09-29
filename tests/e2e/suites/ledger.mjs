@@ -70,7 +70,8 @@ export default async function run({ browser, lab, check }) {
   // Today: a real clock-in, so one day is Present or Late rather than Absent,
   // and a swipe so the day has something to open. Made here rather than relying
   // on the swipes suite having run - this suite has to stand on its own.
-  await call(emp, "/api/attendance/clock-in", {});
+  // On duty, by the only means there is now (A121): the swipe is the record,
+  // and the day's attendance is worked out from it.
   await swipePhoto(emp, "ON_DUTY", 12.9716, 77.5946);
   // And one well away from anywhere, so the sheet has both cases to show: the
   // nearest site is recorded either way, and only one of them was actually at it.

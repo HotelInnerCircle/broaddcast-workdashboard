@@ -7,7 +7,7 @@
  * is refused while a picture is required, and that is asserted here rather than
  * trusted.
  */
-import { call, shot, signedIn, stopTimerWithProof, submitDailyReportWithProof, wait, waitForText } from "../harness.mjs";
+import { call, shot, signedIn, stopTimerWithProof, submitDailyReportWithProof, wait, waitForText, swipePhoto } from "../harness.mjs";
 
 /** Built from a string so a layer of shell quoting cannot eat the escape. */
 const WHITESPACE = new RegExp("\\s+", "g");
@@ -54,7 +54,7 @@ export default async function run({ browser, lab, check }) {
   if (!clientId) return;
 
   await call(admin, "/api/admin/company", { workProof: { timer: true, dailyReport: true } }, "PATCH");
-  await call(emp, "/api/attendance/clock-in", {});
+  await swipePhoto(emp, "ON_DUTY", 12.9716, 77.5946);
   await stopTimerWithProof(emp, "clearing the decks");
 
   /* ---------- a timer cannot be stopped without one ---------- */
@@ -98,13 +98,13 @@ export default async function run({ browser, lab, check }) {
    * employee, whose scope is themselves alone, reaching somebody else's.
    */
   const lead = await signedIn(browser, lab.people.lead.email, lab.pw);
-  const leadIn = await call(lead, "/api/attendance/clock-in", {});
+  const leadIn = await swipePhoto(lead, "ON_DUTY", 12.9716, 77.5946);
   const leadStart = await call(lead, "/api/timer/start", { clientId, notes: "Lead's own work", force: false });
   const leadStop = await stopTimerWithProof(lead, "Lead's own work");
   // The start and the clock-in are reported too: a 404 from the stop only means
   // "nothing was running", which says nothing about why.
   check("the lead records a picture of their own", leadStop.status === 200,
-    `stop=${leadStop.status} ${JSON.stringify(leadStop.json?.error ?? "")} | start=${leadStart.status} ${JSON.stringify(leadStart.json?.error ?? "")} | clockIn=${leadIn.status} ${JSON.stringify(leadIn.json?.error ?? "")}`);
+    `stop=${leadStop.status} ${JSON.stringify(leadStop.json?.error ?? "")} | start=${leadStart.status} ${JSON.stringify(leadStart.json?.error ?? "")} | onDuty=${leadIn.status} ${JSON.stringify(leadIn.json?.error ?? "")}`);
   const leadEntries = await call(lead, `/api/time-entries?from=${TODAY()}&to=${TODAY()}&userId=${lab.ids.lead}`, null, "GET");
   const leadEntry = (leadEntries.json?.data?.entries ?? []).find((e) => e.hasProof);
   const stolen = await call(emp, `/api/work-proof/timer/${leadEntry?.id}`, null, "GET");

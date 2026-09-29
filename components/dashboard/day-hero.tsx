@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Coffee, LogIn, LogOut, Pause, Play, Square, Timer as TimerIcon } from "lucide-react";
+import { Coffee, Pause, Play, Square, Timer as TimerIcon, Fingerprint } from "lucide-react";
 import { useTimer, formatHMS, formatHM } from "@/hooks/useTimer";
 import { entryHref, entrySubtitle, entryTitle } from "@/components/timer/mini-timer";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -85,11 +85,11 @@ export function DayHero() {
           {formatHM(t.summary?.workSeconds ?? 0)} worked &middot; {formatHM(t.summary?.breakSeconds ?? 0)} break
         </p>
         {clockedIn ? (
-          <button type="button" onClick={() => void t.clockOut()} className="mt-4 h-11 rounded-full bg-success text-sm font-semibold text-white"><LogOut className="mr-2 inline size-4" />Clock out</button>
+          <Link href="/swipe" className="mt-4 flex h-11 items-center justify-center rounded-full bg-success text-sm font-semibold text-white"><Fingerprint className="mr-2 inline size-4" />Swipe off duty</Link>
         ) : att?.clockOut ? (
           <p className="mt-4 rounded-full bg-white/50 py-2.5 text-center text-sm font-medium">Day complete</p>
         ) : (
-          <button type="button" onClick={() => void t.clockIn()} className="mt-4 h-11 rounded-full bg-success text-sm font-semibold text-white"><LogIn className="mr-2 inline size-4" />Clock in</button>
+          <Link href="/swipe" className="mt-4 flex h-11 items-center justify-center rounded-full bg-success text-sm font-semibold text-white"><Fingerprint className="mr-2 inline size-4" />Swipe on duty</Link>
         )}
       </div>
     </div>

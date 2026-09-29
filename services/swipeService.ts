@@ -202,6 +202,14 @@ export async function createSwipe(
     note: input.note ?? null,
   });
 
+  /*
+   * The day's attendance follows from the swipes (A121). There is no separate
+   * clocking in any more: the swipe carries a photograph, a place and an
+   * approval trail, and it is the thing payroll should be counting.
+   */
+  const { syncAttendanceFromSwipes } = await import("./attendanceService");
+  await syncAttendanceFromSwipes(ctx, ctx.userId, date);
+
   if (!within) await notifyStep(ctx, swipe as unknown as AttendanceSwipeDoc & { _id: Types.ObjectId });
   await audit({
     ctx, companyId: ctx.companyId, entity: "attendanceSwipe", entityId: swipe._id, action: "attendance.swipe",
@@ -279,6 +287,15 @@ export async function decideSwipe(
     swipe.currentStep = null;
   }
   await swipe.save();
+
+  /*
+   * And again once somebody has decided on it: a rejected swipe stops counting,
+   * so the day it belonged to has to be worked out again without it. Recomputed
+   * from scratch rather than adjusted, so approving and rejecting the same
+   * swipe twice cannot leave the day half-corrected.
+   */
+  const { syncAttendanceFromSwipes } = await import("./attendanceService");
+  await syncAttendanceFromSwipes(ctx, String(swipe.userId), swipe.date as string);
 
   if (swipe.status === "PENDING") {
     await notifyStep(ctx, swipe as unknown as AttendanceSwipeDoc & { _id: Types.ObjectId });

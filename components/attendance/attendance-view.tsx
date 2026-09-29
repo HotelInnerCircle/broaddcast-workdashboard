@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { addDays, format, startOfMonth, startOfWeek } from "date-fns";
-import { CalendarCheck, LogIn, LogOut, AlertTriangle, CheckCircle2, Plane } from "lucide-react";
+import { CalendarCheck, AlertTriangle, CheckCircle2, Plane, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,10 +64,10 @@ export function AttendanceView() {
 
   return (
     <>
-      <PageHeader title="Attendance" description={manager ? "Clock-in/out records for your scope. Auto-closed records are flagged for review." : "Your clock-in and clock-out history."} actions={
+      <PageHeader title="Attendance" description={manager ? "The day each person worked, from their swipes. Auto-closed records are flagged for review." : "Your days, worked out from your swipes."} actions={
         <div className="flex items-center gap-2">
           {manager && <Button variant="outline" onClick={() => setLeave({ open: true, userId: people[0]?.id ?? "", date: key(new Date()), note: "" })}><Plane />Mark leave</Button>}
-          {clockedIn ? <Button variant="outline" onClick={() => void t.clockOut()}><LogOut />Clock out</Button> : att?.clockOut ? null : <Button onClick={() => void t.clockIn()}><LogIn />Clock in</Button>}
+          {att?.clockOut ? null : <Button asChild><Link href="/swipe"><Fingerprint />{clockedIn ? "Swipe off duty" : "Swipe on duty"}</Link></Button>}
         </div>
       } />
       {data && (
@@ -97,7 +98,7 @@ export function AttendanceView() {
                     {manager && <TD primary><span className="inline-flex items-center gap-2">{r.user && <Avatar name={r.user.name} src={r.user.avatarUrl} size="sm" />}{r.user?.name}</span></TD>}
                     <TD label="Date" className="whitespace-nowrap max-md:font-semibold">{formatDate(`${r.date}T12:00:00Z`)}</TD>
                     <TD label="Clock in" className="whitespace-nowrap">{time(r.clockIn)}</TD>
-                    <TD label="Clock out" className="whitespace-nowrap">{time(r.clockOut)}{r.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger" title="Forgotten clock-out closed automatically at end of day + 2h">auto</span>}</TD>
+                    <TD label="Clock out" className="whitespace-nowrap">{time(r.clockOut)}{r.autoClosed && <span className="ml-1 text-[10px] font-semibold uppercase text-danger" title="No off-duty swipe: closed automatically at end of day + 2h">auto</span>}</TD>
                     <TD label="Break">{r.breakSeconds ? formatHM(r.breakSeconds) : "-"}</TD>
                     <TD label="Total hours" className="font-medium tabular-nums">{r.workSeconds ? formatHM(r.workSeconds) : r.clockIn && !r.clockOut ? <span className="text-success">in progress</span> : "-"}</TD>
                     <TD label="Status"><Badge variant={STATUS_VARIANT[r.status] ?? "default"}>{r.status}</Badge>{r.note && <p className="mt-0.5 max-w-40 truncate text-xs text-muted-foreground">{r.note}</p>}</TD>

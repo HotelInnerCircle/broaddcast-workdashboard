@@ -7,7 +7,7 @@
  * list is still there on the toggle, because that is what the timesheet shows and
  * what the export contains.
  */
-import { call, signedIn, shot, wait, waitForText, stopTimerWithProof, submitDailyReportWithProof } from "../harness.mjs";
+import { call, signedIn, shot, wait, waitForText, stopTimerWithProof, submitDailyReportWithProof, swipePhoto } from "../harness.mjs";
 
 export const name = "reports";
 export const description = "grouped entries, and daily reports as CSV and Excel";
@@ -48,7 +48,7 @@ export default async function run({ browser, lab, check }) {
   }
   check("clients to track against", clientIds.every(Boolean), JSON.stringify(clientIds));
 
-  await call(emp, "/api/attendance/clock-in", {});
+  await swipePhoto(emp, "ON_DUTY", 12.9716, 77.5946);
   await stopTimerWithProof(emp, "cleanup");
 
   // Three sessions in one day: two on one client, one on another. Grouped, this

@@ -47,38 +47,19 @@ async function closeRecord(companyId: Types.ObjectId, clock: CompanyClock, rec: 
   await rec.save();
 }
 
-export async function clockIn(ctx: CompanyContext, ip: string | null) {
-  const clock = await personClock(ctx.companyId, ctx.userId);
-  const now = new Date();
-  const day = clock.dayOf(now);
-  const uid = new Types.ObjectId(ctx.userId);
-  const existing = await scoped(Attendance, ctx).findOne({ userId: uid, date: day });
-  if (existing?.clockIn) throw new ApiError(409, "ALREADY_CLOCKED_IN", existing.clockOut ? "You have already clocked out for today" : "You are already clocked in", {});
-  let rec: Doc;
-  if (existing) {
-    existing.clockIn = now; existing.status = lateStatus(clock, day, now); await existing.save(); rec = existing as Doc;
-  } else {
-    rec = (await scoped(Attendance, ctx).create({ userId: uid, date: day, clockIn: now, status: lateStatus(clock, day, now) })) as unknown as Doc;
-  }
-  await audit({ ctx, companyId: ctx.companyId, entity: "attendance", entityId: rec._id, action: "attendance.clock_in", summary: `${ctx.name} clocked in (${rec.status})`, after: { date: day, status: rec.status }, ip });
-  return serializeAttendance(rec.toObject() as Record<string, unknown>);
-}
-
-/** Clock-out also stops a running timer and ends an open break: the working session is over. */
-export async function clockOut(ctx: CompanyContext, ip: string | null) {
-  const clock = await personClock(ctx.companyId, ctx.userId);
-  const now = new Date();
-  const uid = new Types.ObjectId(ctx.userId);
-  const rec = await scoped(Attendance, ctx).findOne({ userId: uid, clockIn: { $ne: null }, clockOut: null }).sort({ date: -1 });
-  if (!rec) throw Errors.bad("NOT_CLOCKED_IN", "You are not clocked in");
-  const active = await scoped(TimeEntry, ctx).findOne({ userId: uid, status: { $in: ["RUNNING", "PAUSED"] } });
-  if (active) await finalizeEntry(ctx, active as never, now, { ip });
-  const openBreak = await scoped(Break, ctx).findOne({ userId: uid, end: null });
-  if (openBreak) { openBreak.end = now; openBreak.durationSeconds = Math.floor((now.getTime() - openBreak.start.getTime()) / 1000); await openBreak.save(); }
-  await closeRecord(new Types.ObjectId(ctx.companyId), clock, rec as Doc, now, false);
-  await audit({ ctx, companyId: ctx.companyId, entity: "attendance", entityId: rec._id, action: "attendance.clock_out", summary: `${ctx.name} clocked out (${rec.status}, ${Math.round(rec.workSeconds / 3600 * 10) / 10}h)`, after: { date: rec.date, status: rec.status, workSeconds: rec.workSeconds }, ip });
-  return serializeAttendance(rec.toObject() as Record<string, unknown>);
-}
+/*
+ * Clocking in and out lived here (A121). Both are gone: the swipe is the record
+ * now - it carries a photograph, a place, a face check and an approval trail,
+ * and the day is derived from it by syncAttendanceFromSwipes below. Keeping a
+ * second way in would have meant payroll counting whichever of the two somebody
+ * happened to remember, and the one with no evidence behind it was the one
+ * feeding the pay.
+ *
+ * What they did that still has to happen somewhere: a forgotten clock-out was
+ * closed by autoCloseForgotten, which still runs; and clocking out stopped a
+ * running timer, which it no longer does - stopping a timer needs its picture
+ * and its description (A105), and doing it silently was a way around that.
+ */
 
 /**
  * Attendance list (spec 12.13). Working days without a record become virtual "Absent" rows for
@@ -164,4 +145,66 @@ export async function autoCloseForgotten(now = new Date()): Promise<{ attendance
     }
   }
   return result;
+}
+
+/**
+ * The day's attendance, worked out from that day's swipes (A121).
+ *
+ * Clocking in and out used to be a second, separate thing people had to
+ * remember on top of swiping - two buttons for one fact, and the one that fed
+ * payroll was the one with no photograph, no location and no approval behind
+ * it. The swipes are the record now and this derives the rest from them.
+ *
+ * Recomputed from scratch every time rather than nudged, which is what makes it
+ * safe to call after a swipe is approved, rejected, or arrives late: the answer
+ * depends only on the swipes that currently stand, so it cannot drift.
+ *
+ * A rejected swipe is not counted. A day whose swipes are all rejected goes back
+ * to having no record at all, exactly as if nobody had swiped.
+ */
+export async function syncAttendanceFromSwipes(ctx: CompanyContext, userId: string, date: string): Promise<void> {
+  const { AttendanceSwipe } = await import("@/models/AttendanceSwipe");
+  const uid = new Types.ObjectId(userId);
+  const clock = await personClock(ctx.companyId, userId);
+
+  const swipes = await scoped(AttendanceSwipe, ctx)
+    .find({ userId: uid, date, status: { $ne: "REJECTED" } })
+    .select("type at").sort({ at: 1 }).lean();
+
+  const existing = await scoped(Attendance, ctx).findOne({ userId: uid, date });
+
+  /*
+   * Anything a person set by hand wins. Leave, and any day an admin has written
+   * a note or a status onto, is a decision somebody made about that day -
+   * recomputing over it would silently undo them.
+   */
+  if (existing && (existing.status === "Leave" || existing.setBy)) return;
+
+  if (swipes.length === 0) {
+    if (existing) await existing.deleteOne();
+    return;
+  }
+
+  // In, from the first swipe that says on duty - or simply the first, for
+  // somebody who forgot to swipe in and only swiped out.
+  const first = swipes.find((s) => s.type === "ON_DUTY") ?? swipes[0];
+  const clockIn = first.at as Date;
+  // Out, from the last off-duty swipe after it. A second on-duty swipe later in
+  // the day is somebody coming back, not a new day.
+  const lastOff = [...swipes].reverse().find((s) => s.type === "OFF_DUTY" && (s.at as Date).getTime() > clockIn.getTime());
+
+  const rec = existing ?? (await scoped(Attendance, ctx).create({
+    userId: uid, date, clockIn, status: lateStatus(clock, date, clockIn),
+  })) as unknown as Doc;
+
+  rec.clockIn = clockIn;
+  if (lastOff) {
+    await closeRecord(new Types.ObjectId(ctx.companyId), clock, rec as Doc, lastOff.at as Date, false);
+    return;
+  }
+  // Still on duty: no clock-out, and the status is only about arriving on time.
+  rec.clockOut = null;
+  rec.workSeconds = 0;
+  rec.status = lateStatus(clock, date, clockIn);
+  await rec.save();
 }

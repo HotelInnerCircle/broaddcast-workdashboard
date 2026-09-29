@@ -22,7 +22,6 @@ interface TimerApi {
   /** Without `notes` this opens the stop dialog, which collects the mandatory work notes (A53). */
   stop: (notes?: string) => Promise<void>;
   startBreak: () => Promise<void>; endBreak: () => Promise<void>;
-  clockIn: () => Promise<void>; clockOut: () => Promise<void>;
   /** Confirm-and-switch: resolve with the notes for the running entry to switch, or null to keep it. */
   conflict: ActiveEntry | null; resolveConflict: (previousNotes: string | null) => void;
   /** Stop dialog: resolve with the work notes, or null to cancel. */
@@ -153,12 +152,16 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     } catch (e) { fail(e, "Could not end the break"); }
   }, [refresh, resume]);
 
-  const clockIn = useCallback(async () => { try { const a = await api<{ status: string }>("/api/attendance/clock-in", { method: "POST" }); toast.success(a.status === "Late" ? "Clocked in (marked Late)" : "Clocked in"); await refresh(); } catch (e) { fail(e, "Could not clock in"); } }, [refresh]);
-  const clockOut = useCallback(async () => { try { const a = await api<{ status: string; workSeconds: number }>("/api/attendance/clock-out", { method: "POST" }); toast.success(`Clocked out (${a.status}, ${formatHM(a.workSeconds)})`); await refresh(); } catch (e) { fail(e, "Could not clock out"); } }, [refresh]);
+  /*
+   * Clocking in and out is gone (A121). It was a second thing to remember on
+   * top of swiping, for the same fact - and the one that fed payroll was the
+   * one with no photograph, no place and no approval behind it. The day is
+   * worked out from the swipes now.
+   */
 
   const value: TimerApi = {
     entry: state?.entry ?? null, break: state?.break ?? null, summary: state?.summary ?? null, loading, elapsed, breakElapsed,
-    refresh, start, pause, resume, stop, startBreak, endBreak, clockIn, clockOut,
+    refresh, start, pause, resume, stop, startBreak, endBreak,
     conflict: conflict?.entry ?? null, resolveConflict: (v) => conflict?.resolve(v),
     stopPrompt: Boolean(stopPrompt), resolveStop: (v) => stopPrompt?.resolve(v),
   };

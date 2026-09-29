@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Timer, Pause, Play, Square, Coffee, LogIn, LogOut } from "lucide-react";
+import { Timer, Pause, Play, Square, Coffee, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ export function StopwatchWidget() {
           <span>Today <strong className="text-foreground">{formatHM(t.summary?.workSeconds ?? 0)}</strong></span>
           <span>Break <strong className="text-foreground">{formatHM(t.summary?.breakSeconds ?? 0)}</strong></span>
           {att?.status && <Badge variant={att.status === "Late" ? "warning" : "success"}>{att.status}</Badge>}
-          {clockedIn ? <Button size="sm" variant="ghost" onClick={() => void t.clockOut()}><LogOut />Clock out</Button> : !att?.clockOut && <Button size="sm" variant="ghost" onClick={() => void t.clockIn()}><LogIn />Clock in</Button>}
+          {!att?.clockOut && <Button size="sm" variant="ghost" asChild><Link href="/swipe"><Fingerprint />{clockedIn ? "Swipe off" : "Swipe on"}</Link></Button>}
         </div>
       </CardContent>
     </Card>

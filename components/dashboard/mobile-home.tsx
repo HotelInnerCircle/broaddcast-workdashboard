@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Bell, ChevronRight, LogIn, LogOut } from "lucide-react";
+import { Bell, ChevronRight, Fingerprint } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTimer, formatHM } from "@/hooks/useTimer";
@@ -143,20 +143,20 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
         </Link>
       )}
 
-      {/* Clock in / out, where the reference app puts its one big action */}
+      {/*
+        The one big action is the swipe (A121). It used to be Clock in, sitting
+        directly under a card showing today's swipes - two buttons for one fact,
+        and the day was counted from whichever of them somebody remembered.
+      */}
       <div className="mt-3">
-        {clockedIn ? (
-          <button type="button" onClick={() => void t.clockOut()} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-sidebar text-[15.5px] font-bold text-white">
-            <LogOut className="size-5" />Clock out for the day
-          </button>
-        ) : att?.clockOut ? (
+        {att?.clockOut ? (
           <p className="rounded-full bg-muted py-3.5 text-center text-sm font-medium text-muted-foreground">
-            Clocked out at {att.clockOut.slice(11, 16)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked
+            Off duty at {att.clockOut.slice(11, 16)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked
           </p>
         ) : (
-          <button type="button" onClick={() => void t.clockIn()} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-success text-[15.5px] font-bold text-white">
-            <LogIn className="size-5" />Clock in
-          </button>
+          <Link href="/swipe" className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-success text-[15.5px] font-bold text-white">
+            <Fingerprint className="size-5" />{clockedIn ? "Swipe off duty" : "Swipe on duty"}
+          </Link>
         )}
       </div>
     </div>
