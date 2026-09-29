@@ -27,9 +27,18 @@ export function SwipeView() {
 
   const send = async () => {
     if (!photo) return;
-    if (await s.submit(photo, note)) {
+    const result = await s.submit(photo, note);
+    if (result === "ok") {
       setPhoto(null); setNote("");
       if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
+    if (result === "retake") {
+      // Nothing was recorded (A116): drop the rejected picture and open the
+      // camera again. The note stays - it was true before and still is.
+      setPhoto(null);
+      if (fileRef.current) fileRef.current.value = "";
+      requestAnimationFrame(() => fileRef.current?.click());
     }
   };
 

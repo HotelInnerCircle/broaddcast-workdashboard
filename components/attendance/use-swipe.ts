@@ -18,6 +18,8 @@ interface SwipeRow { type: string; status: string; at: string }
  * never puts anyone on duty, and the day boundary means yesterday's forgotten on-duty does not
  * leave someone unable to start today.
  */
+export type SwipeResult = "ok" | "retake" | "failed";
+
 export function useSwipe(active: boolean) {
   const [sites, setSites] = useState<Site[]>([]);
   const [fix, setFix] = useState<Fix | null>(null);
@@ -76,9 +78,10 @@ export function useSwipe(active: boolean) {
   /** The one action that makes sense right now. Null until we know which it is. */
   const nextType: "ON_DUTY" | "OFF_DUTY" | null = onDuty === null ? null : onDuty ? "OFF_DUTY" : "ON_DUTY";
 
-  const submit = useCallback(async (raw: File, note: string): Promise<boolean> => {
-    if (!fix) { toast.error("Waiting for your location"); return false; }
-    if (!nextType) { toast.error("Checking your last swipe"); return false; }
+  /** "retake" means the face did not match and the person should try again. */
+  const submit = useCallback(async (raw: File, note: string): Promise<SwipeResult> => {
+    if (!fix) { toast.error("Waiting for your location"); return "failed"; }
+    if (!nextType) { toast.error("Checking your last swipe"); return "failed"; }
     setSending(true);
     try {
       /*
@@ -115,19 +118,35 @@ export function useSwipe(active: boolean) {
       const res = await api<{ status: string; siteName: string | null; faceVerdict?: string }>("/api/attendance/swipes", { method: "POST", body: form });
       const what = nextType === "ON_DUTY" ? "on duty" : "off duty";
       if (res.faceVerdict === "mismatch") {
-        attempts.current += 1;
+        // It got through on the last allowed try. Recorded, and said plainly -
+        // somebody will look at the photograph.
         toast.warning(`Swiped ${what} - your face was not recognised`, {
           description: "It has been recorded and sent for approval. If this keeps happening, enrol your face again from your profile.",
         });
       } else if (res.status === "APPROVED") toast.success(`Swiped ${what} at ${res.siteName}`);
       else toast.warning(`Swiped ${what} - it needs approval`, { description: "You are outside every work site. Your team lead has been told." });
+      attempts.current = 0;
       await loadDuty();
-      return true;
+      return "ok";
     } catch (e) {
+      /*
+       * A face that did not match is not an error to apologise for - it is a
+       * request for another photograph (A116). The server refuses these until
+       * the company's retry limit is reached, so nothing is recorded and the
+       * screen simply asks again.
+       */
+      if (e instanceof ClientApiError && e.code === "FACE_MISMATCH") {
+        attempts.current = Number(e.details?.attempts ?? attempts.current + 1);
+        const max = Number(e.details?.maxRetries ?? 3);
+        toast.warning("That does not look like you", {
+          description: `Take the photo again, facing the camera in good light. Try ${attempts.current} of ${max}.`,
+        });
+        return "retake";
+      }
       toast.error(e instanceof ClientApiError ? e.message : "Could not record the swipe");
-      return false;
+      return "failed";
     } finally { setSending(false); }
   }, [fix, nextType, loadDuty, faceRequired]);
 
-  return { sites: activeSites, fix, locating, locError, locate, onDuty, nextType, nearest, inside, sending, submit };
+  return { sites: activeSites, fix, locating, locError, locate, onDuty, nextType, nearest, inside, sending, submit, attempts };
 }

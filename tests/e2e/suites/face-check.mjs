@@ -13,6 +13,8 @@
  */
 import { call, signedIn } from "../harness.mjs";
 
+const TODAY = () => new Date().toISOString().slice(0, 10);
+
 export const name = "face-check";
 export const description = "faces checked on the server, mismatches reviewed not refused";
 
@@ -22,8 +24,8 @@ const flat = (v) => new Array(LEN).fill(v);
 const nudge = (base, d) => base.map((n, i) => (i === 0 ? n + d : n));
 
 /** A swipe carrying a face descriptor, exactly as the phone sends it. */
-const swipeWithFace = (page, type, lat, lng, descriptor) =>
-  page.evaluate(async ([t, la, ln, desc]) => {
+const swipeWithFace = (page, type, lat, lng, descriptor, attempts) =>
+  page.evaluate(async ([t, la, ln, desc, tries]) => {
     const c = document.createElement("canvas");
     c.width = 480; c.height = 640;
     const x = c.getContext("2d");
@@ -36,9 +38,10 @@ const swipeWithFace = (page, type, lat, lng, descriptor) =>
     fd.append("lng", String(ln));
     fd.append("accuracyMeters", "8");
     if (desc) fd.append("faceDescriptor", JSON.stringify(desc));
+    if (tries !== undefined && tries !== null) fd.append("faceAttempts", String(tries));
     const r = await fetch("/api/attendance/swipes", { method: "POST", body: fd });
     return { status: r.status, json: await r.json().catch(() => null) };
-  }, [type, lat, lng, descriptor ?? null]);
+  }, [type, lat, lng, descriptor ?? null, attempts ?? null]);
 
 const SITE = { lat: 12.9716, lng: 77.5946 };
 
@@ -91,18 +94,45 @@ export default async function run({ browser, lab, check }) {
   check("their own face matches", right.json?.data?.faceVerdict === "matched", `${right.json?.data?.faceVerdict} at ${right.json?.data?.faceDistance}`);
   check("and the swipe is approved on the spot", right.json?.data?.status === "APPROVED", right.json?.data?.status);
 
-  /* ---------- somebody else's face ---------- */
-  const wrong = await swipeWithFace(emp, "OFF_DUTY", SITE.lat, SITE.lng, nudge(myFace, 2.5));
-  check("a different face is a mismatch", wrong.json?.data?.faceVerdict === "mismatch", `${wrong.json?.data?.faceVerdict} at ${wrong.json?.data?.faceDistance}`);
+  /* ---------- somebody else's face: asked to try again first (A116) ---------- */
   /*
-   * The line this whole feature turns on. A mismatch at a work site is still
-   * recorded - with its photograph - and goes to the approval queue. It is not
-   * silently dropped, and the person is not locked out.
+   * A face that does not match asks for another photograph rather than being
+   * filed straight away. Somebody half in shadow took a bad picture rather than
+   * committed a fraud, and the honest answer is "take it again" - which is what
+   * the owner asked for and what `maxRetries` was sitting in the settings for,
+   * unread, since the check was built.
+   *
+   * Nothing is stored on a refused try: no swipe row, and no photograph either,
+   * which at three tries each would otherwise cost more than the swipes.
    */
-  check("a mismatch is still recorded, not thrown away", wrong.status === 201, `status=${wrong.status}`);
+  const first = await swipeWithFace(emp, "OFF_DUTY", SITE.lat, SITE.lng, nudge(myFace, 2.5), 0);
+  check("a wrong face is refused rather than recorded", first.status === 400, `status=${first.status}`);
+  check("and it is named as a mismatch, not a vague failure", first.json?.error?.code === "FACE_MISMATCH", JSON.stringify(first.json?.error ?? {}));
+  check("it says to take the photo again", /take the photo again/i.test(first.json?.error?.message ?? ""), first.json?.error?.message);
+  check("and says which try this was", first.json?.error?.details?.attempts === 1 && first.json?.error?.details?.maxRetries === 3,
+    JSON.stringify(first.json?.error?.details ?? {}));
+
+  const second = await swipeWithFace(emp, "OFF_DUTY", SITE.lat, SITE.lng, nudge(myFace, 2.5), 1);
+  check("a second wrong try is refused too", second.status === 400, `status=${second.status}`);
+  check("counting up as it goes", second.json?.error?.details?.attempts === 2, JSON.stringify(second.json?.error?.details ?? {}));
+
+  const before = await call(emp, `/api/attendance/swipes?date=${TODAY()}`, null, "GET");
+  const refusedRows = (before.json?.data ?? []).filter((r) => r.faceVerdict === "mismatch").length;
+  check("nothing was recorded by the refused tries", refusedRows === 0, `${refusedRows} mismatch rows`);
+
+  /*
+   * The last try goes through. Refusing for ever would mean somebody with a new
+   * beard, a bandage or bad light cannot clock in, and that becomes an argument
+   * about pay - the one thing this must never cause. It is recorded, marked,
+   * and sent to a person to look at.
+   */
+  const wrong = await swipeWithFace(emp, "OFF_DUTY", SITE.lat, SITE.lng, nudge(myFace, 2.5), 2);
+  check("the last allowed try is recorded, not thrown away", wrong.status === 201, `status=${wrong.status}`);
+  check("a different face is a mismatch", wrong.json?.data?.faceVerdict === "mismatch", `${wrong.json?.data?.faceVerdict} at ${wrong.json?.data?.faceDistance}`);
   check("but it is not approved on the spot", wrong.json?.data?.status === "PENDING", wrong.json?.data?.status);
   check("it goes to somebody to look at", (wrong.json?.data?.approvals ?? []).length > 0, JSON.stringify((wrong.json?.data?.approvals ?? []).map((a) => a.step)));
   check("and how far off it was is kept, so it can be explained later", typeof wrong.json?.data?.faceDistance === "number", `${wrong.json?.data?.faceDistance}`);
+  check("how many tries it took is kept too", wrong.json?.data?.faceAttempts === 2, `${wrong.json?.data?.faceAttempts}`);
 
   /* ---------- a client cannot simply claim a match ---------- */
   /*

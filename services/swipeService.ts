@@ -21,6 +21,8 @@ export interface SwipeRow {
   siteName: string | null; distanceMeters: number | null; withinGeofence: boolean;
   /** What the face check made of it (A108): matched, mismatch, or not checked. */
   faceVerdict: string; faceDistance: number | null;
+  /** How many tries it took (A116) - one bad photograph reads very differently from five. */
+  faceAttempts: number;
   status: string; currentStep: string | null;
   approvals: Array<{ step: string; decision: string; decidedByName: string | null; decidedAt: string | null; note: string | null }>;
   note: string | null;
@@ -73,6 +75,7 @@ export async function serializeSwipe(s: Record<string, unknown>, names: Map<stri
     withinGeofence: Boolean(s.withinGeofence),
     faceVerdict: (s.faceVerdict as string | undefined) ?? "unverified",
     faceDistance: (s.faceDistance as number | null) ?? null,
+    faceAttempts: (s.faceAttempts as number | undefined) ?? 0,
     status: s.status as string,
     currentStep: idx !== null && approvals[idx] ? (approvals[idx].step as string) : null,
     approvals: approvals.map((a) => ({
@@ -139,18 +142,42 @@ export async function createSwipe(
       : "No work site configured",
   });
 
-  const key = `companies/${ctx.companyId}/swipes/${date}/${crypto.randomUUID()}.jpg`;
-  await storage().put({ key, body: stamped.buffer, contentType: stamped.contentType });
-
   /*
-   * The face check (A108). A mismatch does not throw the swipe away: it records
-   * it and sends it for review, the same road an off-site swipe already takes.
-   * Refusing outright would mean somebody with a new beard, a bandage or bad
-   * light simply cannot clock in - and that becomes an argument about pay.
+   * The face check (A108), before the photograph is stored (A116).
+   *
+   * A face that does not match asks for another try rather than being recorded
+   * straight away: somebody half in shadow, or turned away from the lens, took
+   * a bad photograph rather than committed a fraud, and the honest fix is to
+   * take it again. `maxRetries` was in the settings for exactly this from the
+   * start and was never read.
+   *
+   * After that many tries it goes through anyway, marked, down the same road an
+   * off-site swipe takes. Refusing for ever would mean somebody with a new
+   * beard, a bandage or bad light simply cannot clock in - and that becomes an
+   * argument about pay, which is the one thing this must never cause.
+   *
+   * Checked before the upload so a refused attempt leaves no orphaned file: at
+   * three tries each, storing every rejected photograph would cost more than
+   * the swipes themselves.
    */
-  const { checkFace } = await import("./faceService");
+  const { checkFace, faceSettings } = await import("./faceService");
   const face = await checkFace(ctx, input.faceDescriptor);
   const faceFailed = face.verdict === "mismatch";
+  const attempts = Math.max(0, Math.min(20, Math.trunc(Number(input.faceAttempts) || 0)));
+
+  if (faceFailed) {
+    const settings = await faceSettings(ctx.companyId);
+    if (attempts + 1 < settings.maxRetries) {
+      throw Errors.bad(
+        "FACE_MISMATCH",
+        "That does not look like you. Take the photo again, facing the camera in good light.",
+        { attempts: attempts + 1, maxRetries: settings.maxRetries },
+      );
+    }
+  }
+
+  const key = `companies/${ctx.companyId}/swipes/${date}/${crypto.randomUUID()}.jpg`;
+  await storage().put({ key, body: stamped.buffer, contentType: stamped.contentType });
 
   const autoApprove = within && !faceFailed;
   const chain = autoApprove
@@ -166,7 +193,9 @@ export async function createSwipe(
     withinGeofence: within,
     faceVerdict: face.verdict,
     faceDistance: face.distance,
-    faceAttempts: Math.max(0, Math.min(20, Math.trunc(Number(input.faceAttempts) || 0))),
+    // How many tries it took, kept so a reviewer can see the difference between
+    // one bad photograph and somebody trying repeatedly to get past the check.
+    faceAttempts: attempts,
     status: autoApprove ? "APPROVED" : "PENDING",
     currentStep: within ? null : 0,
     approvals: chain.steps.map((s) => ({ step: s.step, approverId: s.approverId, decision: "PENDING" })),

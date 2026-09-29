@@ -44,7 +44,22 @@ export const SwipeSheet = forwardRef<SwipeSheetHandle>(function SwipeSheet(_prop
 
   const send = async () => {
     if (!photo) return;
-    if (await s.submit(photo, note)) close();
+    const result = await s.submit(photo, note);
+    if (result === "ok") { close(); return; }
+    if (result === "retake") {
+      /*
+       * The face did not match, so nothing was recorded and the camera opens
+       * again on its own (A116). Reopening rather than leaving them on a sheet
+       * with the rejected photograph still in it: the only useful next action
+       * is another picture, and making somebody find the button to do the thing
+       * they have just been asked to do is a screen arguing with itself.
+       *
+       * The note is kept - they typed it once and it is still true.
+       */
+      setPhoto(null);
+      if (fileRef.current) fileRef.current.value = "";
+      requestAnimationFrame(() => fileRef.current?.click());
+    }
   };
 
   const label = s.nextType === "OFF_DUTY" ? "Off duty" : "On duty";

@@ -845,3 +845,14 @@ A113 fixed the download. The owner then sent a photograph of the screen that sho
 - **The reason this reached somebody's phone: the test harness launched Chrome with no camera at all.** `getUserMedia` could never succeed, so every camera path was untestable and therefore untested. The harness now starts with a synthetic camera, and the suite drives the real screen: the camera opens, Capture comes back with an answer, and the button is usable again afterwards. 37 checks in the face suite.
 - **Found from a photograph of the screen**, which named the stage precisely. The stage before it had been fixed the same day and looked identical from the outside.
 - **Where:** `lib/face/client.ts`, `components/attendance/face-enrolment.tsx`, `next.config.ts`, `tests/e2e/harness.mjs`, `tests/e2e/suites/face-check.mjs`.
+
+### A116. A face that does not match asks for another photo (owner request, 29 Sep 2026)
+The owner asked that a swipe whose photograph is not verified should ask for a retake. It did not: a mismatch was recorded immediately and sent for approval, and nothing ever asked for another picture. `maxRetries` had been in the company settings since the check was built - validated, exposed, and read by nothing.
+
+- **A mismatch is now refused, up to the limit.** Nothing is recorded, the camera opens again by itself, and the message says which try this was: *"That does not look like you. Take the photo again, facing the camera in good light."* Somebody half in shadow took a bad photograph rather than committed a fraud, and the honest answer is to take it again.
+- **The last try goes through, marked.** Refusing for ever would mean somebody with a new beard, a bandage or bad light cannot clock in, and that becomes an argument about pay - the one thing this must never cause. It is recorded, not approved on the spot, and sent to a person.
+- **The check runs before the photograph is stored.** A refused attempt leaves no orphaned file; at three tries each, storing every rejected picture would cost more than the swipes.
+- **The camera reopens on its own rather than leaving the rejected photo on screen.** The only useful next action is another picture, and making somebody hunt for the button to do the thing they have just been told to do is a screen arguing with itself. The note they typed is kept.
+- **`faceAttempts` is returned by the API now.** It was stored and never surfaced, so a reviewer could not tell one bad photograph from five tries at getting past the check - which is the whole difference between a mistake and an attempt.
+- **Verified:** the ladder is walked end to end - first try refused and named `FACE_MISMATCH` with the count, second refused, nothing recorded by either, and the third recorded, flagged, pending, with the attempt count kept. 45 checks in the face suite.
+- **Where:** `services/swipeService.ts`, `components/attendance/{use-swipe.ts,swipe-sheet.tsx,swipe-view.tsx}`, `tests/e2e/suites/face-check.mjs`.
