@@ -46,8 +46,18 @@ export async function timeReport(ctx: CompanyContext, f: Filter) {
 export function timeReportTable(r: Awaited<ReturnType<typeof timeReport>>, f: Filter, tz: string): ExportTable {
   return {
     title: "Time report", subtitle: `${f.from} to ${f.to}`,
-    columns: [{ key: "date", label: "Date", width: 12 }, { key: "user", label: "Employee", width: 20 }, { key: "client", label: "Client", width: 16 }, { key: "project", label: "Project", width: 22 }, { key: "task", label: "Task / notes", width: 36 }, { key: "start", label: "Start", width: 10 }, { key: "end", label: "End", width: 10 }, { key: "hours", label: "Hours", width: 8, align: "right" }, { key: "status", label: "Status", width: 10 }],
-    rows: r.entries.map((e) => ({ date: e.date, user: e.user?.name ?? "", client: e.client?.name ?? "", project: e.project?.name ?? "", task: [e.task?.name, e.notes].filter(Boolean).join(" - "), start: toTime(e.start, tz), end: e.end ? toTime(e.end, tz) : "", hours: hours(e.elapsedSeconds), status: e.status.toLowerCase() })),
+    /*
+     * The description has a column of its own (A118). It used to be glued onto
+     * the task with a dash, which made it unsortable, unfilterable and
+     * unreadable at any width a task name also has to fit in - and it is the
+     * part somebody opening this actually wants to read.
+     *
+     * "Picture" says whether one was attached rather than linking to it: the
+     * links are signed and expire in minutes, so a URL in a spreadsheet would
+     * be dead long before anybody clicked it, which is worse than saying yes.
+     */
+    columns: [{ key: "date", label: "Date", width: 12 }, { key: "user", label: "Employee", width: 20 }, { key: "client", label: "Client", width: 16 }, { key: "project", label: "Project", width: 22 }, { key: "task", label: "Task", width: 24 }, { key: "notes", label: "Description", width: 40 }, { key: "proof", label: "Picture", width: 9 }, { key: "start", label: "Start", width: 10 }, { key: "end", label: "End", width: 10 }, { key: "hours", label: "Hours", width: 8, align: "right" }, { key: "status", label: "Status", width: 10 }],
+    rows: r.entries.map((e) => ({ date: e.date, user: e.user?.name ?? "", client: e.client?.name ?? "", project: e.project?.name ?? "", task: e.task?.name ?? "", notes: e.notes ?? "", proof: e.hasProof ? "Yes" : "No", start: toTime(e.start, tz), end: e.end ? toTime(e.end, tz) : "", hours: hours(e.elapsedSeconds), status: e.status.toLowerCase() })),
     totals: { task: "Total", hours: r.totals.hours },
   };
 }

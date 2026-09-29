@@ -101,6 +101,29 @@ export default async function run({ browser, lab, check }) {
   const opened = await admin.textContent("tbody");
   check("the sessions name their clients", /Imperion AUDI/.test(opened) && /POPULAR RKS NEXA/.test(opened));
   check("and each has its own from-to", (opened.match(/\d{1,2}:\d{2} [AP]M/g) ?? []).length >= 6, `${(opened.match(/\d{1,2}:\d{2} [AP]M/g) ?? []).length} times`);
+  /*
+   * What they wrote and what they photographed (A118).
+   *
+   * Both are compulsory when a timer is stopped, and neither appeared anywhere
+   * afterwards - which made demanding them a formality rather than a record of
+   * the work. The picture is fetched when the row is opened, so it is waited
+   * for rather than assumed.
+   */
+  check("the sessions show the description that was typed", /Drawings/.test(opened) && /Revisions/.test(opened),
+    opened.slice(0, 200));
+
+  const thumb = await admin.waitForSelector('tbody img[alt="Picture of the work"]', { timeout: 30_000 }).catch(() => null);
+  check("and the picture of the work is there", Boolean(thumb), "no thumbnail appeared in the opened sessions");
+  if (thumb) {
+    // Present is not the same as loaded: a signed link that has expired or been
+    // refused still leaves an <img> in the page.
+    const loaded = await admin.evaluate(() => {
+      const i = document.querySelector('tbody img[alt="Picture of the work"]');
+      return Boolean(i && i.complete && i.naturalWidth > 0);
+    });
+    check("and the browser actually loads it", loaded, "the thumbnail is in the page but did not decode");
+  }
+
   await shot(admin, "report-entries-open");
 
   await admin.click(`tbody tr button[aria-expanded="true"]`);
@@ -144,6 +167,16 @@ export default async function run({ browser, lab, check }) {
   check("an employee's download only ever contains themselves",
     asEmp.status !== 200 || (!asEmp.text.includes(lab.people.hr.name) && asEmp.text.includes(lab.people.emp.name)),
     `status=${asEmp.status} ${asEmp.text.slice(0, 160)}`);
+
+  /* ---------- the time report export carries them too (A118) ---------- */
+  const timeCsv = await fetchFile(admin, `/api/reports/time?from=${today}&to=${today}&format=csv`);
+  check("the time report downloads as CSV", timeCsv.status === 200, `status=${timeCsv.status}`);
+  // Its own column, not glued onto the task with a dash: unsortable and
+  // unreadable at any width a task name also has to fit in.
+  check("the description has a column of its own", /Description/.test(timeCsv.text), timeCsv.text.slice(0, 200));
+  check("and says whether a picture came with it", /Picture/.test(timeCsv.text), timeCsv.text.slice(0, 200));
+  check("the descriptions are actually in it", /Drawings/.test(timeCsv.text) && /Revisions/.test(timeCsv.text), timeCsv.text.slice(0, 400));
+  check("and the picture column says yes where there is one", /,Yes,/.test(timeCsv.text), timeCsv.text.slice(0, 400));
 
   /* ---------- the employee report carries what people wrote ---------- */
   // The summary can only say "1 of 5 reports submitted". The point of this is

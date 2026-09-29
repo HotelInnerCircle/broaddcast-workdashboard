@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -19,6 +19,41 @@ export interface ReportEntry {
   end: string | null;
   elapsedSeconds: number;
   status: string;
+  /** What they said they did when they stopped the timer (A105). */
+  notes?: string | null;
+  /** Whether a picture of the work is attached; the link is fetched on demand. */
+  hasProof?: boolean;
+}
+
+/**
+ * The picture attached to one session (A118).
+ *
+ * Fetched when the row is opened rather than with the report: the link is signed
+ * and short-lived, and a timesheet of two thousand rows would otherwise sign two
+ * thousand URLs nobody looks at. Opening a person-day asks for the handful
+ * underneath it and no more.
+ */
+function ProofThumb({ entryId }: { entryId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/work-proof/timer/${entryId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((j) => { if (alive) setUrl(j?.data?.url ?? null); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [entryId]);
+
+  if (failed) return <span className="text-xs text-muted-foreground">Picture unavailable</span>;
+  if (!url) return <span className="block h-14 w-20 animate-pulse rounded-md bg-muted" />;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Open the full picture">
+      {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL that expires */}
+      <img src={url} alt="Picture of the work" className="h-14 w-20 rounded-md object-cover ring-1 ring-border transition-opacity hover:opacity-80" />
+    </a>
+  );
 }
 
 const timeOf = (d: string | Date) => formatDateTime(d).split(", ")[1];
@@ -115,7 +150,8 @@ export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]
       <Table cards={false} className="table-sticky-1">
         <THead>
           <TR>
-            <TH>Date</TH><TH>Employee</TH><TH>Client</TH><TH>Project</TH><TH>Task</TH><TH>Start</TH><TH>End</TH><TH className="text-right">Duration</TH>
+            {/* The column carries the task, what they wrote, and the picture, so it says so. */}
+            <TH>Date</TH><TH>Employee</TH><TH>Client</TH><TH>Project</TH><TH>Task / what they did</TH><TH>Start</TH><TH>End</TH><TH className="text-right">Duration</TH>
           </TR>
         </THead>
         <TBody>
@@ -158,7 +194,17 @@ export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]
                         <TD />
                         <TD className="text-muted-foreground">{e.client?.name ?? "-"}</TD>
                         <TD className="text-muted-foreground">{e.project?.name ?? ""}</TD>
-                        <TD>{e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="hover:underline" onClick={(ev) => ev.stopPropagation()}>{e.task.name}</Link> : e.task?.name}</TD>
+                        <TD>
+                          {e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="hover:underline" onClick={(ev) => ev.stopPropagation()}>{e.task.name}</Link> : e.task?.name}
+                          {/*
+                            What they wrote and what they photographed (A118).
+                            Both were compulsory to record and neither was shown
+                            anywhere afterwards, which made asking for them a
+                            formality rather than a record of the work.
+                          */}
+                          {e.notes && <span className="mt-0.5 block max-w-md whitespace-pre-wrap text-xs text-muted-foreground">{e.notes}</span>}
+                          {e.hasProof && <span className="mt-1.5 block"><ProofThumb entryId={e.id} /></span>}
+                        </TD>
                         <TD className="whitespace-nowrap">{timeOf(e.start)}</TD>
                         <TD className="whitespace-nowrap">{e.end ? timeOf(e.end) : "-"}</TD>
                         <TD className="text-right font-mono tabular-nums">{formatHMS(e.elapsedSeconds)}</TD>
@@ -174,7 +220,11 @@ export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]
                   <TD>{e.user?.name}</TD>
                   <TD className="text-muted-foreground">{e.client?.name}</TD>
                   <TD className="text-muted-foreground">{e.project?.name}</TD>
-                  <TD>{e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="hover:underline">{e.task.name}</Link> : e.task?.name}</TD>
+                  <TD>
+                    {e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="hover:underline">{e.task.name}</Link> : e.task?.name}
+                    {e.notes && <span className="mt-0.5 block max-w-md whitespace-pre-wrap text-xs text-muted-foreground">{e.notes}</span>}
+                    {e.hasProof && <span className="mt-1.5 block"><ProofThumb entryId={e.id} /></span>}
+                  </TD>
                   <TD className="whitespace-nowrap">{timeOf(e.start)}</TD>
                   <TD className="whitespace-nowrap">{e.end ? timeOf(e.end) : "-"}</TD>
                   <TD className="text-right font-mono tabular-nums">{formatHMS(e.elapsedSeconds)}</TD>
