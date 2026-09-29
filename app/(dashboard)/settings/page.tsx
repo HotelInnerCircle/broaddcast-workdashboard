@@ -6,6 +6,7 @@ import { getCompany } from "@/services/companyService";
 import { User } from "@/models/User";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FaceCheckSettings } from "@/components/settings/face-check-settings";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { ListEditor } from "@/components/settings/list-editor";
 import { ApprovalChainEditor } from "@/components/settings/approval-chain-editor";
@@ -23,7 +24,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isAdmin ? getCompany(ctx as CompanyContext) : null,
     User.findById(new Types.ObjectId(ctx.userId)).select("phone").lean(),
   ]);
-  const defaultTab = tab && ["company", "profile", "subscription", "billing"].includes(tab) ? tab : isAdmin ? "company" : "profile";
+  const defaultTab = tab && ["company", "profile", "face", "subscription", "billing"].includes(tab) ? tab : isAdmin ? "company" : "profile";
 
   return (
     <>
@@ -32,9 +33,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <TabsList>
           {isAdmin && <TabsTrigger value="company">Company</TabsTrigger>}
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          {/* Its own tab: the switch and the approvals are one decision, and both belong away from the general company form. */}
+          {isAdmin && <TabsTrigger value="face">Face check</TabsTrigger>}
           {isAdmin && <TabsTrigger value="subscription">Subscription</TabsTrigger>}
           {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
         </TabsList>
+        {isAdmin && <TabsContent value="face"><FaceCheckSettings /></TabsContent>}
         {company && <TabsContent value="company" className="space-y-6"><CompanySettingsForm company={company} />
           <ApprovalChainEditor initial={company.approvalChain} />
           <ListEditor

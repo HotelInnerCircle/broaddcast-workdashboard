@@ -44,6 +44,31 @@ const UserSchema = new Schema(
     /** How many captures were averaged into it; more is steadier. */
     faceSamples: { type: Number, default: 0 },
     /**
+     * Whether a person has actually looked at this enrolment (A120).
+     *
+     * Without it the check verifies a face against whatever face was pointed at
+     * the camera first, and then reports every later swipe as "verified" - which
+     * is worse than no check, because it manufactures evidence. Somebody who can
+     * recognise the employee has to agree that the enrolled face is theirs.
+     *
+     * Until that happens the enrolment does not count: the swipe is recorded
+     * unverified, exactly as if nobody had enrolled at all. It is never treated
+     * as a mismatch, because a person waiting on HR has done nothing wrong.
+     */
+    faceApproval: { type: String, enum: ["none", "pending", "approved", "rejected"], default: "none" },
+    /**
+     * The photograph taken at enrolment, so HR has something to look at.
+     *
+     * The descriptor is 128 numbers and cannot be turned back into a face, so
+     * approving without this would be approving a row in a table. Private, read
+     * through a link that expires, and deleted with the face.
+     */
+    facePhotoKey: { type: String, default: null },
+    faceApprovedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    faceApprovedAt: { type: Date, default: null },
+    /** Why it was turned down - the person has to be told something useful. */
+    faceReviewNote: { type: String, default: null },
+    /**
      * What a payslip has to print besides the money (A103): whose it is, the
      * statutory numbers, and where the payment goes. Kept on the person rather
      * than on the salary structure, because none of it changes when pay changes.

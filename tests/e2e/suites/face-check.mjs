@@ -66,17 +66,72 @@ export default async function run({ browser, lab, check }) {
   check("enrolling without consent is refused", noConsent.status === 400, `status=${noConsent.status}`);
   check("and it says why", /consent|agree/i.test(JSON.stringify(noConsent.json?.error ?? "")), JSON.stringify(noConsent.json?.error ?? ""));
 
-  const oneSample = await call(emp, "/api/me/face", { consent: true, samples: [myFace] });
+  const oneSample = await call(emp, "/api/me/face", { consent: true, lat: SITE.lat, lng: SITE.lng, samples: [myFace] });
   check("one capture is not enough to enrol from", oneSample.status === 400, `status=${oneSample.status}`);
 
-  const junk = await call(emp, "/api/me/face", { consent: true, samples: [[1, 2, 3], "nonsense", null] });
+  const junk = await call(emp, "/api/me/face", { consent: true, lat: SITE.lat, lng: SITE.lng, samples: [[1, 2, 3], "nonsense", null] });
   check("rubbish instead of a face is refused", junk.status === 400, `status=${junk.status}`);
 
-  const enrolled = await call(emp, "/api/me/face", {
+  /* ---------- it has to be done at a work site (A120) ---------- */
+  /*
+   * The easiest way to enrol somebody else's face is from a sofa, and the phone
+   * already knows where it is. Enforced only where work sites exist, so a
+   * company that has not drawn any is not locked out of its own feature.
+   */
+  const fromHome = await call(emp, "/api/me/face", {
+    consent: true, lat: 13.2, lng: 77.9,
+    samples: [myFace, nudge(myFace, 0.04), nudge(myFace, -0.03), nudge(myFace, 0.02)],
+  });
+  check("enrolling away from every site is refused", fromHome.status === 400 && fromHome.json?.error?.code === "OUTSIDE_SITE",
+    `status=${fromHome.status} ${JSON.stringify(fromHome.json?.error ?? {})}`);
+
+  const noWhere = await call(emp, "/api/me/face", {
     consent: true,
     samples: [myFace, nudge(myFace, 0.04), nudge(myFace, -0.03), nudge(myFace, 0.02)],
   });
+  check("and so is enrolling with the location withheld", noWhere.status === 400 && noWhere.json?.error?.code === "NO_LOCATION",
+    `status=${noWhere.status} ${JSON.stringify(noWhere.json?.error ?? {})}`);
+
+  const enrolled = await call(emp, "/api/me/face", {
+    consent: true, lat: SITE.lat, lng: SITE.lng,
+    samples: [myFace, nudge(myFace, 0.04), nudge(myFace, -0.03), nudge(myFace, 0.02)],
+  });
   check("a face can be enrolled from several captures", enrolled.status === 200, `status=${enrolled.status} ${JSON.stringify(enrolled.json?.error ?? "")}`);
+
+  /* ---------- nothing counts until somebody has agreed to it (A120) ---------- */
+  /*
+   * The hole this closes: whoever held the phone at enrolment became that
+   * account's face for ever, and every swipe afterwards reported "verified".
+   * That is worse than no check, because it manufactures a record that reads
+   * like evidence. A person who can recognise the employee has to say so.
+   */
+  check("a fresh enrolment is pending, not live", enrolled.json?.data?.approval === "pending", JSON.stringify(enrolled.json?.data ?? {}));
+
+  const mineNow = await call(emp, "/api/me/face", null, "GET");
+  check("and the person is told it is waiting", mineNow.json?.data?.approval === "pending", mineNow.json?.data?.approval);
+
+  await call(admin, "/api/admin/company", { faceCheck: { enabled: true } }, "PATCH");
+  const beforeApproval = await swipeWithFace(emp, "ON_DUTY", SITE.lat, SITE.lng, nudge(myFace, 0.15), 0);
+  check("an unapproved face is unverified, not matched", beforeApproval.json?.data?.faceVerdict === "unverified", beforeApproval.json?.data?.faceVerdict);
+  // Unverified, never refused: somebody waiting on HR's queue has done nothing
+  // wrong and must not be stopped from clocking in over it.
+  check("but they are not stopped from swiping", beforeApproval.status === 201, `status=${beforeApproval.status}`);
+  await call(admin, "/api/admin/company", { faceCheck: { enabled: false } }, "PATCH");
+
+  const waitingRegister = await call(hr, "/api/face/enrolment", null, "GET");
+  const waiting = (waitingRegister.json?.data?.rows ?? []).find((r) => r.userId === lab.ids.emp);
+  check("HR sees it waiting in the register", waiting?.approval === "pending", JSON.stringify(waiting ?? {}));
+  check("and the register counts what is pending", waitingRegister.json?.data?.pending >= 1, `${waitingRegister.json?.data?.pending}`);
+
+  const selfApprove = await call(emp, `/api/face/enrolment/${lab.ids.emp}`, { decision: "APPROVED" }, "PATCH");
+  check("an employee cannot approve anybody, least of all themselves", [401, 403].includes(selfApprove.status), `status=${selfApprove.status}`);
+
+  const approve = await call(hr, `/api/face/enrolment/${lab.ids.emp}`, { decision: "APPROVED" }, "PATCH");
+  check("HR can approve it", approve.status === 200, `status=${approve.status} ${JSON.stringify(approve.json?.error ?? "")}`);
+  check("and it is approved now", approve.json?.data?.approval === "approved", JSON.stringify(approve.json?.data ?? {}));
+
+  const twice = await call(hr, `/api/face/enrolment/${lab.ids.emp}`, { decision: "APPROVED" }, "PATCH");
+  check("deciding twice is refused", twice.status === 400, `status=${twice.status}`);
   check("it says how many it averaged", enrolled.json?.data?.samples === 4, `${enrolled.json?.data?.samples}`);
 
   /* ---------- while it is off, nothing is checked ---------- */
@@ -146,6 +201,17 @@ export default async function run({ browser, lab, check }) {
   const brokenFace = await swipeWithFace(emp, "ON_DUTY", SITE.lat, SITE.lng, "pretend this matched");
   check("nor is sending nonsense in place of one", brokenFace.json?.data?.faceVerdict === "unverified", brokenFace.json?.data?.faceVerdict);
   check("and it does not crash the swipe", brokenFace.status === 201, `status=${brokenFace.status}`);
+
+  /* ---------- re-enrolling sends it back to the queue (A120) ---------- */
+  /*
+   * Otherwise the approval is theatre: enrol your own face, have it approved,
+   * then quietly replace it with somebody else's and keep the tick.
+   */
+  const again = await call(emp, "/api/me/face", { consent: true, lat: SITE.lat, lng: SITE.lng, samples: [myFace, nudge(myFace, 0.05)] });
+  check("enrolling again is allowed", again.status === 200, `status=${again.status}`);
+  check("but it goes back to pending", again.json?.data?.approval === "pending", JSON.stringify(again.json?.data ?? {}));
+  const reapprove = await call(hr, `/api/face/enrolment/${lab.ids.emp}`, { decision: "APPROVED" }, "PATCH");
+  check("and has to be approved again", reapprove.status === 200, `status=${reapprove.status}`);
 
   /* ---------- the threshold is a company decision ---------- */
   await call(admin, "/api/admin/company", { faceCheck: { enabled: true, threshold: 1.4 } }, "PATCH");

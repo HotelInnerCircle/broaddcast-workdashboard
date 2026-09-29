@@ -19,6 +19,7 @@ export const updateCompanySchema = z.object({
     enabled: z.boolean().optional(),
     threshold: z.number().min(0.1).max(1.5).optional(),
     maxRetries: z.number().int().min(1).max(10).optional(),
+    enrolAtSite: z.boolean().optional(),
   }).optional(),
   approvalChain: z.array(z.enum(["TEAM_LEAD", "MANAGER", "HR"]))
     .min(1)

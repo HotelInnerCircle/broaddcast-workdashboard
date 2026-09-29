@@ -66,6 +66,18 @@ const CompanySchema = new Schema(
       threshold: { type: Number, default: 0.6, min: 0.1, max: 1.5 },
       /** After this many failed tries, record the swipe for review rather than refusing it. */
       maxRetries: { type: Number, default: 3, min: 1, max: 10 },
+      /**
+       * Enrolling has to happen at a work site (A120).
+       *
+       * The easiest way to enrol somebody else's face is from a sofa, and the
+       * app already knows where the phone is. On by default, and it does
+       * nothing at all until work sites exist - there is no point refusing
+       * everybody for being outside a geofence that has not been drawn.
+       *
+       * It can be switched off, because a company with sites and office staff
+       * who work from home would otherwise be unable to enrol half its people.
+       */
+      enrolAtSite: { type: Boolean, default: true },
     },
     workProof: {
       timer: { type: Boolean, default: true },

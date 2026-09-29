@@ -2,14 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ScanFace, Check, Trash2, Loader2, CircleAlert } from "lucide-react";
+import { ScanFace, Check, Trash2, Loader2, CircleAlert, Clock } from "lucide-react";
 import { api, ClientApiError } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { readFace, loadFaceModels, cameraSupported, FaceModelError } from "@/lib/face/client";
 import { cn } from "@/lib/utils/cn";
 
-interface Status { enrolled: boolean; enrolledAt: string | null; samples: number; required: boolean }
+interface Status {
+  enrolled: boolean; enrolledAt: string | null; samples: number; required: boolean;
+  /** none | pending | approved | rejected (A120). */
+  approval?: string;
+  reviewNote?: string | null;
+}
 
 const NEEDED = 4;
 
@@ -30,6 +35,13 @@ export function FaceEnrolment() {
   const [consent, setConsent] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [samples, setSamples] = useState<number[][]>([]);
+  /*
+   * A still from the moment they enrolled (A120). HR has to approve the
+   * enrolment, and approving means recognising a face - the descriptor is 128
+   * numbers and cannot be turned back into one. Taken from the first good
+   * capture rather than asking for a separate photograph.
+   */
+  const [shot, setShot] = useState<Blob | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const video = useRef<HTMLVideoElement | null>(null);
@@ -91,6 +103,13 @@ export function FaceEnrolment() {
     try { read = await readFace(video.current); }
     finally { setBusy(false); }
     if (!read.ok || !read.descriptor) { setHint(read.message); return; }
+    if (!shot && video.current) {
+      const c = document.createElement("canvas");
+      c.width = video.current.videoWidth || 480;
+      c.height = video.current.videoHeight || 640;
+      c.getContext("2d")?.drawImage(video.current, 0, 0, c.width, c.height);
+      await new Promise<void>((done) => c.toBlob((b) => { if (b) setShot(b); done(); }, "image/jpeg", 0.85));
+    }
     const next = [...samples, read.descriptor];
     setSamples(next);
     setHint(next.length < NEEDED
@@ -101,10 +120,38 @@ export function FaceEnrolment() {
   const save = async () => {
     setBusy(true);
     try {
-      await api("/api/me/face", { method: "POST", json: { consent: true, samples } });
-      toast.success("Your face is enrolled");
+      const fd = new FormData();
+      fd.append("consent", "true");
+      fd.append("samples", JSON.stringify(samples));
+      if (shot) fd.append("photo", new File([shot], "enrolment.jpg", { type: "image/jpeg" }));
+      /*
+       * Where they are standing, when the browser will say (A120). The company
+       * can insist that enrolling happens at a work site - the easiest way to
+       * enrol somebody else's face is from a sofa. Asked for quietly: if the fix
+       * does not arrive the server decides what to do about it, rather than this
+       * screen refusing on its own.
+       */
+      const fix = await new Promise<GeolocationPosition | null>((done) => {
+        if (!navigator.geolocation) return done(null);
+        const timer = setTimeout(() => done(null), 8000);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { clearTimeout(timer); done(pos); },
+          () => { clearTimeout(timer); done(null); },
+          { enableHighAccuracy: true, timeout: 8000 },
+        );
+      });
+      if (fix) {
+        fd.append("lat", String(fix.coords.latitude));
+        fd.append("lng", String(fix.coords.longitude));
+      }
+
+      await api("/api/me/face", { method: "POST", body: fd });
+      toast.success("Sent for approval", {
+        description: "HR will check the photo against you. Until they do, swipes are recorded unverified.",
+      });
       stop();
       setSamples([]);
+      setShot(null);
       load();
     } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not save it"); }
     finally { setBusy(false); }
@@ -133,13 +180,39 @@ export function FaceEnrolment() {
       </CardHeader>
       <CardContent className="space-y-4">
         {status?.enrolled ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-success-soft px-4 py-3">
-            <Check className="size-4 shrink-0 text-tile-success-fg" />
-            <p className="min-w-0 flex-1 text-[13px] text-tile-success-fg">
-              Enrolled from {status.samples} captures
-              {status.enrolledAt ? ` on ${new Date(status.enrolledAt).toLocaleDateString()}` : ""}.
+          /*
+           * Which of the three states they are in (A120). An enrolment waiting
+           * on HR is not yet doing anything, and saying "Enrolled" while swipes
+           * are still going through unverified would be a lie people only
+           * discover from a supervisor.
+           */
+          <div className={cn(
+            "flex flex-wrap items-center gap-3 rounded-xl px-4 py-3",
+            status.approval === "approved" ? "bg-success-soft" : "bg-warning-soft",
+          )}>
+            {status.approval === "approved"
+              ? <Check className="size-4 shrink-0 text-tile-success-fg" />
+              : <Clock className="size-4 shrink-0 text-tile-warning-fg" />}
+            <p className={cn("min-w-0 flex-1 text-[13px]", status.approval === "approved" ? "text-tile-success-fg" : "text-tile-warning-fg")}>
+              {status.approval === "approved" ? (
+                <>
+                  Approved, from {status.samples} captures
+                  {status.enrolledAt ? ` on ${new Date(status.enrolledAt).toLocaleDateString()}` : ""}.
+                </>
+              ) : (
+                <>
+                  Waiting for HR to check the photo against you. Until they do, your
+                  swipes are recorded unverified - they still count.
+                </>
+              )}
             </p>
             <Button variant="outline" size="sm" loading={busy} onClick={() => void remove()}><Trash2 />Remove</Button>
+          </div>
+        ) : status?.approval === "rejected" ? (
+          // Turned down clears the face, so the only way forward is to enrol
+          // again - and they are told why rather than left guessing.
+          <div className="rounded-xl bg-danger-soft px-4 py-3 text-[13px] text-danger">
+            Your enrolment was turned down{status?.reviewNote ? `: ${status.reviewNote}` : ""}. Enrol again below.
           </div>
         ) : null}
 
