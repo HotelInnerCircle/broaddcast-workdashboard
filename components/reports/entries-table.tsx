@@ -7,6 +7,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatDate, formatDateTime } from "@/lib/utils/dates";
 import { formatHMS } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils/cn";
+import { Lightbox, type LightboxImage } from "@/components/ui/lightbox";
 
 export interface ReportEntry {
   id: string;
@@ -33,7 +34,7 @@ export interface ReportEntry {
  * thousand URLs nobody looks at. Opening a person-day asks for the handful
  * underneath it and no more.
  */
-function ProofThumb({ entryId }: { entryId: string }) {
+function ProofThumb({ entryId, label, onOpen }: { entryId: string; label: string; onOpen: (img: LightboxImage) => void }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -49,10 +50,18 @@ function ProofThumb({ entryId }: { entryId: string }) {
   if (failed) return <span className="text-xs text-muted-foreground">Picture unavailable</span>;
   if (!url) return <span className="block h-14 w-20 animate-pulse rounded-md bg-muted" />;
   return (
-    <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title="Open the full picture">
+    <button
+      type="button"
+      // Over the report, not away from it (A119). Opening a new browser tab took
+      // somebody out of the thing they were reading to look at one picture, and
+      // then made them find their way back to it.
+      onClick={(e) => { e.stopPropagation(); onOpen({ name: label, url, downloadUrl: url }); }}
+      title="See the full picture"
+      className="block rounded-md ring-1 ring-border transition-opacity hover:opacity-80"
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL that expires */}
-      <img src={url} alt="Picture of the work" className="h-14 w-20 rounded-md object-cover ring-1 ring-border transition-opacity hover:opacity-80" />
-    </a>
+      <img src={url} alt="Picture of the work" className="h-14 w-20 rounded-md object-cover" />
+    </button>
   );
 }
 
@@ -109,6 +118,7 @@ function group(entries: ReportEntry[]): Group[] {
 
 export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]; totalSeconds: number }) {
   const [grouped, setGrouped] = useState(true);
+  const [viewing, setViewing] = useState<LightboxImage | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const groups = useMemo(() => group(entries.slice(0, 2000)), [entries]);
 
@@ -203,7 +213,7 @@ export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]
                             formality rather than a record of the work.
                           */}
                           {e.notes && <span className="mt-0.5 block max-w-md whitespace-pre-wrap text-xs text-muted-foreground">{e.notes}</span>}
-                          {e.hasProof && <span className="mt-1.5 block"><ProofThumb entryId={e.id} /></span>}
+                          {e.hasProof && <span className="mt-1.5 block"><ProofThumb entryId={e.id} label={`${e.user?.name ?? "Work"} - ${formatDate(`${e.date}T12:00:00Z`)}`} onOpen={setViewing} /></span>}
                         </TD>
                         <TD className="whitespace-nowrap">{timeOf(e.start)}</TD>
                         <TD className="whitespace-nowrap">{e.end ? timeOf(e.end) : "-"}</TD>
@@ -223,7 +233,7 @@ export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]
                   <TD>
                     {e.task?.id ? <Link href={`/tasks/${e.task.id}`} className="hover:underline">{e.task.name}</Link> : e.task?.name}
                     {e.notes && <span className="mt-0.5 block max-w-md whitespace-pre-wrap text-xs text-muted-foreground">{e.notes}</span>}
-                    {e.hasProof && <span className="mt-1.5 block"><ProofThumb entryId={e.id} /></span>}
+                    {e.hasProof && <span className="mt-1.5 block"><ProofThumb entryId={e.id} label={`${e.user?.name ?? "Work"} - ${formatDate(`${e.date}T12:00:00Z`)}`} onOpen={setViewing} /></span>}
                   </TD>
                   <TD className="whitespace-nowrap">{timeOf(e.start)}</TD>
                   <TD className="whitespace-nowrap">{e.end ? timeOf(e.end) : "-"}</TD>
@@ -237,6 +247,9 @@ export function EntriesTable({ entries, totalSeconds }: { entries: ReportEntry[]
         <span className="text-muted-foreground">Total&nbsp;</span>
         <span className="font-semibold tabular-nums">{formatHMS(totalSeconds)}</span>
       </div>
+
+      {/* The same viewer chat uses, so a picture behaves the same way everywhere. */}
+      {viewing && <Lightbox images={[viewing]} index={0} onClose={() => setViewing(null)} />}
     </>
   );
 }

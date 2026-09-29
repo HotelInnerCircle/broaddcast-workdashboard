@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils/cn";
 import type { useChat, ChatMessage } from "@/hooks/useChat";
 import { Composer } from "./composer";
 import { MessageBubble } from "./message-bubble";
-import { Lightbox, type Attachment } from "./attachments";
+import { type Attachment } from "./attachments";
+import { Lightbox } from "@/components/ui/lightbox";
 import { ForwardDialog } from "./forward-dialog";
 
 type Chat = ReturnType<typeof useChat>;

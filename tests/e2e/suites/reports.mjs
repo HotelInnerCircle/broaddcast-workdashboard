@@ -124,6 +124,32 @@ export default async function run({ browser, lab, check }) {
     check("and the browser actually loads it", loaded, "the thumbnail is in the page but did not decode");
   }
 
+  /* ---------- and it opens in place (A119) ---------- */
+  /*
+   * It used to be a link with target="_blank", which threw somebody out of the
+   * report they were reading to look at one photograph and then left them to
+   * find their way back. It opens over the page now, in the same viewer chat
+   * uses, so a picture behaves the same way everywhere in the app.
+   */
+  const tabsBefore = admin.context().pages().length;
+  await admin.click('tbody button[title="See the full picture"]');
+  const viewer = await admin.waitForSelector('[role="dialog"][aria-modal="true"]', { timeout: 15_000 }).catch(() => null);
+  check("clicking the picture opens it over the report", Boolean(viewer), "no dialog appeared");
+  check("and does not open another browser tab", admin.context().pages().length === tabsBefore,
+    `${tabsBefore} tabs -> ${admin.context().pages().length}`);
+
+  if (viewer) {
+    const big = await admin.evaluate(() => {
+      const i = document.querySelector('[role="dialog"][aria-modal="true"] img');
+      return Boolean(i && i.complete && i.naturalWidth > 0);
+    });
+    check("the full picture actually loads in it", big, "the dialog is open but its image did not decode");
+    await admin.keyboard.press("Escape");
+    await wait(400);
+    const closed = (await admin.$$('[role="dialog"][aria-modal="true"]')).length === 0;
+    check("and Escape closes it again", closed);
+  }
+
   await shot(admin, "report-entries-open");
 
   await admin.click(`tbody tr button[aria-expanded="true"]`);

@@ -875,3 +875,13 @@ The owner said the uploaded images and the description were not showing in the t
 - **The test asserts the thumbnail decoded, not that an `<img>` exists** - the same trap the avatar check fell into two days ago, where a broken `src` passed a selector against an empty circle.
 - **Verified:** 42 checks in the reports suite, up from 34 - the descriptions appear in the opened sessions, the picture loads, and the CSV carries a Description column, a Picture column, and the words themselves.
 - **Where:** `components/reports/entries-table.tsx`, `services/reportService.ts`, `tests/e2e/suites/reports.mjs`.
+
+### A119. The picture opens over the report, not in another tab (owner request, 29 Sep 2026)
+A118 put the photograph in the time report as a link with `target="_blank"`. The owner asked for it to open in place, and they are right: a new browser tab throws somebody out of the report they are reading to look at one image, and then leaves them to find their way back to it.
+
+- **The app already had a viewer.** Chat's lightbox handles Escape, arrow keys, download and click-to-close - and it lived in `components/chat/attachments.tsx`, where the reports table could not reach it, so a worse thing was written instead. It is `components/ui/lightbox.tsx` now and both use it, because two viewers that behave differently is worse than one that moved.
+- **It takes the least it needs** - a name, a URL, something to download - so anything with a picture can use it without inventing a chat attachment.
+- **The test asserts no second tab is opened**, not merely that a dialog appears. The bug was the navigation, so that is the thing to pin.
+- **A mistake worth recording:** the check was inserted with `String.replace`, where `$$` in the *replacement* means a literal `$`. `admin.$$(...)` silently became `admin.$(...)`, which returns null rather than an array, and the suite crashed on `.length`. Same family as the rule about never writing regexes through a shell - use a replacer function, or write the file directly.
+- **Verified:** 46 checks in the reports suite - the dialog opens over the page, the full picture decodes in it, no second tab is opened, and Escape closes it.
+- **Where:** `components/ui/lightbox.tsx`, `components/chat/{attachments,thread}.tsx`, `components/reports/entries-table.tsx`, `tests/e2e/suites/reports.mjs`.
