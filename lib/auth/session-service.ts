@@ -91,13 +91,36 @@ export async function resolveSession(token: string | null | undefined): Promise<
   // so, but it stops authorising anything from this moment on.
   if (session.revokedAt) return null;
 
-  const user = await User.findById(session.userId).lean();
+  /*
+   * The person and their company are fetched together (A122).
+   *
+   * They used to be fetched one after the other, which made three round trips
+   * to the database - session, then user, then company - before a request had
+   * done any of its own work. At roughly 33 ms each that was about a tenth of a
+   * second added to every API call and every page in the app, spent entirely on
+   * working out who was asking.
+   *
+   * They do not actually depend on each other: the session already carries a
+   * copy of companyId, denormalised so that suspending a company can clear its
+   * sessions in one query. That copy is what makes the two parallel.
+   */
+  const [user, sessionCompany] = await Promise.all([
+    User.findById(session.userId).lean(),
+    session.companyId ? Company.findById(session.companyId).lean() : Promise.resolve(null),
+  ]);
   if (!user || user.status !== "active" || user.archivedAt) return null;
 
   let company: SessionContext["company"] = null;
   if (user.role !== "SUPER_ADMIN") {
     if (!user.companyId) return null;
-    const c = await Company.findById(user.companyId).lean();
+    /*
+     * The copy is trusted only when it still agrees with the user. Somebody
+     * moved between companies since they signed in would otherwise keep being
+     * served their old one - rare, and far too serious to accept for 33 ms.
+     */
+    const c = sessionCompany && String(sessionCompany._id) === String(user.companyId)
+      ? sessionCompany
+      : await Company.findById(user.companyId).lean();
     if (!c || c.status !== "active") return null;
     company = {
       id: String(c._id), name: c.name, logoUrl: c.logoUrl ?? null, timezone: c.timezone,
