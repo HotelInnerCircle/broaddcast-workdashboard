@@ -119,6 +119,14 @@ export function LeaveBalance({ rows }: { rows: BalanceRow[] }) {
                 {r.carriesBalance ? "left" : "taken"}
                 {/* Where part of it came from, so a bigger number than expected explains itself. */}
                 {r.carriedIn > 0 ? ` · ${r.carriedIn} carried` : ""}
+                {/*
+                  Said out loud, because a figure below the allowance with
+                  nothing taken looks like a deduction. It is not: the rest of
+                  the year simply has not happened yet.
+                */}
+                {r.carriesBalance && r.monthlyAccrual && r.daysPerYear > 0
+                  ? ` · ${r.daysPerYear}/yr, earned monthly`
+                  : ""}
                 {r.pending > 0 && r.carriesBalance ? ` · ${r.pending} awaiting` : ""}
               </span>
             </span>

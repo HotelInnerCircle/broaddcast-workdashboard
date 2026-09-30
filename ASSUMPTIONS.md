@@ -940,3 +940,12 @@ The owner asked that leave be added at the start of each month and that unused d
 - **A debt is never carried.** More taken than earned is something to settle, not a negative opening balance that quietly eats next year's leave.
 - **A bug found on the way:** `setPolicy` wrote `monthlyAccrual ?? true` on every save, so changing the number of days for comp off - which must never accrue - quietly turned accrual back on. It now writes only the fields it was actually sent.
 - **Verified:** 7 unit checks on the fold - what carries, what lapses, the cap, an uncapped policy, never carrying a debt, part-year accrual, and half-day rounding.
+
+### A125. The whole year is given on day one (owner request, 29 Sep 2026)
+The owner looked at a balance reading 0.5 with nothing taken and said leave should not be cut automatically - only when somebody applies for it. Nothing had been cut: 0.5 was what nine months of a one-day-a-year allowance comes to. But they are right about the screen, and about what the default should be.
+
+- **A number below the allowance reads as a deduction.** "0.5 left" against an allowance of 1, with no leave taken all year, is indistinguishable from half a day having been taken away. No explanation on the row makes that intuition wrong; it makes the design wrong.
+- **New companies now get the whole year on the first day.** The balance shows what somebody is allowed, and comes down only by what they have applied for - which is exactly what was asked for.
+- **Monthly accrual stays, because it is a real choice** some companies make, and their existing policies still use it. It is a switch on each row of the leave policy editor now instead of a field nobody could reach, and the balance row says *"12/yr, earned monthly"* when it is on, so a figure below the allowance explains itself rather than looking like a cut.
+- **Pending requests still come off the balance.** Applying is what spends a day; leaving it out until approval would let somebody apply for the same last day three times over.
+- **Verified:** 4 more unit checks - the full allowance in January, the same full allowance in September, coming down only by what was applied for, and an accruing policy still producing the 0.5 that started this.

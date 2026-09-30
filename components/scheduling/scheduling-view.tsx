@@ -76,9 +76,12 @@ export function SchedulingView() {
     catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not remove it"); }
   };
 
-  const savePolicy = async (type: string, daysPerYear: number) => {
+  const savePolicy = async (type: string, daysPerYear: number, monthlyAccrual?: boolean) => {
     try {
-      const next = await api<Policy[]>("/api/leave/policies", { method: "PUT", json: { type, year: new Date().getFullYear(), daysPerYear } });
+      const next = await api<Policy[]>("/api/leave/policies", {
+        method: "PUT",
+        json: { type, year: new Date().getFullYear(), daysPerYear, ...(monthlyAccrual === undefined ? {} : { monthlyAccrual }) },
+      });
       setPolicies(next);
       toast.success("Allowance saved");
     } catch (e) { toast.error(e instanceof ClientApiError ? e.message : "Could not save it"); }
@@ -220,7 +223,7 @@ function Holidays({ rows, hol, setHol, busy, onAdd, onRemove }: {
 }
 
 /** How many days of each kind people get in a year (A91). Loss of pay and on duty have none. */
-function Allowances({ rows, onSave }: { rows: Policy[]; onSave: (type: string, days: number) => Promise<void> }) {
+function Allowances({ rows, onSave }: { rows: Policy[]; onSave: (type: string, days: number, monthlyAccrual?: boolean) => Promise<void> }) {
   return (
     <Card><CardContent className="p-0">
       <ul className="divide-y divide-border">
@@ -232,10 +235,24 @@ function Allowances({ rows, onSave }: { rows: Policy[]; onSave: (type: string, d
                 {r.daysPerYear} day(s) a year{r.monthlyAccrual ? ` · ${Math.round((r.daysPerYear / 12) * 10) / 10} a month as the year goes on` : " · all up front"}
               </p>
             </div>
+            {/*
+              Whether the year arrives on day one or a twelfth at a time (A125).
+              It is a real choice - some companies accrue - but it changes what
+              every employee sees on their balance, so it belongs next to the
+              number rather than buried in a settings file.
+            */}
+            <label className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-muted-foreground">
+              <input
+                type="checkbox" className="size-3.5"
+                checked={r.monthlyAccrual}
+                onChange={(e) => void onSave(r.type, r.daysPerYear, e.target.checked)}
+              />
+              Earn monthly
+            </label>
             <Input
               aria-label={`Days per year for ${r.typeLabel}`} defaultValue={String(r.daysPerYear)} inputMode="numeric"
               className="w-24 shrink-0"
-              onBlur={(e) => { const n = Number(e.target.value); if (!Number.isNaN(n) && n !== r.daysPerYear) void onSave(r.type, n); }}
+              onBlur={(e) => { const n = Number(e.target.value); if (!Number.isNaN(n) && n !== r.daysPerYear) void onSave(r.type, n, r.monthlyAccrual); }}
             />
           </li>
         ))}

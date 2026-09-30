@@ -438,6 +438,13 @@ export async function setPolicy(
  *
  * Comp off is deliberately zero and does not accrue: it is earned by working a
  * day that was yours, granted one at a time, not handed out by the calendar.
+ *
+ * The whole year is given on the first day rather than a twelfth a month
+ * (A125). Accruing made a balance read 0.5 out of 1 in September with nothing
+ * taken, which everybody reads as leave having been cut - the number people
+ * expect to see is what they are allowed, going down only when they ask for a
+ * day. Monthly accrual is still there for a company that wants it; it is simply
+ * not what a new company gets.
  */
 export const DEFAULT_LEAVE_PLAN: Array<{ type: LeaveType; daysPerYear: number; monthlyAccrual: boolean; carryForward: boolean; carryForwardMax: number }> = [
   /*
@@ -445,10 +452,10 @@ export const DEFAULT_LEAVE_PLAN: Array<{ type: LeaveType; daysPerYear: number; m
    * money when somebody leaves, so letting it run away uncapped turns into a
    * liability nobody planned for - thirty days is the usual ceiling.
    */
-  { type: "PL", daysPerYear: 15, monthlyAccrual: true, carryForward: true, carryForwardMax: 30 },
+  { type: "PL", daysPerYear: 15, monthlyAccrual: false, carryForward: true, carryForwardMax: 30 },
   // Casual and sick leave are meant to be used in the year they are given.
-  { type: "CL", daysPerYear: 12, monthlyAccrual: true, carryForward: false, carryForwardMax: 0 },
-  { type: "SL", daysPerYear: 12, monthlyAccrual: true, carryForward: false, carryForwardMax: 0 },
+  { type: "CL", daysPerYear: 12, monthlyAccrual: false, carryForward: false, carryForwardMax: 0 },
+  { type: "SL", daysPerYear: 12, monthlyAccrual: false, carryForward: false, carryForwardMax: 0 },
   // Comp off is granted for a day worked, one at a time, never by the calendar.
   { type: "COMP_OFF", daysPerYear: 0, monthlyAccrual: false, carryForward: false, carryForwardMax: 0 },
 ];

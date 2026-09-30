@@ -79,3 +79,39 @@ describe("what survives the year", () => {
     expect(Math.floor(0.75 * 2) / 2).toBe(0.5);
   });
 });
+
+describe("the whole year, given on day one", () => {
+  /*
+   * What the owner actually asked for (A125): nothing comes off a balance
+   * except leave somebody applied for. Accruing made September read 0.5 out of
+   * 1 with nothing taken, and a number below the allowance reads as a
+   * deduction - so the default is now the whole year up front.
+   */
+  const whole: Policy = { daysPerYear: 12, monthlyAccrual: false, carryForward: false, carryForwardMax: 0 };
+
+  const balance = (pol: Policy, used: number, month: number) => {
+    const accrued = pol.monthlyAccrual ? (pol.daysPerYear / 12) * month : pol.daysPerYear;
+    return Math.floor((accrued - used) * 2) / 2;
+  };
+
+  it("shows the full allowance in January with nothing taken", () => {
+    expect(balance(whole, 0, 1)).toBe(12);
+  });
+
+  it("still shows the full allowance in September with nothing taken", () => {
+    // The month must not matter when the year is granted up front.
+    expect(balance(whole, 0, 9)).toBe(12);
+  });
+
+  it("comes down only by what was applied for", () => {
+    expect(balance(whole, 2, 9)).toBe(10);
+    expect(balance(whole, 2.5, 9)).toBe(9.5);
+  });
+
+  it("an accruing policy is the thing that looked like a cut", () => {
+    // Kept as an option, and the balance row now says so out loud rather than
+    // leaving somebody to conclude their leave was taken from them.
+    const accruing: Policy = { ...whole, daysPerYear: 1, monthlyAccrual: true };
+    expect(balance(accruing, 0, 9)).toBe(0.5);
+  });
+});
