@@ -40,6 +40,8 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Timer", href: "/timer", icon: Timer, permission: ["timer", "view"] },
       { label: "Timesheets", href: "/timesheets", icon: Table2, permission: ["timer", "view"] },
       { label: "Attendance", href: "/attendance", icon: CalendarCheck, permission: ["attendance", "view"] },
+      // The month somebody signs off before it becomes pay (A130).
+      { label: "Authorise", href: "/attendance/authorise", icon: ClipboardCheck, permission: ["attendance", "view"] },
       // A83: swiping is its own screen - it needs the camera and a location fix, which the
       // attendance table has no business asking for.
       { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"] },

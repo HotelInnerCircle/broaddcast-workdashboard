@@ -151,6 +151,56 @@ export default async function run({ browser, lab, check }) {
   check("and none of next month is an absence yet",
     (N?.days ?? []).every((d) => d.kind !== "Absent"),
     (N?.days ?? []).filter((d) => d.kind === "Absent").slice(0, 3).map((d) => d.date).join(", "));
+  /* ---------- the month somebody signs off (A130) ---------- */
+  /*
+   * The step that was missing between a swipe and a payslip. Everything else
+   * runs on its own - the swipe carries a photograph and a face, the day is
+   * derived from the swipes, payroll counts the payable days - and nowhere did
+   * a person look at a month and say it was right.
+   */
+  const grid = await call(hr, `/api/attendance/authorise?month=${MONTH()}`, null, "GET");
+  check("the authorisation grid loads", grid.status === 200, `status=${grid.status}`);
+  check("it has a row per person in scope", (grid.json?.data?.rows ?? []).length > 0, `${(grid.json?.data?.rows ?? []).length} rows`);
+  check("and a column per day of the month", (grid.json?.data?.dates ?? []).length >= 28, `${(grid.json?.data?.dates ?? []).length} days`);
+  const gridRow = (grid.json?.data?.rows ?? []).find((r) => r.userId === lab.ids.emp);
+  check("every row carries the days and the totals", Boolean(gridRow?.days?.length && gridRow?.summary), JSON.stringify(gridRow?.summary ?? {}));
+
+  const empGrid = await call(emp, `/api/attendance/authorise?month=${MONTH()}`, null, "GET");
+  const empSees = (empGrid.json?.data?.rows ?? []).map((r) => r.userId);
+  // Scoped like everything else: an employee sees themselves, never the company.
+  check("an employee sees only themselves in it",
+    empGrid.status !== 200 || (empSees.length <= 1 && (empSees.length === 0 || empSees[0] === lab.ids.emp)),
+    `status=${empGrid.status} ${JSON.stringify(empSees)}`);
+
+  /*
+   * The reason is required, and not as a formality. A day changed by hand
+   * months later with no note is indistinguishable from a mistake, and these
+   * are the entries that move money.
+   */
+  const noNote = await call(hr, "/api/attendance/authorise",
+    { userId: lab.ids.emp, date: today, status: "Present", note: "" }, "PATCH");
+  check("settling a day without a reason is refused", noNote.status === 422 || noNote.status === 400, `status=${noNote.status}`);
+
+  const settled = await call(hr, "/api/attendance/authorise",
+    { userId: lab.ids.emp, date: today, status: "Present", note: "Forgot to swipe off - confirmed with their lead." }, "PATCH");
+  check("HR can settle a day with one", settled.status === 200, `status=${settled.status} ${JSON.stringify(settled.json?.error ?? "")}`);
+  check("and it takes the status they chose", settled.json?.data?.status === "Present", settled.json?.data?.status);
+
+  const byEmployee = await call(emp, "/api/attendance/authorise",
+    { userId: lab.ids.emp, date: today, status: "Present", note: "I was here honestly" }, "PATCH");
+  check("an employee cannot settle their own day", [401, 403].includes(byEmployee.status), `status=${byEmployee.status}`);
+
+  /*
+   * And it survives a swipe arriving afterwards. syncAttendanceFromSwipes
+   * leaves alone any day somebody set by hand - a decision must never be
+   * quietly recomputed away by a late swipe.
+   */
+  await swipePhoto(emp, "OFF_DUTY", 12.9716, 77.5946);
+  const after = await call(hr, `/api/attendance/authorise?month=${MONTH()}`, null, "GET");
+  const stillSet = (after.json?.data?.rows ?? []).find((r) => r.userId === lab.ids.emp)?.days?.find((d) => d.date === today);
+  check("a settled day is not recomputed away by a later swipe",
+    stillSet?.kind === "Present", `${stillSet?.kind}`);
+
   const beforeJoining = (L?.days ?? []).filter((d) => d.date < L.joinedOn);
   check("days before the join date are not absences", beforeJoining.every((d) => d.kind === "Before joining"),
     `${beforeJoining.length} days before ${L?.joinedOn}`);

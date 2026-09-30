@@ -188,3 +188,92 @@ export async function attendanceLedger(ctx: CompanyContext, userId: string, mont
     joinedOn: joined, days, summary: s,
   };
 }
+
+/**
+ * Everybody's month, day by day, on one screen (A130).
+ *
+ * The screen HR actually works in: people down the side, days across the top,
+ * one cell per day. It exists because payroll has been computing pay from days
+ * nobody looked at - the chain from a swipe to a payslip was complete except
+ * for the step where a person says "yes, this month is right".
+ *
+ * Built on `attendanceLedger` rather than beside it, deliberately. That
+ * function is the single place that decides what a day was worth, and a grid
+ * that recounted days its own way would eventually disagree with the payslip
+ * computed from the same month - which is the one disagreement nobody can
+ * argue their way out of.
+ */
+export interface AuthRow {
+  userId: string;
+  userName: string;
+  employeeCode: string | null;
+  phone: string | null;
+  joinedOn: string;
+  days: LedgerDay[];
+  summary: Ledger["summary"];
+  /** Days needing somebody's decision: absent, or a swipe still waiting for approval. */
+  toSettle: number;
+}
+
+export interface AuthGrid {
+  month: string;
+  periodFrom: string; periodTo: string; periodLabel: string;
+  /** The dates across the top, so the header and the cells cannot drift apart. */
+  dates: { date: string; weekday: string; working: boolean }[];
+  rows: AuthRow[];
+}
+
+export async function authorisationGrid(
+  ctx: CompanyContext,
+  q: { month: string; userId?: string; teamId?: string },
+): Promise<AuthGrid> {
+  if (!MONTH.test(q.month)) throw Errors.bad("BAD_MONTH", "Pick a month");
+
+  const { scopedUsers } = await import("./timesheetService");
+  const people = await scopedUsers(ctx, { userId: q.userId, teamId: q.teamId });
+
+  /*
+   * One ledger per person, in parallel but in bounded batches. A company of
+   * three hundred would otherwise open three hundred simultaneous rounds of
+   * queries and spend the request being throttled by its own database.
+   */
+  const rows: AuthRow[] = [];
+  const BATCH = 12;
+  for (let i = 0; i < people.length; i += BATCH) {
+    const slice = people.slice(i, i + BATCH);
+    const ledgers = await Promise.all(
+      slice.map((u) => attendanceLedger(ctx, u.id, q.month).catch(() => null)),
+    );
+    ledgers.forEach((led: Ledger | null, n: number) => {
+      if (!led) return;
+      const person = slice[n];
+      rows.push({
+        userId: led.userId,
+        userName: led.userName,
+        employeeCode: person.employeeCode ?? null,
+        phone: person.phone ?? null,
+        joinedOn: led.joinedOn,
+        days: led.days,
+        summary: led.summary,
+        // What a person actually has to look at: an absence somebody may want
+        // to explain, which is the only kind of day that silently costs money.
+        toSettle: led.days.filter((d) => d.kind === "Absent").length,
+      });
+    });
+  }
+
+  rows.sort((a, b) => a.userName.localeCompare(b.userName));
+  const first = rows[0];
+  return {
+    month: q.month,
+    periodFrom: first ? first.days[0]?.date ?? q.month : q.month,
+    periodTo: first ? first.days[first.days.length - 1]?.date ?? q.month : q.month,
+    periodLabel: "",
+    dates: (first?.days ?? []).map((d) => ({
+      date: d.date,
+      weekday: d.weekday,
+      working: d.kind !== "Week off" && d.kind !== "Holiday",
+    })),
+    rows,
+  };
+}

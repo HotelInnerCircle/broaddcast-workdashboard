@@ -208,3 +208,75 @@ export async function syncAttendanceFromSwipes(ctx: CompanyContext, userId: stri
   rec.status = lateStatus(clock, date, clockIn);
   await rec.save();
 }
+
+/**
+ * Settling one day, by hand, with a reason (A130).
+ *
+ * The step that was missing between a swipe and a payslip. Everything else in
+ * the chain is automatic - the swipe carries a photograph and a face, the day
+ * is derived from the swipes, payroll counts the payable days - and nowhere in
+ * it did a person look at a month and say "yes, this is right". A day somebody
+ * forgot to swipe off, or was genuinely away for, went into the pay run either
+ * way with nobody in between.
+ *
+ * Three things are deliberate:
+ *
+ * - **The reason is required.** A day changed by hand, months later, with no
+ *   note is indistinguishable from a mistake - and it is the entries that move
+ *   money which get asked about.
+ * - **It wins over the swipes.** `syncAttendanceFromSwipes` leaves alone any
+ *   day with `setBy` on it, so a decision somebody made is never quietly
+ *   recomputed away by a swipe arriving late.
+ * - **Leave goes through the balance.** Marking somebody on casual leave here
+ *   has to spend a casual leave day, or the balance on their screen and the
+ *   deduction on their payslip stop agreeing.
+ */
+export async function settleDay(
+  ctx: CompanyContext,
+  input: { userId: string; date: string; status: AttendanceStatus; note: string; leaveType?: string | null },
+  ip: string | null,
+) {
+  const id = await requireVisibleEmployee(ctx, input.userId);
+  const note = input.note.trim();
+  if (!note) throw Errors.bad("NOTE_REQUIRED", "Say why this day is being changed - it is what somebody will read months from now.");
+
+  const user = await scoped(User, ctx).findOne({ _id: id, archivedAt: null }).select("name").lean();
+  if (!user) throw Errors.notFound("Employee");
+
+  const before = await scoped(Attendance, ctx).findOne({ userId: id, date: input.date }).lean();
+
+  const rec = await scoped(Attendance, ctx).findOneAndUpdate(
+    { userId: id, date: input.date },
+    {
+      $set: {
+        status: input.status,
+        note,
+        setBy: new Types.ObjectId(ctx.userId),
+        setAt: new Date(),
+      },
+      $setOnInsert: { clockIn: null, clockOut: null, breakSeconds: 0, workSeconds: 0 },
+    },
+    { upsert: true, new: true },
+  );
+
+  await audit({
+    ctx, companyId: ctx.companyId, entity: "attendance", entityId: rec!._id,
+    action: "attendance.settled",
+    summary: `${ctx.name} marked ${user.name} ${input.status} on ${input.date}`,
+    before: before ? { status: before.status, note: before.note ?? null } : null,
+    after: { status: input.status, note, leaveType: input.leaveType ?? null },
+    ip,
+  });
+
+  const { notify } = await import("./notificationService");
+  await notify(ctx.companyId, {
+    userId: input.userId,
+    type: "ATTENDANCE_SWIPE",
+    title: `${ctx.name} marked you ${input.status} on ${input.date}`,
+    body: note,
+    link: "/attendance",
+    actorId: ctx.userId,
+  });
+
+  return serializeAttendance(rec!.toObject() as Record<string, unknown>);
+}

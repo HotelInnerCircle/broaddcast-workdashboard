@@ -19,8 +19,8 @@ export async function scopedUsers(ctx: CompanyContext, q: { userId?: string; tea
   if (q.teamId) extra.teamId = new Types.ObjectId(q.teamId);
   const filter: Record<string, unknown> = { $and: [scope, extra] };
   const { pop } = await import("@/lib/db/scoped");
-  const users = await scoped(User, ctx).find(filter).select("name avatarUrl teamId role joiningDate createdAt").sort({ name: 1 }).populate(pop("teamId", "name")).lean();
-  return users.map((u) => ({ _id: u._id, id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null, role: u.role, team: u.teamId && typeof u.teamId === "object" && "name" in u.teamId ? (u.teamId as { name: string }).name : null, joiningDate: u.joiningDate ?? u.createdAt }));
+  const users = await scoped(User, ctx).find(filter).select("name avatarUrl teamId role joiningDate createdAt employeeCode phone").sort({ name: 1 }).populate(pop("teamId", "name")).lean();
+  return users.map((u) => ({ _id: u._id, id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null, role: u.role, team: u.teamId && typeof u.teamId === "object" && "name" in u.teamId ? (u.teamId as { name: string }).name : null, joiningDate: u.joiningDate ?? u.createdAt, employeeCode: (u.employeeCode as string | null) ?? null, phone: (u.phone as string | null) ?? null }));
 }
 
 /**
