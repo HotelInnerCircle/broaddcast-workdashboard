@@ -379,16 +379,56 @@ export async function swipeAtDoor(
   device: { companyId: string; deviceId: string; deviceName: string; siteId: string },
   userId: string,
   photo: File,
-  meta: { live: boolean; distance: number | null },
+  meta: { live: boolean; distance: number | null; takenAt?: Date | null; clientRef?: string | null },
   ip: string | null,
 ) {
+  /*
+   * A swipe that waited in a queue carries the device's id for it, and sending
+   * the same one twice is the ordinary consequence of a connection dropping
+   * mid-request (A128). The first one stands; the second is told about it
+   * rather than refused, because from the device's side both are success and a
+   * refusal would make it retry for ever.
+   */
+  if (meta.clientRef) {
+    const already = await AttendanceSwipe.findOne({
+      companyId: new Types.ObjectId(device.companyId), clientRef: meta.clientRef,
+    }).setOptions({ skipTenantGuard: true } as never).select("type at siteName").lean();
+    if (already) {
+      return {
+        type: already.type as string,
+        at: new Date(already.at as Date).toISOString(),
+        siteName: (already.siteName as string | undefined) ?? null,
+        live: meta.live,
+        duplicate: true,
+      };
+    }
+  }
+
   const { mime } = validateUpload(photo, { imagesOnly: true });
   const raw = Buffer.from(await photo.arrayBuffer());
   if (!sniffMatches(raw, mime)) throw Errors.bad("BAD_IMAGE", "That file is not the image it claims to be");
 
   const ctx = { companyId: device.companyId, userId, role: "EMPLOYEE", name: device.deviceName } as unknown as CompanyContext;
   const clock = await companyClock(device.companyId);
-  const at = new Date(); // the server's clock, never the device's
+  /*
+   * The server's clock, unless the device was holding this one (A128). A queued
+   * swipe happened while nothing could be asked, so the only time anybody has
+   * is the device's - recorded as such, and refused if it is in the future or
+   * older than a day, because a device whose clock is wrong should not be able
+   * to write attendance into last week.
+   */
+  const now = new Date();
+  let at = now;
+  let timeSource: "server" | "device" = "server";
+  if (meta.takenAt) {
+    const claimed = meta.takenAt.getTime();
+    const age = now.getTime() - claimed;
+    if (age < -60_000 || age > 24 * 3600_000) {
+      throw Errors.bad("BAD_TIME", "That swipe is timed outside the last day - check the device's clock");
+    }
+    at = meta.takenAt;
+    timeSource = "device";
+  }
   const date = clock.dayOf(at);
   const uid = new Types.ObjectId(userId);
 
@@ -401,7 +441,17 @@ export async function swipeAtDoor(
    * have to tell a tablet which direction they are walking, and the answer is
    * already known: whatever they did last today, they are doing the other now.
    */
-  const last = await AttendanceSwipe.findOne({ companyId: new Types.ObjectId(device.companyId), userId: uid, date, status: { $ne: "REJECTED" } })
+  /*
+   * The last swipe *before this one*, not the last one overall (A128). A queued
+   * swipe from nine in the morning can arrive after a live one from five in the
+   * evening, and taking the newest would give the morning entry the direction
+   * that belongs to the evening - inverting both. Asking what came before the
+   * moment this happened is right whichever order they arrive in.
+   */
+  const last = await AttendanceSwipe.findOne({
+    companyId: new Types.ObjectId(device.companyId), userId: uid, date,
+    status: { $ne: "REJECTED" }, at: { $lt: at },
+  })
     .setOptions({ skipTenantGuard: true } as never)
     .sort({ at: -1 }).select("type").lean();
   const type: "ON_DUTY" | "OFF_DUTY" = last?.type === "ON_DUTY" ? "OFF_DUTY" : "ON_DUTY";
@@ -443,6 +493,8 @@ export async function swipeAtDoor(
     source: "DOOR_DEVICE",
     deviceId: new Types.ObjectId(device.deviceId),
     liveness: meta.live ? "blink" : "none",
+    timeSource,
+    clientRef: meta.clientRef ?? null,
     status: "APPROVED",
     currentStep: null,
     approvals: [],
@@ -459,5 +511,5 @@ export async function swipeAtDoor(
   const { syncAttendanceFromSwipes } = await import("./attendanceService");
   await syncAttendanceFromSwipes(ctx, userId, date);
 
-  return { type, at: at.toISOString(), siteName: (site?.name as string | undefined) ?? null, live: meta.live };
+  return { type, at: at.toISOString(), siteName: (site?.name as string | undefined) ?? null, live: meta.live, timeSource };
 }

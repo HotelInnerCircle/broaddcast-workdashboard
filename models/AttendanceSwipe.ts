@@ -80,6 +80,23 @@ const AttendanceSwipeSchema = new Schema(
      * holding a photograph up to a door looks like, and that has to be findable.
      */
     liveness: { type: String, enum: ["none", "blink"], default: "none" },
+    /**
+     * Whose clock recorded this (A128).
+     *
+     * The server's time is the rule everywhere else, because a phone's clock is
+     * whatever its owner set it to. A door device with no connection has no
+     * server to ask, so it holds the swipe and sends it later with the time it
+     * saw - and that time cannot be verified. Marking it is the honest thing:
+     * a reviewer looking at a day should be able to tell which entries the
+     * server witnessed and which it was merely told about.
+     */
+    timeSource: { type: String, enum: ["server", "device"], default: "server" },
+    /**
+     * The device's own id for this swipe, so replaying a queue cannot record it
+     * twice. A connection that drops halfway through sending is the ordinary
+     * case, not the rare one.
+     */
+    clientRef: { type: String, default: null },
 
     status: { type: String, enum: SWIPE_STATUSES, required: true },
     /** Index into `approvals` of the step waiting on someone. Null once settled. */
@@ -94,6 +111,8 @@ AttendanceSwipeSchema.plugin(tenantGuardPlugin);
 AttendanceSwipeSchema.index({ companyId: 1, userId: 1, at: -1 });
 AttendanceSwipeSchema.index({ companyId: 1, date: 1 });
 AttendanceSwipeSchema.index({ companyId: 1, status: 1, currentStep: 1 });
+/** Sparse, because only a swipe that waited in a queue carries one. */
+AttendanceSwipeSchema.index({ companyId: 1, clientRef: 1 }, { unique: true, sparse: true });
 
 export type AttendanceSwipeDoc = InferSchemaType<typeof AttendanceSwipeSchema> & { companyId: Types.ObjectId };
 export const AttendanceSwipe =

@@ -977,3 +977,18 @@ The owner asked to type an employee ID, capture that person's face, and have att
 - **The old photo is deleted when a new one replaces it**, same as a self-enrolment.
 - **Verified:** 8 browser checks - the code being searchable, HR enrolling somebody, it arriving approved rather than pending, the register agreeing, an employee refused, HR refused for their own face, and one capture not being enough.
 - **A test of my own that was wrong, not the code:** the descriptors it sent were nudged by 60, and `isDescriptor` refuses anything outside [-10, 10] - so "not enough captures" was correct and the test was sending rubbish.
+
+### A128. A door that keeps working when the wifi does not (owner request, 30 Sep 2026)
+The gap left open in A126. A tablet by a gate loses its connection - a router reboots, a site has one bar, somebody unplugs the wrong thing - and it simply stopped, which means people cannot clock in, which becomes an argument about pay.
+
+- **The swipe is held on the device and sent when the connection returns.** IndexedDB rather than localStorage, because a swipe carries a photograph and base64 in a string store inflates a blob by a third.
+- **The time is the device's, and it is marked as such.** The server's clock is the rule everywhere else because a device's clock is whatever somebody set it to. A queued swipe has no server to ask, so it carries the time the device saw - unverifiable, and therefore recorded as `timeSource: "device"`. A reviewer looking at a day should be able to tell which entries the server witnessed and which it was merely told about.
+- **Refused if the claimed time is more than a day old or in the future**, so a device with a wrong clock cannot write attendance into last week.
+- **Direction comes from the swipe *before that moment*, not the newest one.** This is the subtle one: a queued swipe from nine in the morning can arrive after a live one from five in the evening, and taking the latest would give the morning entry the evening's direction and invert both. Asking what came before the moment it happened is right whichever order they arrive in.
+- **Replaying cannot record it twice.** The device gives each swipe its own reference, unique per company; a second send returns the one that stands rather than refusing, because from the device's side a refusal looks like failure and it would retry for ever. A connection dropping mid-request is the ordinary case, not the rare one.
+- **The queue is bounded** - five hundred swipes, one day - and when it is full the screen says the device cannot store any more rather than quietly dropping the oldest and letting somebody believe they swiped.
+- **Sending stops at the first real failure** rather than carrying on: sending the evening before the morning would give every swipe after it the wrong direction.
+- **A swipe the server refused is dropped, not retried.** It will be refused again for ever and would block everything behind it.
+- **The screen says so.** A door quietly holding a day of attendance and a door working normally look identical from in front of it, so the count sits in the corner.
+- **What it cannot do offline: name the person.** Identifying a face needs the enrolled descriptors, which live on the server. The screen says the swipe was saved and will be sent, rather than guessing at a name - and the face is matched when it arrives.
+- **Verified:** 30 browser checks in the door suite, including a held swipe arriving late and marked as device-timed, the same one sent twice recording once, one arriving out of order still getting its direction from what preceded it, and times days old or in the future refused.

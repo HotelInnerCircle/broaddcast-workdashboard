@@ -13,8 +13,8 @@ export const name = "door-device";
 export const description = "a tablet at a door, and the things it is not allowed to do";
 
 /** Sends a face to the door endpoint the way the tablet does. */
-const atDoor = (page, token, descriptor, live = true) =>
-  page.evaluate(async ([t, desc, isLive]) => {
+const atDoor = (page, token, descriptor, live = true, queued = null) =>
+  page.evaluate(async ([t, desc, isLive, held]) => {
     const c = document.createElement("canvas");
     c.width = 320; c.height = 320;
     const x = c.getContext("2d");
@@ -24,13 +24,15 @@ const atDoor = (page, token, descriptor, live = true) =>
     fd.append("photo", new File([blob], "door.jpg", { type: "image/jpeg" }));
     fd.append("faceDescriptor", JSON.stringify(desc));
     fd.append("live", isLive ? "true" : "false");
+    if (held?.takenAt) fd.append("takenAt", held.takenAt);
+    if (held?.ref) fd.append("clientRef", held.ref);
     const r = await fetch("/api/kiosk/swipe", {
       method: "POST",
       headers: t ? { authorization: `Bearer ${t}` } : {},
       body: fd,
     });
     return { status: r.status, json: await r.json().catch(() => null) };
-  }, [token, descriptor, live]);
+  }, [token, descriptor, live, queued]);
 
 const face = (v) => Array.from({ length: 128 }, () => v);
 const nudge = (d, by) => d.map((n) => n + by * 0.001);
@@ -126,6 +128,57 @@ export default async function run({ browser, lab, check }) {
   const day = await call(hr, `/api/attendance?from=${today}&to=${today}&userId=${lab.ids.emp}`, null, "GET");
   const mine = (day.json?.data?.rows ?? []).find((r) => r.date === today);
   check("a door swipe makes the day count", Boolean(mine?.clockIn), JSON.stringify(mine ?? {}));
+
+  /* ---------- swipes it held while the wifi was out (A128) ---------- */
+  /*
+   * A door with no connection used to simply stop, which means people cannot
+   * clock in, which becomes an argument about pay. It holds the swipe with the
+   * time it saw and sends it when the connection is back.
+   */
+  const ref = `test-${Date.now()}`;
+  const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
+  const held = await atDoor(emp, token, nudge(myFace, 1), true, { takenAt: tenMinutesAgo, ref });
+  check("a held swipe is accepted when it arrives late", held.json?.data?.recognised === true, JSON.stringify(held.json?.data ?? {}));
+  /*
+   * And marked. The server did not witness it - the only time anybody has is
+   * the device's, and that cannot be verified - so a reviewer looking at a day
+   * can tell which entries were seen and which were merely reported.
+   */
+  check("and recorded as the device's time, not the server's", held.json?.data?.timeSource === "device", held.json?.data?.timeSource);
+  check("with the time the device saw", String(held.json?.data?.at).slice(0, 16) === tenMinutesAgo.slice(0, 16),
+    `${held.json?.data?.at} vs ${tenMinutesAgo}`);
+
+  /*
+   * Sending the same one twice is the ordinary consequence of a connection
+   * dropping mid-request, not a rare case. The first stands and the second is
+   * told about it - refusing would make the device retry for ever.
+   */
+  const twice = await atDoor(emp, token, nudge(myFace, 1), true, { takenAt: tenMinutesAgo, ref });
+  check("sending it again does not record it twice", twice.json?.data?.duplicate === true, JSON.stringify(twice.json?.data ?? {}));
+  check("and it reports the one that stands", twice.json?.data?.at === held.json?.data?.at,
+    `${twice.json?.data?.at} vs ${held.json?.data?.at}`);
+
+  /*
+   * The direction comes from what happened *before* that moment, not from the
+   * newest swipe. A morning swipe arriving after an evening one would otherwise
+   * be given the evening's direction and invert both.
+   */
+  const earlier = new Date(Date.now() - 30 * 60_000).toISOString();
+  const outOfOrder = await atDoor(emp, token, nudge(myFace, 1), true, { takenAt: earlier, ref: `${ref}-early` });
+  check("one that arrives out of order is still accepted", outOfOrder.json?.data?.recognised === true, JSON.stringify(outOfOrder.json?.data ?? {}));
+  check("and its direction comes from what came before it, not from the newest",
+    outOfOrder.json?.data?.type !== undefined, outOfOrder.json?.data?.type);
+
+  // A device whose clock is wrong must not be able to write into last week.
+  const ancient = new Date(Date.now() - 3 * 24 * 3600_000).toISOString();
+  const tooOld = await atDoor(emp, token, nudge(myFace, 1), true, { takenAt: ancient, ref: `${ref}-old` });
+  check("a swipe timed days ago is refused", tooOld.status === 400 && tooOld.json?.error?.code === "BAD_TIME",
+    `status=${tooOld.status} ${JSON.stringify(tooOld.json?.error ?? {})}`);
+
+  const future = new Date(Date.now() + 3 * 3600_000).toISOString();
+  const ahead = await atDoor(emp, token, nudge(myFace, 1), true, { takenAt: future, ref: `${ref}-future` });
+  check("and so is one timed in the future", ahead.status === 400 && ahead.json?.error?.code === "BAD_TIME",
+    `status=${ahead.status} ${JSON.stringify(ahead.json?.error ?? {})}`);
 
   /* ---------- revoking it ---------- */
   const gone = await call(admin, `/api/admin/door-devices/${made.json?.data?.id}`, null, "DELETE");

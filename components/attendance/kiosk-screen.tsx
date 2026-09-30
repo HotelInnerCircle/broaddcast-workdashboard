@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadFaceModels, cameraSupported, FaceModelError } from "@/lib/face/client";
 import { BlinkWatcher, blinkRatio, type Point } from "@/lib/face/liveness";
+import { enqueue, flush, queuedCount, newRef } from "@/lib/face/door-queue";
 
 /**
  * A tablet on a wall, taking attendance (A126).
@@ -16,7 +17,7 @@ import { BlinkWatcher, blinkRatio, type Point } from "@/lib/face/liveness";
  * this - so the setup screen says plainly that it should be treated like a key.
  */
 
-type Phase = "setup" | "starting" | "looking" | "blink" | "sending" | "done" | "unknown" | "failed";
+type Phase = "setup" | "starting" | "looking" | "blink" | "sending" | "done" | "held" | "unknown" | "failed";
 
 const TOKEN_KEY = "workpulse.door.token";
 /** How long a result stays on screen before the next person. */
@@ -30,6 +31,13 @@ export function KioskScreen() {
   const [phase, setPhase] = useState<Phase>("setup");
   const [message, setMessage] = useState("");
   const [person, setPerson] = useState<{ name: string; type: string; at: string } | null>(null);
+  /*
+   * How many swipes the device is holding (A128). Shown in the corner, because
+   * a door quietly storing a day's attendance and a door working normally look
+   * identical from in front of it - and somebody should be able to see that the
+   * connection has been out without reading a log.
+   */
+  const [held, setHeld] = useState(0);
 
   const video = useRef<HTMLVideoElement | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -117,11 +125,33 @@ export function KioskScreen() {
       fd.append("faceDescriptor", JSON.stringify(descriptor));
       fd.append("live", "true");
 
-      const res = await fetch("/api/kiosk/swipe", {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}` },
-        body: fd,
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/kiosk/swipe", {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}` },
+          body: fd,
+        });
+      } catch {
+        /*
+         * No connection. The swipe is put by with the time the device saw, and
+         * sent when the wifi comes back - a door that stops working means
+         * people cannot clock in, which becomes an argument about pay.
+         *
+         * Nobody is named on this screen: without the server there is no way to
+         * know who it was, and guessing at a name would be worse than saying
+         * plainly that it was recorded and will be sent.
+         */
+        const kept = blob
+          ? await enqueue({ ref: newRef(), takenAt: Date.now(), photo: blob, descriptor, live: true })
+          : false;
+        setHeld(await queuedCount());
+        setPhase(kept ? "held" : "failed");
+        setMessage(kept
+          ? "Saved on this device - it will be sent when the connection is back"
+          : "This device cannot store any more swipes. Tell HR.");
+        return;
+      }
       const json = await res.json().catch(() => null);
 
       if (res.status === 401) {
@@ -146,6 +176,28 @@ export function KioskScreen() {
       setTimeout(() => { busy.current = false; reset(); }, RESULT_MS);
     }
   }, [token, reset]);
+
+  /*
+   * Anything held gets sent when the browser says the connection is back, and
+   * on a slow timer besides - "online" is not always fired, and a router that
+   * came back while the tablet was idle would otherwise leave a day's
+   * attendance sitting on a wall.
+   */
+  useEffect(() => {
+    if (!token || phase === "setup") return;
+    let alive = true;
+
+    const send = async () => {
+      if (!alive) return;
+      const { left } = await flush(token).catch(() => ({ sent: 0, left: 0 }));
+      if (alive) setHeld(left);
+    };
+
+    void send();
+    const timer = setInterval(() => void send(), 60_000);
+    window.addEventListener("online", send);
+    return () => { alive = false; clearInterval(timer); window.removeEventListener("online", send); };
+  }, [token, phase]);
 
   /* ---------- start the camera once there is a token ---------- */
   useEffect(() => {
@@ -219,11 +271,12 @@ export function KioskScreen() {
 
   const tone =
     phase === "done" ? "bg-success"
-      : phase === "unknown" || phase === "failed" ? "bg-danger"
-        : "bg-sidebar";
+      : phase === "held" ? "bg-warning"
+        : phase === "unknown" || phase === "failed" ? "bg-danger"
+          : "bg-sidebar";
 
   return (
-    <main className={`flex min-h-dvh flex-col items-center justify-center p-6 text-white transition-colors ${tone}`}>
+    <main className={`relative flex min-h-dvh flex-col items-center justify-center p-6 text-white transition-colors ${tone}`}>
       {/* Mirrored, because a preview that moves the wrong way makes people step the wrong way. */}
       <video ref={video} playsInline muted className="mb-6 h-64 w-64 rounded-full object-cover -scale-x-100 ring-4 ring-white/30" />
 
@@ -236,6 +289,14 @@ export function KioskScreen() {
         </>
       ) : (
         <p className="max-w-xl text-center font-display text-[30px] leading-tight">{message}</p>
+      )}
+
+      {held > 0 && (
+        // Small, in the corner: it is for whoever walks past, not for the
+        // person swiping, who has already been told their swipe was kept.
+        <p className="absolute bottom-4 right-5 text-[12.5px] text-white/50">
+          {held} swipe{held === 1 ? "" : "s"} waiting to be sent
+        </p>
       )}
 
       {phase === "blink" && (

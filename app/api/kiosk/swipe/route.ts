@@ -40,6 +40,15 @@ export const POST = route(async (req) => {
   let descriptor: unknown;
   try { descriptor = JSON.parse(String(form.get("faceDescriptor") ?? "null")); } catch { descriptor = null; }
   const live = form.get("live") === "true";
+  /*
+   * A swipe the device held while it had no connection (A128). Its time and its
+   * own id for it come with it; both are refused if they look wrong, and the
+   * time is recorded as the device's rather than the server's.
+   */
+  const takenRaw = String(form.get("takenAt") ?? "");
+  const taken = takenRaw ? new Date(takenRaw) : null;
+  const takenAt = taken && !Number.isNaN(taken.getTime()) ? taken : null;
+  const clientRef = String(form.get("clientRef") ?? "").trim().slice(0, 64) || null;
 
   const found = await identifyAtDoor(device, descriptor);
   if (!found.userId || !found.user) {
@@ -51,7 +60,7 @@ export const POST = route(async (req) => {
     return ok({ recognised: false, reason: found.reason, distance: found.distance, margin: found.margin });
   }
 
-  const result = await swipeAtDoor(device, found.user.id, photo, { live, distance: found.distance }, clientIp(req));
+  const result = await swipeAtDoor(device, found.user.id, photo, { live, distance: found.distance, takenAt, clientRef }, clientIp(req));
   return ok({
     recognised: true,
     name: found.user.name,
