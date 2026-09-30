@@ -5,7 +5,14 @@ import { sessionCookieName } from "@/lib/auth/cookies";
  * Edge gate (spec 6.5): cheap cookie-presence check. Real session validation and
  * role checks happen server-side in the (dashboard) layouts and every route handler.
  */
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/download"];
+/*
+ * "/kiosk" is public in the sense that no *person* is signed in (A126) - a
+ * tablet on a wall has nobody to sign in. It is not unprotected: the screen
+ * does nothing at all until it holds a device token, and the endpoint behind it
+ * refuses every request that does not carry one. Bouncing it to a login page
+ * would simply make a door device impossible.
+ */
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/invite", "/download", "/kiosk"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

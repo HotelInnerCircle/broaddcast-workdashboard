@@ -7,6 +7,7 @@ import { User } from "@/models/User";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FaceCheckSettings } from "@/components/settings/face-check-settings";
+import { DoorDevices } from "@/components/settings/door-devices";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { ListEditor } from "@/components/settings/list-editor";
 import { ApprovalChainEditor } from "@/components/settings/approval-chain-editor";
@@ -38,7 +39,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           {isAdmin && <TabsTrigger value="subscription">Subscription</TabsTrigger>}
           {isAdmin && <TabsTrigger value="billing">Billing</TabsTrigger>}
         </TabsList>
-        {isAdmin && <TabsContent value="face"><FaceCheckSettings /></TabsContent>}
+        {isAdmin && <TabsContent value="face" className="space-y-6">
+          <FaceCheckSettings />
+          <DoorDevices />
+        </TabsContent>}
         {company && <TabsContent value="company" className="space-y-6"><CompanySettingsForm company={company} />
           <ApprovalChainEditor initial={company.approvalChain} />
           <ListEditor

@@ -61,6 +61,25 @@ const AttendanceSwipeSchema = new Schema(
     faceDistance: { type: Number, default: null },
     /** How many tries it took, when somebody had to retake. */
     faceAttempts: { type: Number, default: 0 },
+    /**
+     * Where this swipe came from (A126).
+     *
+     * A phone swipe is made by somebody signed in, standing where they say they
+     * are. A door swipe is made by a tablet that cannot move and did not know
+     * who was there until it matched the face. They are not the same evidence
+     * and a reviewer should not have to guess which one they are looking at.
+     */
+    source: { type: String, enum: ["PHONE", "DOOR_DEVICE"], default: "PHONE" },
+    deviceId: { type: Schema.Types.ObjectId, ref: "DoorDevice", default: null },
+    /**
+     * Whether the device saw the face blink.
+     *
+     * Recorded rather than enforced: somebody the camera cannot see blink - poor
+     * light, thick glasses, a person who simply did not - must not be locked out
+     * of their own attendance. But a run of swipes with no blink is exactly what
+     * holding a photograph up to a door looks like, and that has to be findable.
+     */
+    liveness: { type: String, enum: ["none", "blink"], default: "none" },
 
     status: { type: String, enum: SWIPE_STATUSES, required: true },
     /** Index into `approvals` of the step waiting on someone. Null once settled. */

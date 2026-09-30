@@ -359,3 +359,105 @@ export async function listSwipes(
   const data = await Promise.all(plain.map((d) => serializeSwipe(d, names)));
   return { data, page: q.page, limit: q.limit, total };
 }
+
+/**
+ * A swipe recorded by a device at a door (A126).
+ *
+ * Deliberately separate from `createSwipe` rather than a flag on it. The two
+ * differ in who is asking and in what can be believed: a phone swipe is made by
+ * somebody signed in, standing wherever they say they are, and a door swipe is
+ * made by a device that cannot move and has no idea who walked up until the
+ * face is matched. Folding both into one function would mean a string of
+ * conditionals around every check, and a mistake in any of them would be a hole
+ * in the side with the tablet on the wall.
+ *
+ * What is the same on purpose: the photograph is stamped and stored exactly as
+ * a phone swipe's is, the day is derived from the swipes afterwards, and the
+ * record carries what the face check made of it.
+ */
+export async function swipeAtDoor(
+  device: { companyId: string; deviceId: string; deviceName: string; siteId: string },
+  userId: string,
+  photo: File,
+  meta: { live: boolean; distance: number | null },
+  ip: string | null,
+) {
+  const { mime } = validateUpload(photo, { imagesOnly: true });
+  const raw = Buffer.from(await photo.arrayBuffer());
+  if (!sniffMatches(raw, mime)) throw Errors.bad("BAD_IMAGE", "That file is not the image it claims to be");
+
+  const ctx = { companyId: device.companyId, userId, role: "EMPLOYEE", name: device.deviceName } as unknown as CompanyContext;
+  const clock = await companyClock(device.companyId);
+  const at = new Date(); // the server's clock, never the device's
+  const date = clock.dayOf(at);
+  const uid = new Types.ObjectId(userId);
+
+  const site = await WorkSite.findById(new Types.ObjectId(device.siteId))
+    .setOptions({ skipTenantGuard: true } as never)
+    .select("name lat lng").lean();
+
+  /*
+   * On duty or off duty is not asked, it is worked out. Nobody at a door should
+   * have to tell a tablet which direction they are walking, and the answer is
+   * already known: whatever they did last today, they are doing the other now.
+   */
+  const last = await AttendanceSwipe.findOne({ companyId: new Types.ObjectId(device.companyId), userId: uid, date, status: { $ne: "REJECTED" } })
+    .setOptions({ skipTenantGuard: true } as never)
+    .sort({ at: -1 }).select("type").lean();
+  const type: "ON_DUTY" | "OFF_DUTY" = last?.type === "ON_DUTY" ? "OFF_DUTY" : "ON_DUTY";
+
+  const user = await User.findById(uid).setOptions({ skipTenantGuard: true } as never).select("name").lean();
+
+  const stamped = await stampPhoto(raw, {
+    brand: "WorkPulse",
+    title: `${user?.name ?? "Employee"} - ${type === "ON_DUTY" ? "ON DUTY" : "OFF DUTY"}`,
+    when: formatInTimeZone(at, clock.timezone, "dd/MM/yyyy hh:mm:ss a"),
+    coords: `${device.deviceName}`,
+    place: `${site?.name ?? "Work site"} - at the door`,
+  });
+
+  const key = `companies/${device.companyId}/swipes/${date}/${crypto.randomUUID()}.jpg`;
+  await storage().put({ key, body: stamped.buffer, contentType: stamped.contentType });
+
+  /*
+   * Approved on the spot. A device bolted to a wall at a known site is the one
+   * case where "were they really there" is not in question - it cannot be
+   * carried home. What is in question is whether the face was live, and that is
+   * recorded rather than used to refuse: a person the camera would not see
+   * blink must not be locked out of their own attendance, but somebody should
+   * be able to find those swipes afterwards.
+   */
+  const swipe = await AttendanceSwipe.create({
+    companyId: new Types.ObjectId(device.companyId),
+    userId: uid, date, type, at,
+    photoKey: key,
+    lat: (site?.lat as number) ?? 0, lng: (site?.lng as number) ?? 0,
+    accuracyMeters: null,
+    siteId: site?._id ?? null,
+    siteName: (site?.name as string | undefined) ?? null,
+    distanceMeters: 0,
+    withinGeofence: true,
+    faceVerdict: "matched",
+    faceDistance: meta.distance,
+    faceAttempts: 0,
+    source: "DOOR_DEVICE",
+    deviceId: new Types.ObjectId(device.deviceId),
+    liveness: meta.live ? "blink" : "none",
+    status: "APPROVED",
+    currentStep: null,
+    approvals: [],
+    note: null,
+  });
+
+  await audit({
+    ctx, companyId: device.companyId, entity: "attendanceSwipe", entityId: swipe._id,
+    action: "attendance.swipe",
+    summary: `${user?.name ?? "Somebody"} swiped ${type === "ON_DUTY" ? "on duty" : "off duty"} at ${device.deviceName}${meta.live ? "" : " (no blink seen)"}`,
+    after: { type, device: device.deviceName, live: meta.live, faceDistance: meta.distance }, ip,
+  });
+
+  const { syncAttendanceFromSwipes } = await import("./attendanceService");
+  await syncAttendanceFromSwipes(ctx, userId, date);
+
+  return { type, at: at.toISOString(), siteName: (site?.name as string | undefined) ?? null, live: meta.live };
+}

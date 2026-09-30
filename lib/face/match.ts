@@ -105,3 +105,72 @@ export function confidenceLabel(c: FaceComparison): string {
   if (c.verdict === "matched") return c.distance < c.threshold * 0.6 ? "Confident match" : "Match";
   return c.distance > c.threshold * 1.5 ? "Clearly somebody else" : "Not recognised";
 }
+
+/**
+ * Which of these people is this (A126)?
+ *
+ * The phone never needs this: somebody is signed in, so the question is only
+ * whether the face matches the one account. A device at a door has nobody
+ * signed in and has to pick a person out of everybody - a different problem
+ * that gets harder with every hire, because more faces means more chances that
+ * two of them are close enough to confuse.
+ *
+ * Two guards, and the second matters more than the first:
+ *
+ * - **A stricter threshold than the phone uses.** Being wrong here marks the
+ *   wrong person present, where being wrong on a phone only fails to confirm
+ *   somebody who is already signed in.
+ * - **A margin.** The closest face must be clearly closer than the second
+ *   closest. Two candidates nearly as good as each other is exactly what
+ *   siblings, cousins and bad light produce, and the honest answer then is "I
+ *   do not know" - which sends somebody to their phone instead of recording a
+ *   day against the wrong name.
+ */
+export interface Candidate { userId: string; descriptor: number[] }
+
+export interface Identification {
+  /** Who it is, or null when nobody was close enough or two were too alike. */
+  userId: string | null;
+  distance: number | null;
+  /** How much better the best was than the next best; null when there is no next. */
+  margin: number | null;
+  reason: "matched" | "no-match" | "ambiguous" | "no-face" | "nobody-enrolled";
+}
+
+/**
+ * How much clearer the winner has to be than the runner-up.
+ *
+ * Small enough that an ordinary face with an ordinary second-place is accepted,
+ * large enough that two genuinely similar faces are refused rather than guessed
+ * between.
+ */
+export const DEFAULT_MARGIN = 0.08;
+
+export function identifyFace(
+  captured: unknown,
+  candidates: Candidate[],
+  opts: { threshold?: number; margin?: number } = {},
+): Identification {
+  const threshold = opts.threshold ?? DEFAULT_THRESHOLD;
+  const margin = opts.margin ?? DEFAULT_MARGIN;
+
+  if (!isDescriptor(captured)) return { userId: null, distance: null, margin: null, reason: "no-face" };
+  const usable = candidates.filter((c) => isDescriptor(c.descriptor));
+  if (usable.length === 0) return { userId: null, distance: null, margin: null, reason: "nobody-enrolled" };
+
+  const ranked = usable
+    .map((c) => ({ userId: c.userId, d: distance(captured, c.descriptor) }))
+    .sort((a, b) => a.d - b.d);
+
+  const best = ranked[0];
+  const next = ranked[1] ?? null;
+  const gap = next ? Math.round((next.d - best.d) * 1000) / 1000 : null;
+  const dist = Math.round(best.d * 1000) / 1000;
+
+  if (best.d > threshold) return { userId: null, distance: dist, margin: gap, reason: "no-match" };
+  // Only when there is somebody to be confused with. One enrolled person cannot
+  // be ambiguous, and refusing them for having no runner-up would be absurd.
+  if (next && next.d - best.d < margin) return { userId: null, distance: dist, margin: gap, reason: "ambiguous" };
+
+  return { userId: best.userId, distance: dist, margin: gap, reason: "matched" };
+}
