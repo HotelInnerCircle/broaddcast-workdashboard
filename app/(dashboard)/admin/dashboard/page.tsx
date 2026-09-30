@@ -14,13 +14,46 @@ import { ComingSoon } from "@/components/dashboard/coming-soon";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SetupBanner } from "@/components/dashboard/setup-banner";
+import { WorkGateway, type GatewaySection } from "@/components/dashboard/work-gateway";
+import { navigationFor } from "@/config/navigation";
+import { getCompany } from "@/services/companyService";
 
 export const metadata = { title: "Admin dashboard" };
 
 export default async function AdminDashboardPage() {
   const ctx = (await requirePageRole("COMPANY_ADMIN")) as CompanyContext;
   await connectDB();
-  const [stats, kpi] = await Promise.all([adminDashboardStats(ctx), workKpis(ctx)]);
+  const [stats, kpi, company] = await Promise.all([adminDashboardStats(ctx), workKpis(ctx), getCompany(ctx).catch(() => null)]);
+
+  /*
+   * The gateway is built from the same navigation the sidebar uses (A129), so
+   * anything an admin has switched off, or that this role may not see, is
+   * absent from both. Two hand-written lists would drift apart within a month
+   * and the gateway would start promising screens that are not there.
+   */
+  const hidden = ((company as unknown as { hiddenNav?: Record<string, string[]> } | null)?.hiddenNav?.COMPANY_ADMIN) ?? [];
+  const navGroups = navigationFor("COMPANY_ADMIN", hidden);
+
+  /*
+   * What the owner's reference has and this does not, named rather than left
+   * out. A launcher that quietly omits things reads as a complete system, and
+   * then somebody plans a month around a report nobody has written. Greyed and
+   * unclickable is the honest version, and it doubles as the roadmap.
+   */
+  const extra: GatewaySection[] = [
+    { label: "Assets & uniform", items: [],
+      missing: ["Asset master", "Issue asset", "Issue branch asset", "Asset reports", "Issue ID card",
+        "Uniform master", "Uniform issue", "Uniform pending"] },
+    { label: "Statutory & books", items: [],
+      missing: ["TDS details", "TDS monthly", "TDS challan", "PF statement", "ESI statement",
+        "Salary heads", "Arrears", "Muster roll", "Full & final settlement", "Bank advice file"] },
+    { label: "Memo & requests", items: [],
+      missing: ["New joinee memo", "Expense memo", "Advance / penalty", "Indent request",
+        "Work from home request", "Background verification"] },
+    { label: "Swipe exceptions", items: [],
+      missing: ["Joined vs first swipe", "Absent but marked present", "Active but absent",
+        "Less work hours", "OD report"] },
+  ];
   const limit = stats.usage.plan?.limits?.users ?? null;
   // A81: the launcher, filtered by role and menu visibility inside the tile components.
   const tiles: LauncherTile[] = [
@@ -46,6 +79,17 @@ export default async function AdminDashboardPage() {
       <div className="hidden md:block">
       <Greeting name={ctx.name} timezone={ctx.company!.timezone} subtitle={ctx.company!.name} />
       <QuickTiles tiles={tiles} className="mb-6 mt-5" />
+
+      {/*
+        Everything, on one screen (A129). Below the tiles rather than above:
+        the tiles are the handful of things somebody opens every day, and this
+        is the wall you scan for the thing you open twice a year and only half
+        remember the name of.
+      */}
+      <div className="mb-6 hidden md:block">
+        <h2 className="mb-3 font-display text-[22px]">Everything in one place</h2>
+        <WorkGateway groups={navGroups} extra={extra} />
+      </div>
       {!ctx.company!.setupCompleted && <SetupBanner />}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatsCard label="Headcount" value={stats.headcount} hint="active accounts" icon={Users} />

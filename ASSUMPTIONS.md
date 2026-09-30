@@ -992,3 +992,15 @@ The gap left open in A126. A tablet by a gate loses its connection - a router re
 - **The screen says so.** A door quietly holding a day of attendance and a door working normally look identical from in front of it, so the count sits in the corner.
 - **What it cannot do offline: name the person.** Identifying a face needs the enrolled descriptors, which live on the server. The screen says the swipe was saved and will be sent, rather than guessing at a name - and the face is matched when it arrives.
 - **Verified:** 30 browser checks in the door suite, including a held swipe arriving late and marked as device-timed, the same one sent twice recording once, one arriving out of order still getting its direction from what preceded it, and times days old or in the future refused.
+
+### A129. The Work Gateway on the admin dashboard (owner request, 30 Sep 2026)
+The owner sent four screenshots of another HR system - a launcher wall of about ninety named links, a month-grid attendance authorisation screen, a day-detail approval dialog, and a salary book - and asked for all of it, on the desktop admin dashboard.
+
+**The first piece, and a straight answer about the rest.** What is built here is the gateway: every screen in the company on one wall, grouped and named, so somebody who knows what they want finds it without hunting a sidebar, and somebody who does not can read the whole system at a glance. That is the part of the reference that works, and it is the part that costs a day rather than a quarter.
+
+- **Built from the navigation config, not a second list.** Anything an admin has switched off, or that this role may not see, is absent here too. Two hand-maintained lists would drift apart inside a month and the gateway would start promising screens that are not there.
+- **Desktop only, deliberately.** A phone keeps the launcher it has - four tiles and today's swipes - because ninety links on a five-inch screen is a list nobody scrolls. This is the screen somebody sits down at.
+- **What is missing is named and greyed rather than left out.** Assets, uniform, TDS and PF statements, memos, swipe exceptions: twenty-nine of them. A launcher that silently omits things reads as a complete system, and then somebody plans a month around a report nobody has written. Unclickable and grey says the true thing, and it doubles as the roadmap.
+- **34 live links against 29 not built**, which is the honest shape of the gap between this and the reference.
+
+**What the reference has that this does not, in the order it is worth building:** the month-grid authorisation screen (every employee down, every day across, one cell per day with its status, opening to a dialog that marks leave or attendance with an approval trail) is the daily driver and the largest single piece. Then the salary book's per-branch month view - generate, lock, view slips - which is mostly a screen over payroll that already computes. Then assets and uniform, which is a new domain rather than a view over an old one. Statutory statements last, because they need an accountant's eye more than an engineer's.
