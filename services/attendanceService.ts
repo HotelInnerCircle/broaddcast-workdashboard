@@ -23,6 +23,8 @@ export function serializeAttendance(a: Record<string, unknown>) {
     id: String(a._id), userId: a.userId && typeof a.userId === "object" && "name" in (a.userId as object) ? String((a.userId as { _id: unknown })._id) : String(a.userId), user: person(a.userId),
     date: a.date as string, clockIn: (a.clockIn as Date | null) ?? null, clockOut: (a.clockOut as Date | null) ?? null,
     breakSeconds: (a.breakSeconds as number) ?? 0, workSeconds: (a.workSeconds as number) ?? 0, status: a.status as AttendanceStatus,
+    /** How many swipes made this day (A132) - two is normal, one never closed. */
+    swipeCount: (a.swipeCount as number) ?? 0,
     autoClosed: Boolean(flags.autoClosed), reviewed: Boolean(flags.reviewed), note: (a.note as string | null) ?? null, virtual: false,
   };
 }
@@ -84,7 +86,7 @@ export async function listAttendance(ctx: CompanyContext, q: { from: string; to:
       for (const u of users) {
         const joined = clock.dayOf(u.joiningDate ?? u.createdAt);
         if (joined > day || have.has(`${u._id}:${day}`)) continue;
-        rows.push({ id: `absent-${u._id}-${day}`, userId: String(u._id), user: { id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null }, date: day, clockIn: null, clockOut: null, breakSeconds: 0, workSeconds: 0, status: "Absent", autoClosed: false, reviewed: false, note: null, virtual: true });
+        rows.push({ id: `absent-${u._id}-${day}`, userId: String(u._id), user: { id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null }, date: day, clockIn: null, clockOut: null, breakSeconds: 0, workSeconds: 0, status: "Absent", swipeCount: 0, autoClosed: false, reviewed: false, note: null, virtual: true });
       }
     }
   }
@@ -187,17 +189,26 @@ export async function syncAttendanceFromSwipes(ctx: CompanyContext, userId: stri
 
   // In, from the first swipe that says on duty - or simply the first, for
   // somebody who forgot to swipe in and only swiped out.
-  const first = swipes.find((s) => s.type === "ON_DUTY") ?? swipes[0];
-  const clockIn = first.at as Date;
-  // Out, from the last off-duty swipe after it. A second on-duty swipe later in
-  // the day is somebody coming back, not a new day.
-  const lastOff = [...swipes].reverse().find((s) => s.type === "OFF_DUTY" && (s.at as Date).getTime() > clockIn.getTime());
+  /*
+   * The first swipe and the last swipe, whatever they say (A132).
+   *
+   * It used to take the first *on duty* and the last *off duty*, which read
+   * well and behaved badly: somebody who forgot to swipe off had no end to
+   * their day at all, so the hours came out as nothing and the record looked
+   * like they had never left. What a person reviewing a day actually wants is
+   * the two ends of it - the earliest thing that happened and the latest - and
+   * the count beside them to say whether those two are the whole story.
+   */
+  const clockIn = swipes[0].at as Date;
+  const lastSwipe = swipes.length > 1 ? swipes[swipes.length - 1] : null;
+  const lastOff = lastSwipe && (lastSwipe.at as Date).getTime() > clockIn.getTime() ? lastSwipe : null;
 
   const rec = existing ?? (await scoped(Attendance, ctx).create({
     userId: uid, date, clockIn, status: lateStatus(clock, date, clockIn),
   })) as unknown as Doc;
 
   rec.clockIn = clockIn;
+  rec.set("swipeCount", swipes.length);
   if (lastOff) {
     await closeRecord(new Types.ObjectId(ctx.companyId), clock, rec as Doc, lastOff.at as Date, false);
     return;

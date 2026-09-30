@@ -9,6 +9,16 @@ const AttendanceSchema = new Schema(
     date: { type: String, required: true },
     clockIn: { type: Date, default: null },
     clockOut: { type: Date, default: null },
+    /**
+     * How many swipes the day was built from (A132).
+     *
+     * The first and last are the day's edges, but the count is what tells
+     * somebody reviewing it whether those edges are the whole story: two swipes
+     * is a normal day, eight is somebody in and out all afternoon, and one is a
+     * day that never got closed. Stored rather than counted on every read
+     * because the ledger asks for it per person per day across a month.
+     */
+    swipeCount: { type: Number, default: 0 },
     breakSeconds: { type: Number, default: 0 },
     workSeconds: { type: Number, default: 0 },
     status: { type: String, enum: ATTENDANCE_STATUSES, required: true },

@@ -42,8 +42,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </TabsList>
         {isAdmin && <TabsContent value="face" className="space-y-6">
           <FaceCheckSettings />
-          <EnrolInPerson />
+          {/*
+            Enrolling in person sits with the door devices (A132), because that
+            is the order somebody does it in: hang a tablet by a gate, then walk
+            the people who will use it past a desk and photograph them. A door
+            recognises nobody until somebody has been enrolled and approved, so
+            the two belong on the same screen.
+          */}
           <DoorDevices />
+          <EnrolInPerson />
         </TabsContent>}
         {company && <TabsContent value="company" className="space-y-6"><CompanySettingsForm company={company} />
           <ApprovalChainEditor initial={company.approvalChain} />

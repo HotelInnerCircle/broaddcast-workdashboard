@@ -130,6 +130,33 @@ export default async function run({ browser, lab, check }) {
   check("swiping on duty creates the day's attendance", Boolean(mine?.clockIn), JSON.stringify(mine ?? {}));
   check("and it counts as present or late, not absent", ["Present", "Late", "Half Day"].includes(mine?.status), mine?.status);
 
+  /* ---------- the day's two ends, and how many swipes made it (A132) ---------- */
+  /*
+   * It used to read the first *on duty* swipe and the last *off duty* one,
+   * which sounds right and behaves badly: somebody who forgets to swipe off has
+   * no end to their day at all, so the hours come out as nothing and the record
+   * reads as though they never left. The two ends of a day are the earliest
+   * thing that happened and the latest, whatever either one says.
+   */
+  const swipesToday = (await call(hr, `/api/attendance/swipes?date=${today}&userId=${lab.ids.emp}`, null, "GET")).json?.data ?? [];
+  check("the swipes are all on the record", swipesToday.length >= 1, `${swipesToday.length} swipes`);
+
+  const dayNow = await call(hr, `/api/attendance?from=${today}&to=${today}&userId=${lab.ids.emp}`, null, "GET");
+  const mineNow = (dayNow.json?.data?.rows ?? []).find((r) => r.date === today);
+  check("the day counts the swipes it was built from", (mineNow?.swipeCount ?? 0) >= 1, JSON.stringify({ swipeCount: mineNow?.swipeCount }));
+  check("its first end is the earliest swipe", Boolean(mineNow?.clockIn), String(mineNow?.clockIn));
+
+  /*
+   * Two on-duty swipes and nothing else - somebody who came back after lunch
+   * and never swiped off. The day still has an end, which is the whole point.
+   */
+  await swipePhoto(emp, "ON_DUTY", 12.9716, 77.5946);
+  const afterSecond = await call(hr, `/api/attendance?from=${today}&to=${today}&userId=${lab.ids.emp}`, null, "GET");
+  const mine2 = (afterSecond.json?.data?.rows ?? []).find((r) => r.date === today);
+  check("a day with no off-duty swipe still has a last swipe", Boolean(mine2?.clockOut), String(mine2?.clockOut));
+  check("and the count went up", (mine2?.swipeCount ?? 0) > (mineNow?.swipeCount ?? 0),
+    `${mineNow?.swipeCount} then ${mine2?.swipeCount}`);
+
   const goneAway = await call(emp, "/api/attendance/clock-in", {}, "POST");
   check("there is no clocking in any more", goneAway.status === 404, `status=${goneAway.status}`);
 

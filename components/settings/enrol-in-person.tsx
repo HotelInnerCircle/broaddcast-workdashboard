@@ -124,7 +124,7 @@ export function EnrolInPerson({ onDone }: { onDone?: () => void }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><UserRoundSearch className="size-4" />Enrol somebody in person</CardTitle>
         <CardDescription>
-          For people who will use a door device, or who cannot enrol from their own phone. Type their
+          For the people who will walk up to a door device, or who cannot enrol from their own phone. Type their
           employee code, check the name, then photograph them. It is approved as you take it, because
           you are the one looking at them.
         </CardDescription>
