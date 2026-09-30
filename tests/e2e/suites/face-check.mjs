@@ -306,6 +306,44 @@ export default async function run({ browser, lab, check }) {
     }
   }
 
+  /* ---------- enrolling somebody in person (A127) ---------- */
+  /*
+   * The other way round from the phone. There, a person enrols themselves and
+   * waits for somebody to approve it, because nobody watched. Here the watching
+   * is the enrolment: HR types the employee's code, checks the name that comes
+   * back, and photographs the person in front of them - so it is approved as it
+   * is taken. Sending it to a queue for the same person to approve later would
+   * be a second signature from the same hand.
+   */
+  const lookup = await call(hr, `/api/employees?q=${encodeURIComponent("EMP")}&limit=20`, null, "GET");
+  const codes = (lookup.json?.data ?? []).map((r) => r.employeeCode).filter(Boolean);
+  check("an employee code can be searched for", codes.length > 0, JSON.stringify(codes.slice(0, 3)));
+
+  const theirFace = [nudge(myFace, 3), nudge(myFace, 3.05)];
+  const inPerson = await call(hr, `/api/face/enrolment/${lab.ids.mgr}`, { samples: theirFace });
+  check("HR can enrol somebody with them standing there", inPerson.status === 200, `status=${inPerson.status} ${JSON.stringify(inPerson.json?.error ?? "")}`);
+  check("and it is approved as it is taken", inPerson.json?.data?.approval === "approved", JSON.stringify(inPerson.json?.data ?? {}));
+  check("it names who it was for", Boolean(inPerson.json?.data?.userName), inPerson.json?.data?.userName);
+
+  const register2 = await call(hr, "/api/face/enrolment", null, "GET");
+  const theirRow = (register2.json?.data?.rows ?? []).find((r) => r.userId === lab.ids.mgr);
+  check("the register shows them approved, not waiting", theirRow?.approval === "approved", JSON.stringify(theirRow ?? {}));
+
+  /*
+   * Not for yourself. Enrolling your own face here would approve it in the same
+   * breath, which is the exact hole the approval flow exists to close - so it
+   * is refused and points at the ordinary route.
+   */
+  const ownFace = await call(hr, `/api/face/enrolment/${lab.ids.hr}`, { samples: theirFace });
+  check("but not for themselves", ownFace.status === 400 && ownFace.json?.error?.code === "USE_YOUR_OWN",
+    `status=${ownFace.status} ${JSON.stringify(ownFace.json?.error ?? {})}`);
+
+  const byEmployee = await call(emp, `/api/face/enrolment/${lab.ids.mgr}`, { samples: theirFace });
+  check("and an employee cannot enrol anybody", [401, 403].includes(byEmployee.status), `status=${byEmployee.status}`);
+
+  const tooFew = await call(hr, `/api/face/enrolment/${lab.ids.lead}`, { samples: [nudge(myFace, 4)] });
+  check("one capture is not enough for somebody else either", tooFew.status === 400, `status=${tooFew.status}`);
+
   // Off again for the suites that follow.
   await call(admin, "/api/admin/company", { faceCheck: { enabled: false } }, "PATCH");
 }

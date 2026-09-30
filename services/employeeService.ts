@@ -42,7 +42,13 @@ export async function listEmployees(ctx: CompanyContext, query: z.infer<typeof l
   const scope = await employeeScopeFilter(ctx);
   const filter: Record<string, unknown> = { ...scope, archivedAt: null };
   // Escaped - see clientService: an unescaped search term is a denial of service.
-  if (query.q) { const q = escapeRegex(query.q); filter.$and = [...((filter.$and as unknown[]) ?? []), { $or: [{ name: { $regex: q, $options: "i" } }, { email: { $regex: q, $options: "i" } }] }]; }
+  /*
+   * The employee code is searchable too (A127). It is the thing people read out
+   * and the thing printed on a payslip, so typing it and finding nothing made
+   * the search look broken - and enrolling somebody's face in person starts by
+   * typing exactly that.
+   */
+  if (query.q) { const q = escapeRegex(query.q); filter.$and = [...((filter.$and as unknown[]) ?? []), { $or: [{ name: { $regex: q, $options: "i" } }, { email: { $regex: q, $options: "i" } }, { employeeCode: { $regex: q, $options: "i" } }] }]; }
   if (query.role) filter.role = query.role;
   if (query.status) filter.status = query.status;
   else filter.status = { $ne: "deactivated" };

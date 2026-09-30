@@ -300,3 +300,99 @@ export async function enrolmentPhotoUrl(ctx: CompanyContext, userId: string): Pr
   if (!user?.facePhotoKey) return null;
   return storage().getSignedUrl(user.facePhotoKey as string, 300);
 }
+
+/**
+ * HR enrols somebody's face with them standing there (A127).
+ *
+ * The other way round from the phone. There, a person enrols themselves and
+ * somebody has to approve it afterwards, because nobody watched. Here the
+ * watching *is* the enrolment: HR types the employee's code, sees the name come
+ * back, and photographs the person in front of them.
+ *
+ * So it is approved on the spot, by whoever did it. Sending it to a queue for
+ * the same person to approve later would be asking them to confirm something
+ * they did themselves - a second signature from the same hand, which is not a
+ * review of anything.
+ *
+ * No geofence either. The rule that enrolment must happen at a work site exists
+ * because a phone can be anywhere and nobody is watching; a colleague standing
+ * in front of the person is a stronger control than a circle on a map, and
+ * refusing HR for being at a branch office with no geofence drawn would only
+ * stop the safer path being used.
+ */
+export async function enrolFaceFor(
+  ctx: CompanyContext,
+  targetUserId: string,
+  samples: unknown,
+  photo: File | null,
+  ip: string | null,
+) {
+  if (!Types.ObjectId.isValid(targetUserId)) throw Errors.notFound("Employee");
+  if (targetUserId === ctx.userId) {
+    /*
+     * Their own face goes through the ordinary route and waits for somebody
+     * else. Enrolling yourself here would be approving yourself, which is the
+     * exact hole this whole flow was built to close.
+     */
+    throw Errors.bad("USE_YOUR_OWN", "Enrol your own face from your profile - somebody else approves it.");
+  }
+
+  const target = await scoped(User, ctx)
+    .findOne({ _id: new Types.ObjectId(targetUserId), archivedAt: null })
+    .select("name employeeCode facePhotoKey").lean();
+  if (!target) throw Errors.notFound("Employee");
+
+  if (!Array.isArray(samples) || samples.length === 0) throw Errors.bad("NO_FACE", "No face was captured. Try again in better light.");
+  if (samples.length > 10) throw Errors.bad("TOO_MANY", "That is more captures than are needed");
+  const good = samples.filter(isDescriptor);
+  if (good.length < 2) throw Errors.bad("NOT_ENOUGH", "Capture their face a few times so it can be recognised reliably.");
+
+  let photoKey: string | null = null;
+  if (photo) {
+    const { validateUpload, sniffMatches } = await import("@/lib/storage");
+    const { compressImage } = await import("@/lib/storage/compress");
+    const { mime } = validateUpload(photo, { imagesOnly: true });
+    const raw = Buffer.from(await photo.arrayBuffer());
+    if (!sniffMatches(raw, mime)) throw Errors.bad("BAD_IMAGE", "That file is not the image it claims to be");
+    const small = await compressImage(raw, mime, "avatar");
+    photoKey = `companies/${ctx.companyId}/face-enrolment/${targetUserId}-${Date.now()}.${small.ext}`;
+    await storage().put({ key: photoKey, body: small.buffer, contentType: small.contentType });
+  }
+
+  const descriptor = averageDescriptors(good);
+  await scoped(User, ctx).updateOne(
+    { _id: new Types.ObjectId(targetUserId) },
+    { $set: {
+      faceDescriptor: descriptor, faceEnrolledAt: new Date(), faceSamples: good.length,
+      faceApproval: "approved", facePhotoKey: photoKey,
+      faceApprovedBy: new Types.ObjectId(ctx.userId), faceApprovedAt: new Date(), faceReviewNote: null,
+    } },
+  );
+
+  if (target.facePhotoKey && target.facePhotoKey !== photoKey) {
+    await storage().delete(target.facePhotoKey as string).catch(() => {});
+  }
+
+  await audit({
+    ctx, companyId: ctx.companyId, entity: "user", entityId: new Types.ObjectId(targetUserId),
+    action: "face.enrolled_in_person",
+    // Named differently from a self-enrolment on purpose: who was holding the
+    // camera is the whole difference between the two.
+    summary: `${ctx.name} enrolled ${target.name}'s face in person and approved it`,
+    after: { samples: good.length, employeeCode: target.employeeCode ?? null }, ip,
+  });
+
+  const { notify } = await import("./notificationService");
+  await notify(ctx.companyId, {
+    userId: targetUserId,
+    type: "FACE_APPROVED",
+    title: `${ctx.name} enrolled your face for attendance`,
+    link: "/profile",
+    actorId: ctx.userId,
+  });
+
+  return {
+    enrolled: true, approval: "approved", samples: good.length,
+    userName: target.name as string, employeeCode: (target.employeeCode as string | null) ?? null,
+  };
+}

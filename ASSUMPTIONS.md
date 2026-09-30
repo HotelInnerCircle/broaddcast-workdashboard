@@ -965,3 +965,15 @@ The owner has a tablet and asked for a device at the door: somebody walks up, it
 - **A test that described the order it ran in:** "the first swipe of the day is on duty" passed alone and failed in a full run, where the employee had already swiped from their phone. It asserts the alternation now, which is the actual rule.
 - **Verified:** 17 unit checks on identification and liveness - a photograph never passing however long it is held up, refusing to choose between two similar faces, a stricter threshold refusing what a loose one accepts - and 21 browser checks: registering, the token never being handed out twice, an employee refused both, an unapproved face not recognised, a stranger not recognised, the day following from a door swipe, and a revoked device dead at once.
 - **Still not built:** an offline queue. A door with no wifi currently stops working, and it should hold the swipes and send them when the connection returns.
+
+### A127. Enrolling a face with the person standing there (owner request, 30 Sep 2026)
+The owner asked to type an employee ID, capture that person's face, and have attendance work from it. That is supervised enrolment, and it is the other way round from the phone in a way that matters.
+
+- **On the phone, a person enrols themselves and somebody approves it afterwards** (A120), because nobody watched. **Here the watching is the enrolment:** HR types the code, sees the name come back, and photographs the person in front of them. So it is approved as it is taken - sending it to a queue for the same person to approve later would be a second signature from the same hand, which reviews nothing.
+- **It starts with the employee code**, because that is what is printed on a payslip and what people read out. The search did not match on it until now - typing EMP005 found nothing, which made the search look broken and made this flow impossible to start.
+- **The name is shown before the camera opens.** Photographing the right face onto the wrong account is the one mistake this screen could make and never notice.
+- **Nobody may do it for themselves.** Enrolling your own face this way would approve it in the same breath - the exact hole the approval flow exists to close - so it is refused and points at the ordinary route.
+- **No geofence here.** The rule that enrolment happens at a work site (A120) exists because a phone can be anywhere and nobody is watching. A colleague standing in front of the person is a stronger control than a circle on a map, and refusing HR at a branch office with no geofence drawn would only push people back to the weaker path.
+- **The old photo is deleted when a new one replaces it**, same as a self-enrolment.
+- **Verified:** 8 browser checks - the code being searchable, HR enrolling somebody, it arriving approved rather than pending, the register agreeing, an employee refused, HR refused for their own face, and one capture not being enough.
+- **A test of my own that was wrong, not the code:** the descriptors it sent were nudged by 60, and `isDescriptor` refuses anything outside [-10, 10] - so "not enough captures" was correct and the test was sending rubbish.

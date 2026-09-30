@@ -2,7 +2,7 @@ import { route, clientIp } from "@/lib/api/handler";
 import { ok } from "@/lib/api/response";
 import { requirePermission } from "@/lib/auth/context";
 import { parseBody } from "@/lib/api/response";
-import { decideEnrolment, enrolmentPhotoUrl } from "@/services/faceService";
+import { decideEnrolment, enrolmentPhotoUrl, enrolFaceFor } from "@/services/faceService";
 import { faceDecisionSchema } from "@/lib/validation/face";
 
 /**
@@ -30,4 +30,30 @@ export const PATCH = route(async (req, { params }) => {
   const { userId } = await params;
   const input = await parseBody(req, faceDecisionSchema);
   return ok(await decideEnrolment(ctx, userId, input, clientIp(req)));
+});
+
+/**
+ * Enrol somebody's face with them standing in front of you (A127).
+ *
+ * The other way round from the phone: there a person enrols themselves and
+ * waits for approval, because nobody watched. Here the watching is the
+ * enrolment, so it is approved on the spot by whoever did it.
+ */
+export const POST = route(async (req, { params }) => {
+  const ctx = await requirePermission("employees", "update");
+  const { userId } = await params;
+
+  let samples: unknown;
+  let photo: File | null = null;
+  if ((req.headers.get("content-type") ?? "").includes("multipart/form-data")) {
+    const form = await req.formData();
+    try { samples = JSON.parse(String(form.get("samples") ?? "null")); } catch { samples = null; }
+    const file = form.get("photo");
+    photo = file instanceof File && file.size > 0 ? file : null;
+  } else {
+    const body = (await req.json().catch(() => null)) as { samples?: unknown } | null;
+    samples = body?.samples;
+  }
+
+  return ok(await enrolFaceFor(ctx, userId, samples, photo, clientIp(req)));
 });

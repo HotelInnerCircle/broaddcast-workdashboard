@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FaceCheckSettings } from "@/components/settings/face-check-settings";
 import { DoorDevices } from "@/components/settings/door-devices";
+import { EnrolInPerson } from "@/components/settings/enrol-in-person";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { ListEditor } from "@/components/settings/list-editor";
 import { ApprovalChainEditor } from "@/components/settings/approval-chain-editor";
@@ -41,6 +42,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </TabsList>
         {isAdmin && <TabsContent value="face" className="space-y-6">
           <FaceCheckSettings />
+          <EnrolInPerson />
           <DoorDevices />
         </TabsContent>}
         {company && <TabsContent value="company" className="space-y-6"><CompanySettingsForm company={company} />
