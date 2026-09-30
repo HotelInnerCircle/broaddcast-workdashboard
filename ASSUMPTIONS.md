@@ -1016,3 +1016,14 @@ The centrepiece of the owner's reference, and the piece that was actually missin
 - **A settled day wins over the swipes.** `syncAttendanceFromSwipes` already leaves alone anything with `setBy` on it, so a decision is never quietly recomputed away by a swipe arriving late - which is checked, not assumed.
 - **Two things the screenshots taught me only once it was on screen:** a day before somebody joined rendered as an empty cell, which reads as a bug rather than as a fact, so it is a faint dash now; and the "this day is not paid" warning was showing on days outside the employment entirely, which would have had HR settling days that were never theirs to work.
 - **Verified:** 10 checks - the grid loading with a row per person and a column per day, an employee seeing only themselves, settling refused without a reason, settling accepted with one, an employee unable to settle their own day, and a settled day surviving a later swipe.
+
+### A131. Levels on the approval chain - and the setting swipes were ignoring (owner request, 30 Sep 2026)
+The owner asked for Level 1 / Level 2 / Level 3 on attendance swipe approvals, configurable from the admin side, with a level removable when there is no team lead. Most of that already existed from A104 - reorder, remove, add back, HR pinned last. Two things did not.
+
+- **Nothing said which level a step was.** A chain that is three steps in one company and two in another needs to name the position, or "Manager" quietly means something different in each and nobody notices until a request sits in the wrong queue. The editor rows now read *Level 1 · Team Lead*, and every approval trail - swipes and leave - shows **L1**, **L2**, **L3** beside the role.
+
+- **And the bug underneath it: swipes were ignoring the setting entirely.** `swipeService` had its own private chain builder, hardcoded as team lead, then manager, then HR. It was written in A83, before the order became something an admin sets in A104; the leave side moved to the shared builder and the swipe side never did. So a company that dropped the team lead level got the setting saved, the screen showing it, and **three-step swipe approvals regardless** - approvals waiting on a person the company had deliberately removed from the chain.
+
+  Nothing caught it because the chain was only ever tested through leave. A104's own note said the two shared one chain, which was true of the intention and not of the code. Swipes use the shared builder now, so there is one answer to "who approves" and both kinds of request get it.
+
+- **Verified:** the chain set to three steps produces a three-step swipe; dropped to two, the next swipe has two with the manager first, and the lead can no longer decide it. Checked on the swipe side specifically, which is the side that was wrong.

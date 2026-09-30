@@ -28,32 +28,21 @@ export interface SwipeRow {
   note: string | null;
 }
 
-/**
- * Who has to agree when a swipe lands outside every site (A83), in order.
+/*
+ * Who has to agree when a swipe lands outside every site.
  *
- * A step is only added when there is a distinct person to fill it: a team lead swiping from home
- * does not approve their own swipe, and somebody with no manager does not wait forever for one.
- * The HR step is always present, and always settleable - any HR may act, and a Company Admin may
- * act on any step - so a pending swipe can never be stranded with nobody able to decide it.
+ * This file used to build its own chain, hardcoded as team lead, then manager,
+ * then HR (A83) - written before the order became something an admin sets
+ * (A104). The leave side moved to the shared builder and the swipe side did
+ * not, so **a company that dropped the team lead level kept getting three-step
+ * swipe approvals**: the setting was saved, the screen showed it, and swipes
+ * ignored it. Nothing caught it because the chain was only ever tested through
+ * leave.
+ *
+ * It uses the shared builder now, so there is one answer to "who approves" and
+ * both kinds of request get it.
  */
-async function buildChain(ctx: CompanyContext, userId: Types.ObjectId) {
-  const [user, hrCount] = await Promise.all([
-    scoped(User, ctx).findById(String(userId)).select("teamId managerId").lean(),
-    scoped(User, ctx).countDocuments({ role: "HR", status: "active", archivedAt: null }),
-  ]);
-  const team = user?.teamId ? await scoped(Team, ctx).findById(String(user.teamId)).select("leadId managerId").lean() : null;
-
-  const steps: Array<{ step: "TEAM_LEAD" | "MANAGER" | "HR"; approverId: Types.ObjectId | null }> = [];
-  const isSelf = (id: unknown) => id && String(id) === String(userId);
-
-  if (team?.leadId && !isSelf(team.leadId)) steps.push({ step: "TEAM_LEAD", approverId: team.leadId as Types.ObjectId });
-  const managerId = user?.managerId ?? team?.managerId ?? null;
-  if (managerId && !isSelf(managerId)) steps.push({ step: "MANAGER", approverId: managerId as Types.ObjectId });
-  // Always last, whether or not an HR has been appointed yet - the admin can settle it either way.
-  steps.push({ step: "HR", approverId: null });
-
-  return { steps, hrCount };
-}
+import { buildChain as buildApprovalChain } from "./approvalChain";
 
 /** A swipe as the UI wants it, with a freshly signed photo URL (objects are private). */
 export async function serializeSwipe(s: Record<string, unknown>, names: Map<string, string>): Promise<SwipeRow> {
@@ -182,7 +171,7 @@ export async function createSwipe(
   const autoApprove = within && !faceFailed;
   const chain = autoApprove
     ? { steps: [] as Array<{ step: "TEAM_LEAD" | "MANAGER" | "HR"; approverId: Types.ObjectId | null }> }
-    : await buildChain(ctx, uid);
+    : { steps: await buildApprovalChain(ctx, uid) };
   const swipe = await scoped(AttendanceSwipe, ctx).create({
     userId: uid, date, type: input.type, at,
     photoKey: key,

@@ -92,11 +92,20 @@ export function SwipesView({ canDecide }: { canDecide: boolean }) {
 
                   {s.approvals.length > 0 && (
                     <ol className="mt-3 flex flex-wrap gap-1.5">
-                      {s.approvals.map((a) => (
+                      {s.approvals.map((a, i) => (
                         <li key={a.step} className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold",
                           a.decision === "APPROVED" ? "bg-success-soft text-tile-success-fg"
                             : a.decision === "REJECTED" ? "bg-danger-soft text-tile-danger-fg"
                             : s.currentStep === a.step ? "bg-warning-soft text-tile-warning-fg" : "bg-muted text-muted-foreground")}>
+                          {/*
+                            The level, then who it is (A131). A chain that is
+                            two steps in one company and three in another needs
+                            to say which one it is on - otherwise "Manager"
+                            silently means something different in each and
+                            nobody notices until a request sits in the wrong
+                            queue for a week.
+                          */}
+                          <span className="opacity-60">L{i + 1}</span>{" "}
                           {STEP_LABEL[a.step] ?? a.step}
                           {a.decidedByName ? ` - ${a.decidedByName}` : s.currentStep === a.step ? " - waiting" : ""}
                         </li>

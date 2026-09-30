@@ -45,6 +45,13 @@ export function ApprovalChainEditor({ initial }: { initial: string[] }) {
     setChain([...next, "HR"]);
   };
   const remove = (s: Step) => setChain([...before.filter((x) => x !== s), "HR"]);
+  /*
+   * What each position is called once it is saved (A131). The number is the
+   * point: a company with no team lead runs a two-level chain, and its Level 1
+   * is the manager. Showing the level beside the role is what keeps "L2" on an
+   * approval trail meaning the same thing as "Level 2" here.
+   */
+  const levelOf = (i: number) => `Level ${i + 1}`;
   const add = (s: Step) => setChain([...before, s, "HR"]);
 
   const save = async () => {
@@ -73,11 +80,20 @@ export function ApprovalChainEditor({ initial }: { initial: string[] }) {
             return (
               <li key={step} className={cn("flex flex-wrap items-center gap-3 rounded-2xl p-3 ring-1",
                 fixed ? "bg-muted/50 ring-border" : "bg-card ring-border/60 shadow-card")}>
-                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary-soft text-[12px] font-bold text-primary">
-                  {i + 1}
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary-soft text-[11px] font-bold text-primary">
+                  L{i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1.5 font-medium">
+                    {/*
+                      The level and the role together (A131). A company with no
+                      team lead runs a two-level chain whose Level 1 is the
+                      manager - so the number has to be shown here, or "L2" on
+                      an approval trail means something different from "the
+                      second row of this list".
+                    */}
+                    <span className="text-muted-foreground">{levelOf(i)}</span>
+                    <span aria-hidden className="text-muted-foreground/50">·</span>
                     {LABEL[step]}
                     {fixed && <Lock className="size-3.5 text-muted-foreground" />}
                   </p>
@@ -100,7 +116,8 @@ export function ApprovalChainEditor({ initial }: { initial: string[] }) {
 
         {missing.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[12px] text-muted-foreground">Add a step:</span>
+            {/* Named as a level, so adding one back reads as the inverse of removing it. */}
+            <span className="text-[12px] text-muted-foreground">Add a level back:</span>
             {missing.map((s) => (
               <Button key={s} variant="outline" size="sm" onClick={() => add(s)}><Plus />{LABEL[s]}</Button>
             ))}

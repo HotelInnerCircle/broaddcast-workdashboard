@@ -85,6 +85,38 @@ export default async function run({ browser, lab, check }) {
   const queue = await call(admin, "/api/attendance/swipes?mine=true", null, "GET");
   check("a queue lists only pending ones", (queue.json?.data ?? []).every((s) => s.status === "PENDING"));
 
+  /* ---------- the levels a swipe goes through (A131) ---------- */
+  /*
+   * Leave and swipes share one chain, and the admin sets it. What matters here
+   * is that a company with no team lead can drop that level entirely rather
+   * than leaving a step nobody can fill - a request waiting on a person who
+   * does not exist is a request that never moves.
+   */
+  const threeSteps = await call(admin, "/api/admin/company", { approvalChain: ["TEAM_LEAD", "MANAGER", "HR"] }, "PATCH");
+  check("the admin sets the levels", threeSteps.status === 200, `status=${threeSteps.status}`);
+  const far = await swipePhoto(emp, "ON_DUTY", 13.4, 78.4);
+  const threeChain = (far.json?.data?.approvals ?? []).map((a) => a.step);
+  check("an off-site swipe goes through three levels",
+    JSON.stringify(threeChain) === JSON.stringify(["TEAM_LEAD", "MANAGER", "HR"]), JSON.stringify(threeChain));
+
+  /*
+   * Drop the first level. HR stays last whatever happens - it is the step any
+   * HR person and the company admin can settle, so it is what guarantees a
+   * request can always be decided by somebody.
+   */
+  const twoSteps = await call(admin, "/api/admin/company", { approvalChain: ["MANAGER", "HR"] }, "PATCH");
+  check("a level can be dropped when there is no team lead", twoSteps.status === 200, `status=${twoSteps.status}`);
+  const far2 = await swipePhoto(emp, "OFF_DUTY", 13.4, 78.4);
+  const twoChain = (far2.json?.data?.approvals ?? []).map((a) => a.step);
+  check("and the next swipe goes through two, manager first",
+    JSON.stringify(twoChain) === JSON.stringify(["MANAGER", "HR"]), JSON.stringify(twoChain));
+  // Through the suite's own helper, which uses the verb the endpoint expects.
+  const leadTries = await decide(lead, far2.json?.data?.id, "APPROVED");
+  check("the lead can no longer decide it", [401, 403].includes(leadTries.status), `status=${leadTries.status}`);
+
+  // Put it back for anything that follows.
+  await call(admin, "/api/admin/company", { approvalChain: ["TEAM_LEAD", "MANAGER", "HR"] }, "PATCH");
+
   /* ---------- the swipe is what makes the day count (A121) ---------- */
   /*
    * Clocking in and out is gone. It was a second thing to remember for the same

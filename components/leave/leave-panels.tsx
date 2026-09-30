@@ -53,12 +53,12 @@ export function LeaveHistory({ rows, canDecide, myUserId, onDecide, onCancel }: 
 
           {r.approvals.length > 0 && (
             <ol className="mt-3 flex flex-wrap gap-1.5">
-              {r.approvals.map((a) => (
+              {r.approvals.map((a, i) => (
                 <li key={a.step} className={cn("rounded-full px-2.5 py-1 text-[11px] font-semibold",
                   a.decision === "APPROVED" ? "bg-success-soft text-tile-success-fg"
                     : a.decision === "REJECTED" ? "bg-danger-soft text-tile-danger-fg"
                     : r.currentStep === a.step ? "bg-warning-soft text-tile-warning-fg" : "bg-muted text-muted-foreground")}>
-                  {STEP_LABEL[a.step] ?? a.step}
+                  <><span className="opacity-60">L{i + 1}</span> {STEP_LABEL[a.step] ?? a.step}</>
                   {a.decidedByName ? ` - ${a.decidedByName}` : r.currentStep === a.step ? " - waiting" : ""}
                 </li>
               ))}
