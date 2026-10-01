@@ -154,11 +154,18 @@ export default async function run({ browser, lab, check }) {
   const ownThumb = await emp.waitForSelector('img[alt="Picture of the work"]', { timeout: 20_000 }).catch(() => null);
   check("somebody sees their own picture on the timer screen", Boolean(ownThumb), "no thumbnail on the timer screen");
   if (ownThumb) {
-    // Present is not loaded: a signed link that has expired leaves an <img>.
-    const decoded = await emp.evaluate(() => {
+    /*
+     * Present is not loaded: a signed link that has expired leaves an <img>.
+     *
+     * Waited for rather than read once. The picture is fetched over the network
+     * after the tag appears, and reading the instant it exists failed whenever
+     * the machine was busy running the other suites - a flake that says nothing
+     * about whether the thumbnail works.
+     */
+    const decoded = await emp.waitForFunction(() => {
       const i = document.querySelector('img[alt="Picture of the work"]');
       return Boolean(i && i.complete && i.naturalWidth > 0);
-    });
+    }, { timeout: 20_000 }).then(() => true).catch(() => false);
     check("and the browser actually loads it", decoded, "the thumbnail did not decode");
   }
 

@@ -9,21 +9,14 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { api, ClientApiError } from "@/lib/api/client";
+// The same parts the add-a-teammate dialog offers (A138), so the two agree.
+import { SALARY_PARTS, money } from "@/components/payroll/salary-parts";
 
 interface Scale {
   id: string; effectiveFrom: string; basic: number; hra: number; conveyance: number;
   lta: number; special: number; gross: number; note: string | null;
 }
 
-const PARTS = [
-  { key: "basic" as const, label: "Basic", required: true, why: "What PF and gratuity are worked out from." },
-  { key: "hra" as const, label: "HRA", required: false, why: "House rent allowance." },
-  { key: "conveyance" as const, label: "Conveyance", required: false, why: "Travel allowance." },
-  { key: "lta" as const, label: "LTA", required: false, why: "Leave travel allowance." },
-  { key: "special" as const, label: "Special", required: false, why: "Whatever is left to reach the agreed gross." },
-];
-
-const money = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const pretty = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
 /**
@@ -77,7 +70,7 @@ export function EmployeeSalary({ userId, userName, canEdit }: { userId: string; 
     finally { setBusy(false); }
   };
 
-  const gross = PARTS.reduce((n, p) => n + Number(form[p.key] || 0), 0);
+  const gross = SALARY_PARTS.reduce((n, p) => n + Number(form[p.key] || 0), 0);
   const current = rows?.[0] ?? null;
 
   return (
@@ -106,7 +99,7 @@ export function EmployeeSalary({ userId, userName, canEdit }: { userId: string; 
                 <Input id="sal-from" type="date" value={form.effectiveFrom}
                   onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
               </div>
-              {PARTS.map((p) => (
+              {SALARY_PARTS.map((p) => (
                 <div key={p.key}>
                   <label htmlFor={`sal-${p.key}`} className="text-[13px] font-semibold">
                     {p.label}{p.required && <span className="ml-1 font-normal text-danger">required</span>}

@@ -14,6 +14,8 @@ import { hashPassword } from "@/lib/auth/password";
 import { generateToken, hashToken } from "@/lib/utils/tokens";
 import { ROLE_LABEL } from "@/types";
 import { nextEmployeeCode, assertCodeFree } from "@/services/employeeCodeService";
+import { setSalary } from "@/services/payrollService";
+import { can } from "@/lib/permissions";
 import type { CompanyContext } from "@/lib/auth/context";
 import type { CreateInviteInput, CreateEmployeeInput } from "@/lib/validation/employees";
 import { manageableTeamIds } from "./scope";
@@ -79,6 +81,16 @@ async function codeFor(ctx: CompanyContext, asked?: string | null): Promise<stri
  */
 export async function createEmployee(ctx: CompanyContext, input: CreateEmployeeInput, ip: string | null) {
   const { managerId } = await validatePlacement(ctx, input);
+  /*
+   * Checked before anything is written (A138). Deciding what somebody earns is
+   * a different permission from being allowed to add them - a manager may hire
+   * into their own team without being told, or getting to set, the wage - and a
+   * refusal that arrived after the account existed would leave a person created
+   * by a request that was rejected.
+   */
+  if (input.salary && !can(ctx.role, "payslips", "update")) {
+    throw Errors.forbidden("You cannot set what somebody is paid");
+  }
   const employeeCode = await codeFor(ctx, input.employeeCode);
   const user = await scoped(User, ctx).create({
     name: input.name, email: input.email, role: input.role, teamId: oid(input.teamId), managerId, designation: input.designation ?? null,
@@ -86,9 +98,32 @@ export async function createEmployee(ctx: CompanyContext, input: CreateEmployeeI
     passwordHash: await hashPassword(input.password), status: "active", joiningDate: new Date(),
   });
   await audit({ ctx, companyId: ctx.companyId, entity: "user", entityId: user._id, action: "user.created", summary: `${ctx.name} created an account for ${input.name} (${ROLE_LABEL[input.role]})`, after: { email: input.email, role: input.role, teamId: input.teamId ?? null, method: "direct" }, ip });
+
+  /*
+   * Their pay, set in the same breath (A138).
+   *
+   * Through `setSalary` rather than writing the scale here, so there is one way
+   * a salary is ever recorded: the same validation, the same effective-dated
+   * row, the same audit entry as a raise entered later on their page. A second
+   * write path is how a payslip ends up disagreeing with the screen above it.
+   */
+  let salary: { gross: number } | null = null;
+  let salaryError: string | null = null;
+  if (input.salary) {
+    try {
+      const saved = await setSalary(ctx, { userId: String(user._id), ...input.salary }, ip);
+      salary = { gross: saved.gross };
+    } catch (e) {
+      // The account exists by now, so failing the whole call would report a
+      // person who was in fact created. Said plainly instead, because somebody
+      // who typed a wage and was told "done" would never go back and check.
+      salaryError = e instanceof Error ? e.message : "The salary could not be saved";
+    }
+  }
+
   // The code comes back too (A134): it is the first thing somebody wants to
   // hand the person they just added, and it was being assigned and withheld.
-  return { id: String(user._id), name: user.name, email: user.email, role: user.role, employeeCode: user.employeeCode ?? null };
+  return { id: String(user._id), name: user.name, email: user.email, role: user.role, employeeCode: user.employeeCode ?? null, salary, salaryError };
 }
 
 /** Admin (any role/team) or Manager (TEAM_LEAD/EMPLOYEE, own teams only) invites by email (spec 6.2). */

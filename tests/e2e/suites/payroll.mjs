@@ -106,13 +106,22 @@ export default async function run({ browser, lab, check }) {
   check("and the ones without are reported, not silently missed", all.json?.data?.skipped >= 1, `skipped=${all.json?.data?.skipped}`);
   check("with a reason each", /no salary/i.test(JSON.stringify(all.json?.data?.results ?? "")));
 
-  /* ---------- the screens ---------- */
-  await hr.goto(`${lab.base}/payroll/salaries`, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  check("the salaries page renders", await waitForText(hr, /have a salary set/, 45_000));
-  const body = await hr.textContent("body");
-  check("it shows the gross", /33,000/.test(body), body.replace(/\s+/g, " ").slice(0, 200));
-  check("and flags who has none", /No salary set/.test(body));
-  await shot(hr, "salary-register");
+  /* ---------- the register of its own is gone (A138) ---------- */
+  /*
+   * Pay is set where the person is: on their own record, and while they are
+   * being added. A separate list of everybody with a pencil beside each name
+   * meant a new hire was created on one screen and paid on another, and the
+   * second step was the one that got forgotten until payroll skipped them.
+   *
+   * Asserted rather than assumed. A page left behind stays reachable by anybody
+   * who bookmarked it, and would go on writing salaries by a second path.
+   */
+  const gone = await hr.goto(`${lab.base}/payroll/salaries`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  check("the salary register screen is gone", gone.status() === 404, `status=${gone.status()}`);
+
+  await hr.goto(`${lab.base}/employees`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  check("and nothing in the menu still points at it",
+    (await hr.$$('a[href="/payroll/salaries"]')).length === 0);
 
   await hr.goto(`${lab.base}/payroll/payslips`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   check("the payslips page offers a run", await waitForText(hr, /Generate for everyone/, 45_000));
@@ -150,4 +159,112 @@ export default async function run({ browser, lab, check }) {
   await emp.goto(`${lab.base}/employees/${lab.ids.lead}`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
   const empSees = (await emp.textContent("body").catch(() => "")) ?? "";
   check("an employee does not see somebody else's pay there", !/Set salary/i.test(empSees), empSees.slice(0, 100));
+
+  /* ---------- pay is set while the person is being added (A138) ---------- */
+  /*
+   * What somebody earns is agreed when they are hired, so it is asked for in
+   * the same form that creates them. The route through `setSalary` is the same
+   * one their own page uses - checked below by reading the scale back through
+   * the endpoint that page reads, and by computing a payslip from it, because a
+   * figure that does not reach a payslip has not really been recorded.
+   */
+  const stamp = Date.now().toString(36);
+  const withPay = await call(hr, "/api/employees", {
+    name: "Asha Iyer", email: `pay-${stamp}@e2e.local`, password: lab.pw, role: "EMPLOYEE",
+    salary: { effectiveFrom: `${month}-01`, basic: 16500, hra: 8000, special: 8500, note: "Agreed at hiring" },
+  });
+  check("an employee can be created with their salary in one go", withPay.status === 201,
+    `status=${withPay.status} ${JSON.stringify(withPay.json?.error ?? "")}`);
+  check("the gross comes back with the account", withPay.json?.data?.salary?.gross === 33000,
+    JSON.stringify(withPay.json?.data?.salary));
+  check("and there is nothing to report about it", !withPay.json?.data?.salaryError,
+    String(withPay.json?.data?.salaryError));
+
+  const newId = withPay.json?.data?.id;
+  const theirs = await call(hr, `/api/payroll/salaries?userId=${newId}`, null, "GET");
+  check("the scale is the same one their own page reads",
+    (theirs.json?.data ?? []).length === 1 && theirs.json.data[0].gross === 33000,
+    JSON.stringify(theirs.json?.data));
+  check("effective from the date that was typed", theirs.json?.data?.[0]?.effectiveFrom === `${month}-01`,
+    theirs.json?.data?.[0]?.effectiveFrom);
+
+  const fromHiring = await call(hr, "/api/payroll/generate", { userId: newId, month });
+  check("a payslip computes from it with no second step", fromHiring.status === 200,
+    `status=${fromHiring.status} ${JSON.stringify(fromHiring.json?.error ?? "")}`);
+
+  /*
+   * Still optional. Somebody is often given a login before the figure is
+   * settled, and refusing to create them until it is would send people back to
+   * doing it in a spreadsheet.
+   */
+  const noPay = await call(hr, "/api/employees",
+    { name: "Vikram Rao", email: `nopay-${stamp}@e2e.local`, password: lab.pw, role: "EMPLOYEE" });
+  check("somebody can still be added with no salary at all", noPay.status === 201, `status=${noPay.status}`);
+  check("and they simply have none", noPay.json?.data?.salary === null, JSON.stringify(noPay.json?.data?.salary));
+
+  // A scale adding up to nothing is a mistake, not a wage of zero. Refused by
+  // the schema, so it is a 422 like any other invalid field - the account is
+  // never created, which is the part that matters.
+  const zero = await call(hr, "/api/employees", {
+    name: "Zero Pay", email: `zero-${stamp}@e2e.local`, password: lab.pw, role: "EMPLOYEE",
+    salary: { effectiveFrom: `${month}-01`, basic: 0 },
+  });
+  check("a salary of nothing is refused", zero.status === 422, `status=${zero.status}`);
+  const noZero = await call(hr, `/api/employees?limit=100&q=Zero Pay`, null, "GET");
+  check("and nobody was created by the attempt",
+    (noZero.json?.data ?? []).every((r) => r.name !== "Zero Pay"),
+    JSON.stringify((noZero.json?.data ?? []).map((r) => r.name)));
+
+  /*
+   * Hiring and setting pay are different permissions, and the form is not where
+   * that is enforced. A manager may add to their own team; that must not become
+   * a way to write a wage the payroll screens would then show as agreed.
+   */
+  const mgr = await signedIn(browser, lab.people.mgr.email, lab.pw);
+  const sneaky = await call(mgr, "/api/employees", {
+    name: "Not Theirs To Set", email: `mgrpay-${stamp}@e2e.local`, password: lab.pw, role: "EMPLOYEE",
+    teamId: lab.teamId, salary: { effectiveFrom: `${month}-01`, basic: 99000 },
+  });
+  check("a manager cannot set pay while adding somebody", sneaky.status === 403, `status=${sneaky.status}`);
+  const leftovers = await call(hr, "/api/employees?limit=100&q=Not Theirs", null, "GET");
+  check("and the refusal left no half-made account behind",
+    (leftovers.json?.data ?? []).every((r) => r.name !== "Not Theirs To Set"),
+    JSON.stringify((leftovers.json?.data ?? []).map((r) => r.name)));
+
+  /* ---------- and the fields are actually on the form ---------- */
+  await hr.goto(`${lab.base}/employees?invite=1`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  check("the add-a-teammate form asks for a salary", await waitForText(hr, /Effective from/i, 30_000));
+  for (const label of ["Basic", "HRA", "Conveyance", "LTA", "Special"]) {
+    check(`it offers ${label}`, Boolean(await hr.$(`#inv-pay-${label.toLowerCase()}`)));
+  }
+  // Typed in, the gross adds up on the form - not only on the server.
+  await hr.fill("#inv-pay-basic", "16500");
+  await hr.fill("#inv-pay-hra", "8000");
+  await hr.fill("#inv-pay-special", "8500");
+  const form = await hr.textContent("body");
+  check("and the monthly gross adds up as it is typed", /33,000/.test(form ?? ""),
+    (form ?? "").replace(/\s+/g, " ").slice(0, 200));
+  await shot(hr, "add-employee-with-salary");
+
+  /*
+   * A manager is not shown the fields either. The permission is enforced on the
+   * way in, but offering a box that will be refused is its own kind of wrong.
+   */
+  await mgr.goto(`${lab.base}/employees?invite=1`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await waitForText(mgr, /Add a teammate/i, 30_000);
+  check("a manager is not offered the salary fields", !(await mgr.$("#inv-pay-basic")));
+
+  /*
+   * The people this block hired are put back, because the lab company sits on a
+   * Starter plan with a seat limit: a suite that spends seats makes whichever
+   * suite runs after it fail for a reason that has nothing to do with it. That
+   * is exactly what happened when these checks were first written.
+   */
+  for (const id of [newId, noPay.json?.data?.id]) {
+    if (id) await call(hr, `/api/employees/${id}`, { status: "deactivated" }, "PATCH");
+  }
+  const freed = await call(hr, "/api/employees?limit=100&status=active", null, "GET");
+  check("and the seats they took are given back",
+    (freed.json?.data ?? []).every((r) => r.name !== "Asha Iyer" && r.name !== "Vikram Rao"),
+    JSON.stringify((freed.json?.data ?? []).map((r) => r.name)));
 }
