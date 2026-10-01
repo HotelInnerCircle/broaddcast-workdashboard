@@ -1,7 +1,7 @@
 import { route, clientIp } from "@/lib/api/handler";
 import { created, paged, parseQuery } from "@/lib/api/response";
 import { Errors } from "@/lib/api/errors";
-import { requirePermission } from "@/lib/auth/context";
+import { requirePermission, requireOnTheClock } from "@/lib/auth/context";
 import { checkLimit } from "@/lib/limits";
 import { rateLimit } from "@/lib/rate-limit";
 import { swipeCreateSchema, swipeQuerySchema } from "@/lib/validation/swipes";
@@ -20,7 +20,7 @@ export const GET = route(async (req) => {
  * from the camera. The server supplies the time and decides whether it was inside a site.
  */
 export const POST = route(async (req) => {
-  const ctx = await requirePermission("attendance", "create");
+  const ctx = await requireOnTheClock(await requirePermission("attendance", "create"));
   // Keyed by person, not by address: everyone on an office wifi shares an address,
   // and the account is the thing being limited. Twenty a minute is far more than
   // going on and off duty needs, and well under what it takes to keep the image

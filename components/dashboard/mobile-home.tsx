@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Bell, ChevronRight, Fingerprint } from "lucide-react";
+import { Bell, ChevronRight, Fingerprint, Users } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTimer, formatHM } from "@/hooks/useTimer";
@@ -8,6 +8,9 @@ import { formatDate, formatTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 import { TILE_FILL, TILE_ICONS, TileBadge, visibleTiles, type LauncherTile } from "./tiles";
 import { TodaySwipes } from "./today-swipes";
+import { TodayOverview } from "./today-overview";
+import { onTheClock } from "@/lib/permissions";
+import type { TodayAtAGlance } from "@/services/dashboardService";
 
 /** One line under the grid: what is wrong today, or nothing at all. */
 export interface MobileAlert { href: string; text: string; tone: "danger" | "warning" }
@@ -20,8 +23,10 @@ export interface MobileAlert { href: string; text: string; tone: "danger" | "war
  * Every piece of timer and attendance state comes from the shared `useTimer` context, so start,
  * pause, break, clock in and clock out behave exactly as they do everywhere else.
  */
-export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; alert?: MobileAlert | null; timezone?: string }) {
+export function MobileHome({ tiles, alert, timezone, today }: { tiles: LauncherTile[]; alert?: MobileAlert | null; timezone?: string; today?: TodayAtAGlance | null }) {
   const me = useAuth();
+  // A139: whether this person clocks themselves in, or only watches.
+  const clocked = onTheClock(me.role);
   const t = useTimer();
   const rt = useRealtime();
   const att = t.summary?.attendance ?? null;
@@ -104,14 +109,25 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
         mini timer that follows you around anyway - so the space belongs to the
         thing people open the app to check.
       */}
-      <TodaySwipes userId={me.userId} userName={me.name} />
+      {/*
+        A139: only for somebody who swipes. The admin oversees attendance rather
+        than recording it, so a card of their own swipes would always be empty -
+        and reading as though they had forgotten to swipe is worse than absent.
+      */}
+      {clocked
+        ? <TodaySwipes userId={me.userId} userName={me.name} />
+        : today
+          ? <TodayOverview today={today} />
+          : null}
 
       {/* The launcher grid */}
       <div className="mt-5 flex items-baseline gap-2 px-1">
         <h2 className="flex-1 font-display text-[21px]">Quick actions</h2>
-        <span className="text-[11.5px] font-semibold text-muted-foreground">
-          {clockedIn ? `In at ${formatTime(att!.clockIn!, timezone)}` : att?.clockOut ? "Day complete" : "Not clocked in"}
-        </span>
+        {clocked && (
+          <span className="text-[11.5px] font-semibold text-muted-foreground">
+            {clockedIn ? `In at ${formatTime(att!.clockIn!, timezone)}` : att?.clockOut ? "Day complete" : "Not clocked in"}
+          </span>
+        )}
       </div>
       <div className="mt-2.5 grid grid-cols-3 gap-2.5">
         {visibleTiles(me.role, me.company?.hiddenNav ?? [], tiles).map((tile) => {
@@ -149,7 +165,15 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
         and the day was counted from whichever of them somebody remembered.
       */}
       <div className="mt-3">
-        {att?.clockOut ? (
+        {!clocked ? (
+          /*
+            The admin's one big action is not a swipe (A139). It is the thing the
+            role is actually for: everybody's day, on one screen.
+          */
+          <Link href="/attendance" className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-foreground text-[15.5px] font-bold text-background">
+            <Users className="size-5" />See who is in today
+          </Link>
+        ) : att?.clockOut ? (
           <p className="rounded-full bg-muted py-3.5 text-center text-sm font-medium text-muted-foreground">
             Off duty at {formatTime(att.clockOut, timezone)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked
           </p>

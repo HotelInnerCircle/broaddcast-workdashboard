@@ -7,6 +7,7 @@ import { WorkSite } from "@/models/WorkSite";
 import { User } from "@/models/User";
 import { generateToken, hashToken } from "@/lib/utils/tokens";
 import { identifyFace, DEFAULT_MARGIN } from "@/lib/face/match";
+import { CLOCKED_ROLES } from "@/lib/permissions";
 import { faceSettings } from "./faceService";
 import type { CompanyContext } from "@/lib/auth/context";
 
@@ -146,6 +147,12 @@ export async function identifyAtDoor(device: DeviceContext, descriptor: unknown)
     faceApproval: "approved",
     archivedAt: null,
     status: { $ne: "deactivated" },
+    /*
+     * Only people who clock themselves in (A139). An admin walking past the
+     * door is not swiping, and matching their face only to refuse the swipe
+     * afterwards would read as the door failing to recognise them.
+     */
+    role: { $in: CLOCKED_ROLES },
   }).setOptions({ skipTenantGuard: true } as never)
     .select("+faceDescriptor name employeeCode").lean();
 

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Home, Timer, MessageSquare, User, Fingerprint } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useAuth } from "@/hooks/useAuth";
+import { onTheClock } from "@/lib/permissions";
 import { useTimerOptional } from "@/hooks/useTimer";
 import { useRealtimeOptional } from "@/hooks/useRealtime";
 import { ROLE_HOME } from "@/types";
@@ -23,14 +24,17 @@ export function MobileBottomNav({ onSwipe }: { onSwipe: () => void }) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
   const hidden = me.company?.hiddenNav ?? [];
   const running = entry?.status === "RUNNING" || onBreak;
+  // A139: the admin oversees attendance instead of recording it, so neither the
+  // swipe button nor the stopwatch belongs on their bar.
+  const clocked = onTheClock(me.role);
   const side = [
     { label: "Home", href: ROLE_HOME[me.role], icon: Home },
-    { label: "Timer", href: "/timer", icon: Timer, running },
+    ...(clocked ? [{ label: "Timer", href: "/timer", icon: Timer, running }] : []),
     { label: "Chat", href: "/chat", icon: MessageSquare, badge: unread },
     // A89: a page, not a drawer - back works and the browser remembers where you were.
     { label: "Profile", href: "/profile", icon: User },
   ].filter((i) => !i.href || !hidden.includes(i.href));
-  const showSwipe = !hidden.includes("/swipe");
+  const showSwipe = clocked && !hidden.includes("/swipe");
   const left = Math.floor(side.length / 2);
   const columns = side.length + (showSwipe ? 1 : 0);
   const swipeActive = isActive("/swipe");

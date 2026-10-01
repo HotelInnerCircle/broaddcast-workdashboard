@@ -3,10 +3,10 @@ import {
   LayoutDashboard, ListChecks, FolderKanban, Building2, CalendarDays, Timer, Table2, CalendarCheck, Users, UsersRound,
   ShieldCheck, MessageSquare, Fingerprint, ClipboardCheck, MapPin, CalendarClock, Palmtree, Bell, Megaphone, BarChart3, Clock, Briefcase, PieChart, Settings, CreditCard, Receipt, Globe, FileText, ScrollText, Eye, ClipboardList,
 } from "lucide-react";
-import { can, type Action, type Resource } from "@/lib/permissions";
+import { can, onTheClock, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
 
-export interface NavItem { label: string; href: string; icon: LucideIcon; permission?: [Resource, Action]; roles?: Role[]; phase?: number }
+export interface NavItem { label: string; href: string; icon: LucideIcon; permission?: [Resource, Action]; roles?: Role[]; phase?: number; clocked?: true }
 export interface NavGroup { label: string; items: NavItem[] }
 
 /**
@@ -37,14 +37,19 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Calendar", href: "/calendar", icon: CalendarDays, permission: ["tasks", "view"] },
     ] },
     { label: "TIME", items: [
-      { label: "Timer", href: "/timer", icon: Timer, permission: ["timer", "view"] },
+      // A139: `create`, not `view`. The admin reads timesheets but does not run a
+      // stopwatch, so the screen for running one is not offered to them.
+      { label: "Timer", href: "/timer", icon: Timer, permission: ["timer", "create"] },
       { label: "Timesheets", href: "/timesheets", icon: Table2, permission: ["timer", "view"] },
       { label: "Attendance", href: "/attendance", icon: CalendarCheck, permission: ["attendance", "view"] },
       // The month somebody signs off before it becomes pay (A130).
       { label: "Authorise", href: "/attendance/authorise", icon: ClipboardCheck, permission: ["attendance", "view"] },
       // A83: swiping is its own screen - it needs the camera and a location fix, which the
       // attendance table has no business asking for.
-      { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"] },
+      // `clocked` (A139): only for people who clock themselves in. `attendance:create`
+      // cannot say that on its own - the admin needs it to record leave and to read
+      // the work sites a swipe is measured against.
+      { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"], clocked: true },
       { label: "Leave", href: "/leave", icon: Palmtree, permission: ["attendance", "create"] },
       { label: "Swipe approvals", href: "/attendance/swipes", icon: ClipboardCheck, permission: ["attendance", "view"], roles: ["COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD"] },
       { label: "Daily Report", href: "/daily-report", icon: FileText, permission: ["dailyReports", "create"] },
@@ -84,6 +89,6 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
     ] },
   ];
   return groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(role, ...i.permission)) && (!i.roles || i.roles.includes(role)) && (ALWAYS_VISIBLE.includes(i.href) || !hidden.includes(i.href))) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(role, ...i.permission)) && (!i.roles || i.roles.includes(role)) && (!i.clocked || onTheClock(role)) && (ALWAYS_VISIBLE.includes(i.href) || !hidden.includes(i.href))) }))
     .filter((g) => g.items.length > 0);
 }

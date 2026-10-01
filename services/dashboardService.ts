@@ -111,3 +111,49 @@ export async function myWork(ctx: CompanyContext) {
   for (const t of focus) (grouped[t.status] ??= []).push(t);
   return { openCount: tasks.length, overdueCount: tasks.filter((t) => t.overdue).length, grouped, upcoming: upcoming.map((t) => serializeTask(t as Record<string, unknown>, tz)) };
 }
+
+/**
+ * Everybody's day, in one glance (A139).
+ *
+ * The admin does not swipe or run a stopwatch; what they do is look at who is
+ * in. That question had no answer on their own screen - the dashboard said how
+ * many accounts had signed in within a day, which is not the same thing and was
+ * sitting where an attendance summary was promised.
+ *
+ * Counted over people who clock themselves in, because an admin in the
+ * "yet to swipe" number would be a permanent false alarm.
+ */
+export async function todayAtAGlance(ctx: CompanyContext) {
+  const { Attendance } = await import("@/models/Attendance");
+  const { companyClock } = await import("@/lib/time/company-clock");
+  const { CLOCKED_ROLES } = await import("@/lib/permissions");
+  const clock = await companyClock(ctx.companyId);
+  const date = clock.dayOf(new Date());
+  const scope = await employeeScopeFilter(ctx);
+  const people = await scoped(User, ctx)
+    .find({ ...scope, archivedAt: null, status: "active", role: { $in: CLOCKED_ROLES } })
+    .select("_id").lean();
+  const ids = people.map((p) => p._id);
+  const rows = await scoped(Attendance, ctx)
+    .find({ userId: { $in: ids }, date }).select("clockIn clockOut status").lean();
+
+  let onDuty = 0, swiped = 0, late = 0, leave = 0;
+  for (const r of rows) {
+    if (r.status === "Leave") { leave++; continue; }
+    if (r.clockIn) swiped++;
+    if (r.clockIn && !r.clockOut) onDuty++;
+    if (r.status === "Late") late++;
+  }
+  return {
+    date,
+    headcount: ids.length,
+    swiped,
+    onDuty,
+    late,
+    leave,
+    // Not "absent": the day is not over, so this is who has not swiped yet.
+    yetToSwipe: Math.max(0, ids.length - swiped - leave),
+    isWorkingDay: clock.isWorkingDay(date),
+  };
+}
+export type TodayAtAGlance = Awaited<ReturnType<typeof todayAtAGlance>>;

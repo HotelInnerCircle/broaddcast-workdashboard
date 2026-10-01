@@ -44,7 +44,13 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
     tasks: g([...RW, "assign"], "company"),
     reports: g(["view"], "company"),
     liveStatus: g(["view"], "company"),
-    timer: g(["view", "create", "update"], "own"),
+    /*
+     * View only, and across the company (A139). The admin reads everybody's
+     * timesheets - that is the oversight the role exists for - but does not run
+     * a stopwatch of their own, so there is no create or update here and the
+     * start, pause, resume, stop and break routes refuse them outright.
+     */
+    timer: g(["view"], "company"),
     attendance: g(["view", "create", "update"], "company"),
     workSites: g(ALL, "company"),
     scheduling: g(ALL, "company"),
@@ -128,6 +134,29 @@ export const PERMISSIONS: Record<Role, Partial<Record<Resource, Grant>>> = {
 export function can(role: Role, resource: Resource, action: Action): boolean {
   return PERMISSIONS[role]?.[resource]?.actions.includes(action) ?? false;
 }
+
+/**
+ * Who is on the clock, and who only watches it (A139).
+ *
+ * The company admin runs the place: they are not expected to swipe at a gate or
+ * sit behind a stopwatch, and offering them both made the whole attendance side
+ * of the app read as if it applied to them. It also had consequences - an admin
+ * who never swipes is marked absent every working day by the same code that
+ * flags a real absence, which is noise in exactly the report that is supposed
+ * to be read carefully.
+ *
+ * They keep every view of it. Timesheets, the ledger, the authorisation grid
+ * and live status are oversight, and that is the whole point of the role - they
+ * look at everybody. What goes is only the clocking of themselves.
+ *
+ * Stated once here, as a rule about roles rather than a condition repeated at
+ * each screen, because the screens, the API and the attendance rolls all have
+ * to agree about it or somebody ends up on a report they cannot act on.
+ */
+export const onTheClock = (role: Role): boolean => role !== "COMPANY_ADMIN" && role !== "SUPER_ADMIN";
+
+/** The same rule as a list, for the queries that have to ask it of a whole company. Derived, so it cannot drift. */
+export const CLOCKED_ROLES: Role[] = (Object.keys(PERMISSIONS) as Role[]).filter(onTheClock);
 
 export function scopeOf(role: Role, resource: Resource): Scope | null {
   return PERMISSIONS[role]?.[resource]?.scope ?? null;

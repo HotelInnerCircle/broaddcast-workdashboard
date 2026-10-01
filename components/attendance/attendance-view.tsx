@@ -5,6 +5,7 @@ import { addDays, format, startOfMonth, startOfWeek } from "date-fns";
 import { CalendarCheck, AlertTriangle, CheckCircle2, Plane, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { onTheClock } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
@@ -67,7 +68,12 @@ export function AttendanceView() {
       <PageHeader title="Attendance" description={manager ? "The day each person worked, from their swipes. Auto-closed records are flagged for review." : "Your days, worked out from your swipes."} actions={
         <div className="flex items-center gap-2">
           {manager && <Button variant="outline" onClick={() => setLeave({ open: true, userId: people[0]?.id ?? "", date: key(new Date()), note: "" })}><Plane />Mark leave</Button>}
-          {att?.clockOut ? null : <Button asChild><Link href="/swipe"><Fingerprint />{clockedIn ? "Swipe off duty" : "Swipe on duty"}</Link></Button>}
+          {/*
+            A139: not offered to somebody who oversees attendance rather than
+            recording it - this is the screen the admin lives on, and the button
+            led to a page that sends them straight back.
+          */}
+          {onTheClock(me.role) && !att?.clockOut && <Button asChild><Link href="/swipe"><Fingerprint />{clockedIn ? "Swipe off duty" : "Swipe on duty"}</Link></Button>}
         </div>
       } />
       {data && (

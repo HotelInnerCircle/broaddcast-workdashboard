@@ -3,14 +3,14 @@ import { Users, UserPlus, UsersRound, Activity, Settings, CreditCard, ScrollText
 import { requirePageRole, type CompanyContext } from "@/lib/auth/context";
 import { connectDB } from "@/lib/db/connect";
 import { adminDashboardStats } from "@/services/companyService";
-import { workKpis } from "@/services/dashboardService";
+import { workKpis, todayAtAGlance } from "@/services/dashboardService";
 import { ProjectStatusBadge } from "@/components/ui/status-badge";
 import { Greeting } from "@/components/dashboard/greeting";
 import { MobileHome } from "@/components/dashboard/mobile-home";
 import { QuickTiles, type LauncherTile } from "@/components/dashboard/tiles";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { ActivityList } from "@/components/dashboard/activity-list";
-import { ComingSoon } from "@/components/dashboard/coming-soon";
+import { TodayOverview } from "@/components/dashboard/today-overview";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SetupBanner } from "@/components/dashboard/setup-banner";
@@ -23,7 +23,7 @@ export const metadata = { title: "Admin dashboard" };
 export default async function AdminDashboardPage() {
   const ctx = (await requirePageRole("COMPANY_ADMIN")) as CompanyContext;
   await connectDB();
-  const [stats, kpi, company] = await Promise.all([adminDashboardStats(ctx), workKpis(ctx), getCompany(ctx).catch(() => null)]);
+  const [stats, kpi, company, today] = await Promise.all([adminDashboardStats(ctx), workKpis(ctx), getCompany(ctx).catch(() => null), todayAtAGlance(ctx)]);
 
   /*
    * The gateway is built from the same navigation the sidebar uses (A129), so
@@ -74,11 +74,21 @@ export default async function AdminDashboardPage() {
       <MobileHome
         tiles={tiles}
         timezone={ctx.company!.timezone}
+        today={today}
         alert={kpi.tasks.overdue > 0 ? { href: "/tasks", text: `${kpi.tasks.overdue} task${kpi.tasks.overdue === 1 ? "" : "s"} overdue across the company`, tone: "danger" } : null}
       />
       <div className="hidden md:block">
       <Greeting name={ctx.name} timezone={ctx.company!.timezone} subtitle={ctx.company!.name} />
       <QuickTiles tiles={tiles} className="mb-6 mt-5" />
+
+      {/*
+        Who is in, directly under the tiles (A139). It was first put in the grid
+        at the foot of this page, where an attendance placeholder had been
+        sitting - and a screenshot of the finished page showed it two thousand
+        pixels down, below the audit trail. The admin does not clock in; this is
+        what they open the dashboard to read, so it goes where that is true.
+      */}
+      <TodayOverview today={today} className="mb-6" />
 
       {/*
         Everything, on one screen (A129). Below the tiles rather than above:
@@ -101,8 +111,7 @@ export default async function AdminDashboardPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <ActivityList items={stats.recentAudit} title="Recent audit events" description="Every important action leaves a trail." />
-          <div className="grid gap-6 md:grid-cols-2">
-            <ComingSoon title="Attendance summary" phase={3} description="Present, late, half-day and absent counts for today." />
+          <div className="grid gap-6">
             <Card>
               <CardHeader><CardTitle>Projects by status</CardTitle><CardDescription>{kpi.projects.total} projects, {kpi.tasks.overdue} overdue tasks</CardDescription></CardHeader>
               <CardContent className="space-y-2 pt-0">

@@ -4,6 +4,8 @@ import { TimerPage } from "@/components/timer/timer-page";
 export const metadata = { title: "Timer" };
 
 export default async function TimerRoute() {
-  await requirePagePermission("timer", "view");
+  // A139: `create`. The admin reads everybody's timesheets but runs no stopwatch,
+  // so the screen for running one sends them home.
+  await requirePagePermission("timer", "create");
   return <TimerPage />;
 }

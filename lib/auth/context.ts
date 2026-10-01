@@ -2,7 +2,7 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { Errors } from "@/lib/api/errors";
-import { can, type Action, type Resource } from "@/lib/permissions";
+import { can, onTheClock, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role, type SessionContext } from "@/types";
 
 /** Memoized per request: layouts, pages and route handlers all share one session lookup. */
@@ -33,6 +33,27 @@ export async function requireCompanySession(): Promise<CompanyContext> {
 export async function requirePermission(resource: Resource, action: Action): Promise<CompanyContext> {
   const ctx = await requireCompanySession();
   if (!can(ctx.role, resource, action)) throw Errors.forbidden();
+  return ctx;
+}
+
+/**
+ * For anything somebody does *to their own* attendance: a swipe (A139).
+ *
+ * Separate from the permission matrix because `attendance:create` cannot say
+ * this on its own - the admin needs that grant to record leave and to read the
+ * work sites a swipe is measured against, while not swiping themselves. The
+ * permission is still checked by the caller; this is the extra question.
+ */
+export async function requireOnTheClock(ctx: CompanyContext): Promise<CompanyContext> {
+  if (!onTheClock(ctx.role)) {
+    throw Errors.forbidden("Your role oversees attendance rather than recording it");
+  }
+  return ctx;
+}
+
+/** The same question on a page: sends them home rather than showing a 403. */
+export function requirePageOnTheClock(ctx: SessionContext): SessionContext {
+  if (!onTheClock(ctx.role)) redirect(ROLE_HOME[ctx.role]);
   return ctx;
 }
 

@@ -10,6 +10,8 @@ import { User } from "@/models/User";
 import { Company } from "@/models/Company";
 import { payrollPeriod } from "@/lib/time/payroll-period";
 import { LEAVE_TYPE_LABEL, type LeaveType } from "@/types";
+import type { Role } from "@/types";
+import { onTheClock } from "@/lib/permissions";
 import type { CompanyContext } from "@/lib/auth/context";
 
 export type DayKind = "Present" | "Late" | "Half Day" | "Absent" | "Leave" | "Holiday" | "Week off" | "Upcoming" | "Before joining";
@@ -230,7 +232,13 @@ export async function authorisationGrid(
   if (!MONTH.test(q.month)) throw Errors.bad("BAD_MONTH", "Pick a month");
 
   const { scopedUsers } = await import("./timesheetService");
-  const people = await scopedUsers(ctx, { userId: q.userId, teamId: q.teamId });
+  /*
+   * People who clock themselves in (A139). The grid exists to sign off a month
+   * of attendance before it becomes pay; somebody who never swipes has no month
+   * to sign off, and a row of thirty blanks beside their name is not a finding.
+   */
+  const people = (await scopedUsers(ctx, { userId: q.userId, teamId: q.teamId }))
+    .filter((u) => onTheClock(u.role as Role));
 
   /*
    * One ledger per person, in parallel but in bounded batches. A company of

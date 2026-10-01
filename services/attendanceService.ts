@@ -11,6 +11,8 @@ import { audit } from "@/lib/audit";
 import { buildClock, companyClock, personClock, type CompanyClock } from "@/lib/time/company-clock";
 import type { CompanyContext } from "@/lib/auth/context";
 import type { AttendanceStatus } from "@/types";
+import type { Role } from "@/types";
+import { onTheClock } from "@/lib/permissions";
 import { employeeScopeFilter, requireVisibleEmployee } from "./scope";
 import { finalizeEntry } from "./timerService";
 
@@ -84,6 +86,14 @@ export async function listAttendance(ctx: CompanyContext, q: { from: string; to:
     for (const day of clock.days(q.from, q.to)) {
       if (day >= today || !clock.isWorkingDay(day)) continue;
       for (const u of users) {
+        /*
+         * Nobody is marked absent for not doing something they are not asked to
+         * do (A139). The admin does not swipe, so inventing an absence for each
+         * of their working days would fill the one report that is meant to be
+         * read carefully with rows nobody can act on. Any real record they do
+         * have - a leave, or a swipe from before this rule - still shows above.
+         */
+        if (!onTheClock(u.role as Role)) continue;
         const joined = clock.dayOf(u.joiningDate ?? u.createdAt);
         if (joined > day || have.has(`${u._id}:${day}`)) continue;
         rows.push({ id: `absent-${u._id}-${day}`, userId: String(u._id), user: { id: String(u._id), name: u.name, avatarUrl: u.avatarUrl ?? null }, date: day, clockIn: null, clockOut: null, breakSeconds: 0, workSeconds: 0, status: "Absent", swipeCount: 0, autoClosed: false, reviewed: false, note: null, virtual: true });
