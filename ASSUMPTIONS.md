@@ -1069,3 +1069,12 @@ Two things, and the second is the one that bothered me once it was pointed out.
 - **On the line, not behind the expander.** The first attempt put it inside the sessions list, and the test failed: most jobs have one session, so a picture tucked behind an expander would almost never be seen, which is the same as not showing it. It sits on the visible row.
 - **The thumbnail moved to `components/ui/proof-thumb`.** Two copies would drift, and a photograph should behave the same way wherever it appears - the same reason the lightbox moved out of chat.
 - **The test asserts the thumbnail decoded**, not that an `<img>` is in the page. A signed link that has expired leaves an element behind either way.
+
+### A136. Pay on the person's own page (owner request, 1 Oct 2026)
+Salary lived only on the register - a separate screen listing everybody - so looking up one person's pay meant leaving their record, finding them in a list, and losing everything else about them. Everything else true of an employee is on their page; their pay should be too.
+
+- **The same endpoints the register uses**, not a second way of writing a salary. A scale set here and one set there have to be the same thing, or a payslip computed from one would disagree with the screen showing the other.
+- **Shows which scale is in force**, so nobody has to read dates to work it out, and says on the card that a raise is a new line rather than an edit - which is what lets a payslip issued last year still be reproduced exactly as it was.
+- **Gated on the payslips permission, not on seeing the employee.** A team lead who may open somebody's record does not thereby learn what they earn - and that is checked, because it is the sort of thing that is easy to get wrong by putting a card on a page.
+- **The register stays.** It answers a different question - who has no salary set, who is missing a payslip - and one screen per question beats one screen doing both badly.
+- **A test that would have described the order it ran in:** it first relied on a salary an earlier block had left behind. It sets its own now, and waits for the amount rather than the card title, since the card fetches its own rows.

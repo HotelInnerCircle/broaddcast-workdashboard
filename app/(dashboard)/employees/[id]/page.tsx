@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { can } from "@/lib/permissions";
+import { EmployeeSalary } from "@/components/employees/employee-salary";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Clock, ListChecks, FolderKanban, Building2, Mail, Phone, Coffee, Timer, CalendarCheck } from "lucide-react";
 import { requirePagePermission, type CompanyContext } from "@/lib/auth/context";
@@ -21,6 +23,10 @@ const ICON: Record<string, string> = { "timer.started": "bg-success", "timer.sto
 
 export default async function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = (await requirePagePermission("employees", "view")) as CompanyContext;
+  // Pay is not ordinary employee data: it is gated on the payroll permission,
+  // so a team lead who may see their team does not thereby see what they earn.
+  const canSeePay = can(ctx.role, "payslips", "view");
+  const canSetPay = can(ctx.role, "payslips", "update");
   const { id } = await params;
   await connectDB();
   let d: Awaited<ReturnType<typeof employeeDetail>>;
@@ -79,6 +85,12 @@ export default async function EmployeeDetailPage({ params }: { params: Promise<{
               </CardContent>
             </Card>
             <div className="space-y-6">
+              {/*
+                Their pay, on their own page (A136). It lived only on the salary
+                register - a separate list of everybody - so looking up one
+                person meant leaving their record to find them in it.
+              */}
+              {canSeePay && <EmployeeSalary userId={d.profile.id} userName={d.profile.name} canEdit={canSetPay} />}
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><CalendarCheck className="size-4" />Recent attendance</CardTitle></CardHeader>
                 <CardContent className="pt-0">

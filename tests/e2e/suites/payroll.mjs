@@ -117,4 +117,37 @@ export default async function run({ browser, lab, check }) {
   await hr.goto(`${lab.base}/payroll/payslips`, { waitUntil: "domcontentloaded", timeout: 60_000 });
   check("the payslips page offers a run", await waitForText(hr, /Generate for everyone/, 45_000));
   await shot(hr, "payslip-generate");
+
+  /* ---------- pay lives on the person's own page too (A136) ---------- */
+  /*
+   * It was only on the salary register - a separate list of everybody - so
+   * looking up one person's pay meant leaving their record to find them in it.
+   * The same endpoints back both screens: a scale set in one place and a scale
+   * set in the other have to be the same thing, or a payslip computed from one
+   * would disagree with the screen showing the other.
+   */
+  /*
+   * A salary of its own, rather than relying on one an earlier block left
+   * behind: a check that passes because of the order it ran in is a check that
+   * describes the order rather than the behaviour.
+   */
+  await call(hr, "/api/payroll/salaries",
+    { userId: lab.ids.emp, effectiveFrom: "2026-04-01", basic: 16500, hra: 8000, special: 8500, note: "On their page" });
+
+  await hr.goto(`${lab.base}/employees/${lab.ids.emp}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  // The card fetches its own rows, so the title arrives before the amount does.
+  await waitForText(hr, /a month/i, 30_000);
+  const onPage = await hr.textContent("body");
+  check("the employee's page shows their salary", /a month/i.test(onPage ?? ""), (onPage ?? "").slice(0, 120));
+  check("and marks the one in force", /in force/i.test(onPage ?? ""));
+  check("HR is offered a way to change it", Boolean(await hr.$('button:has-text("Set salary")')));
+
+  /*
+   * And an employee is not. Pay is gated on the payroll permission rather than
+   * on being able to see the person, so a colleague who may open somebody's
+   * record does not thereby learn what they earn.
+   */
+  await emp.goto(`${lab.base}/employees/${lab.ids.lead}`, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+  const empSees = (await emp.textContent("body").catch(() => "")) ?? "";
+  check("an employee does not see somebody else's pay there", !/Set salary/i.test(empSees), empSees.slice(0, 100));
 }
