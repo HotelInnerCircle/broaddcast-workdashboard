@@ -32,7 +32,14 @@ export default async function AdminDashboardPage() {
    * and the gateway would start promising screens that are not there.
    */
   const hidden = ((company as unknown as { hiddenNav?: Record<string, string[]> } | null)?.hiddenNav?.COMPANY_ADMIN) ?? [];
-  const navGroups = navigationFor("COMPANY_ADMIN", hidden);
+  /*
+   * Minus the dashboard itself (A142). The gateway is built from the sidebar,
+   * which quite rightly has a Dashboard entry - but on the dashboard that is a
+   * link to where you already are.
+   */
+  const navGroups = navigationFor("COMPANY_ADMIN", hidden)
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== "/admin/dashboard") }))
+    .filter((g) => g.items.length > 0);
 
   /*
    * What the owner's reference has and this does not, named rather than left
@@ -57,12 +64,18 @@ export default async function AdminDashboardPage() {
   const limit = stats.usage.plan?.limits?.users ?? null;
   // A81: the launcher, filtered by role and menu visibility inside the tile components.
   const tiles: LauncherTile[] = [
-    { href: "/employees", label: "People", icon: "people", tone: "work", hint: `${stats.headcount} people${limit ? ` of ${limit}` : ""}` },
+    /*
+     * A142: hints that say what a screen is for, not numbers that are already
+     * on this page. The headcount was printed three times - here, on the
+     * Headcount card, and again as Users in Plan usage - and "5 active today"
+     * sat a few inches from a card reading "Active today 5".
+     */
+    { href: "/employees", label: "People", icon: "people", tone: "work", hint: "who works here" },
     { href: "/teams", label: "Teams", icon: "teams", tone: "work-2", hint: "who reports to whom" },
     { href: "/clients", label: "Clients", icon: "clients", tone: "work-3", hint: "and their services" },
     { href: "/projects", label: "Projects", icon: "projects", tone: "time-2", hint: `${kpi.projects.active} active` },
     { href: "/tasks", label: "Tasks", icon: "tasks", tone: "time", badge: kpi.tasks.overdue, hint: `${kpi.tasks.pending} open` },
-    { href: "/attendance", label: "Attendance", icon: "attendance", tone: "time-3", hint: `${stats.activeToday} active today` },
+    { href: "/attendance", label: "Attendance", icon: "attendance", tone: "time-3", hint: "swipes and days" },
     { href: "/reports/daily", label: "Daily reports", icon: "report", tone: "admin", hint: "what everyone did" },
     { href: "/reports", label: "Reports", icon: "reports", tone: "admin-2", hint: "hours and output" },
     { href: "/chat", label: "Chat", icon: "chat", tone: "muted", hint: "your team" },
@@ -103,7 +116,13 @@ export default async function AdminDashboardPage() {
       {!ctx.company!.setupCompleted && <SetupBanner />}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatsCard label="Headcount" value={stats.headcount} hint="active accounts" icon={Users} />
-        <StatsCard label="Active today" value={stats.activeToday} hint="signed in within 24h" icon={Activity} tone="success" />
+        {/*
+          A142: "Signed in", not "Active today". It counts accounts that opened
+          the app, and it was sitting beside a panel counting who is actually on
+          duty - two different todays, one of which looked like attendance and
+          is not.
+        */}
+        <StatsCard label="Signed in" value={stats.activeToday} hint="opened the app in 24h" icon={Activity} tone="success" />
         <StatsCard label="Pending invites" value={stats.invited} icon={UserPlus} tone="warning" />
         <StatsCard label="Teams" value={stats.teams} icon={UsersRound} tone="info" />
       </div>
@@ -113,12 +132,12 @@ export default async function AdminDashboardPage() {
           <ActivityList items={stats.recentAudit} title="Recent audit events" description="Every important action leaves a trail." />
           <div className="grid gap-6">
             <Card>
-              <CardHeader><CardTitle>Projects by status</CardTitle><CardDescription>{kpi.projects.total} projects, {kpi.tasks.overdue} overdue tasks</CardDescription></CardHeader>
+              <CardHeader><CardTitle>Projects by status</CardTitle><CardDescription>{kpi.projects.total} in all</CardDescription></CardHeader>
               <CardContent className="space-y-2 pt-0">
                 {["Planning", "Active", "On Hold", "Completed", "Cancelled"].map((s) => (
                   <div key={s} className="flex items-center justify-between text-sm"><ProjectStatusBadge status={s} /><span className="font-medium tabular-nums">{kpi.projects.byStatus[s] ?? 0}</span></div>
                 ))}
-                <Button asChild variant="link" className="h-auto p-0"><Link href="/projects">View all projects</Link></Button>
+                <Button asChild variant="link" className="h-auto p-0"><Link href="/projects" data-cta>View all projects</Link></Button>
               </CardContent>
             </Card>
           </div>
@@ -135,15 +154,12 @@ export default async function AdminDashboardPage() {
               <UsageBar label="Clients" used={stats.usage.usage.clients} limit={stats.usage.plan?.limits?.clients ?? null} />
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader><CardTitle>Quick links</CardTitle></CardHeader>
-            <CardContent className="grid gap-2 pt-0">
-              <Button asChild variant="outline" className="justify-start"><Link href="/employees"><Users />Employees</Link></Button>
-              <Button asChild variant="outline" className="justify-start"><Link href="/settings"><Settings />Company settings</Link></Button>
-              <Button asChild variant="outline" className="justify-start"><Link href="/settings?tab=subscription"><CreditCard />Subscription &amp; billing</Link></Button>
-              <Button asChild variant="outline" className="justify-start"><Link href="/admin/audit"><ScrollText />Audit log</Link></Button>
-            </CardContent>
-          </Card>
+          {/*
+            A142: the "Quick links" card is gone. Every one of its four entries -
+            Employees, Company settings, Subscription & billing, Audit log - was
+            already on this same screen twice over, in the rail and again in
+            "Everything in one place". A third copy is not a shortcut.
+          */}
         </div>
       </div>
       </div>

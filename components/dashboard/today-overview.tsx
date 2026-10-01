@@ -27,7 +27,8 @@ export function TodayOverview({ today, className }: { today: TodayAtAGlance; cla
     <div className={cn("rounded-[22px] bg-card p-4 shadow-card ring-1 ring-border/50", className)}>
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="font-display text-[19px]">Today</h2>
-        <Link href="/attendance" className="flex items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
+        {/* This card's own way in, not a second menu entry - see A142. */}
+        <Link href="/attendance" data-cta className="flex items-center gap-0.5 text-[12px] font-semibold text-muted-foreground">
           {today.headcount} on the clock<ChevronRight className="size-3.5" />
         </Link>
       </div>
@@ -51,11 +52,16 @@ export function TodayOverview({ today, className }: { today: TodayAtAGlance; cla
         ))}
       </dl>
 
+      {/*
+        Said, not linked (A142). It used to be a second link to /attendance
+        inside a card whose heading already goes there - two ways out of one
+        small card, a few centimetres apart. The whole card is the way in.
+      */}
       {today.late > 0 && (
-        <Link href="/attendance" className="mt-2.5 flex items-center gap-2 text-[12.5px] font-semibold text-tile-warning-fg">
+        <p className="mt-2.5 flex items-center gap-2 text-[12.5px] font-semibold text-tile-warning-fg">
           <span className="size-2 rounded-full bg-warning" />
-          {today.late} came in late<ChevronRight className="size-3.5" />
-        </Link>
+          {today.late} came in late
+        </p>
       )}
     </div>
   );

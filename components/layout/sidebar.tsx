@@ -57,11 +57,32 @@ export function SidebarNav({ collapsed, onNavigate }: { collapsed: boolean; onNa
   );
 }
 
-/** Rail labels must fit ~60px: keep the first word, abbreviate the long ones. */
-function shortLabel(label: string) {
-  const map: Record<string, string> = { "Daily Report": "Report", "Daily Reports": "Daily", "Time Reports": "Time", "Client Reports": "Clients", "Project Reports": "Projects", "Audit log": "Audit", Announcements: "News", Notifications: "Alerts", Subscription: "Plan", Attendance: "Attend", Timesheets: "Sheets", Employees: "People", "My Tasks": "Tasks",
+/**
+ * Rail labels must fit ~60px: keep the first word, abbreviate the long ones.
+ *
+ * Every label here has to be unique within a role's menu, because the rail is
+ * all most people ever see - it is collapsed by default. The first-word
+ * fallback is what keeps breaking that: it gave two items reading "Swipe"
+ * (A90), and then "Clients" twice, "Projects" twice, and an "Attend" next to an
+ * "Attendance" that went somewhere else entirely (A142). `tests/unit/rail-labels`
+ * now fails if any role ends up with two the same, which is the only reason to
+ * trust this map.
+ */
+export function shortLabel(label: string) {
+  const map: Record<string, string> = {
+    // The reports, named for what they are rather than for their subject - the
+    // subject is already a menu item of its own, one group up.
+    "Attendance Ledger": "Ledger", "Time Reports": "Hours",
+    "Client Reports": "By client", "Project Reports": "By project",
+    // The pair that reads backwards otherwise: "Daily Report" is the one you
+    // write, "Daily Reports" is everybody's, and first-word gave them "Daily"
+    // and "Daily". Named for whose they are.
+    "Daily Report": "My report", "Daily Reports": "Dailies",
+    "Audit log": "Audit", Announcements: "News", Notifications: "Alerts", Subscription: "Plan",
+    Attendance: "Attend", Timesheets: "Sheets", Employees: "People", "My Tasks": "Tasks",
     // Without these the first-word fallback gives two rail items both reading "Swipe" (A90).
-    "Swipe approvals": "Approvals", "Work sites": "Sites", "Shifts & holidays": "Shifts" };
+    "Swipe approvals": "Approvals", "Work sites": "Sites", "Shifts & holidays": "Shifts",
+  };
   return map[label] ?? label.split(" ")[0];
 }
 

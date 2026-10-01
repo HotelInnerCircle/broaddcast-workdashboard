@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Bell, ChevronRight, Fingerprint, Users } from "lucide-react";
+import { Bell, ChevronRight, Fingerprint } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTimer, formatHM } from "@/hooks/useTimer";
@@ -167,12 +167,12 @@ export function MobileHome({ tiles, alert, timezone, today }: { tiles: LauncherT
       <div className="mt-3">
         {!clocked ? (
           /*
-            The admin's one big action is not a swipe (A139). It is the thing the
-            role is actually for: everybody's day, on one screen.
+            Nothing (A139/A142). The admin's one big action was "See who is in
+            today" - but the Today card at the top of this screen is that, and
+            links there, and the Attendance tile is a third way to the same
+            place on a screen you can see all at once.
           */
-          <Link href="/attendance" className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-foreground text-[15.5px] font-bold text-background">
-            <Users className="size-5" />See who is in today
-          </Link>
+          null
         ) : att?.clockOut ? (
           <p className="rounded-full bg-muted py-3.5 text-center text-sm font-medium text-muted-foreground">
             Off duty at {formatTime(att.clockOut, timezone)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked

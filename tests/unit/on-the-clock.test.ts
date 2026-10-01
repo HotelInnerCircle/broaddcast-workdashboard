@@ -98,7 +98,7 @@ describe("nor a payslip of their own (A141)", () => {
   });
 
   it("and everybody who is paid as staff keeps theirs", () => {
-    for (const role of ["HR", "MANAGER", "TEAM_LEAD", "EMPLOYEE"]) {
+    for (const role of ["HR", "MANAGER", "TEAM_LEAD", "EMPLOYEE"] as Role[]) {
       expect(hrefs(role), role).toContain("/my/payslips");
     }
   });

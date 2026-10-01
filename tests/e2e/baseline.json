@@ -15,5 +15,6 @@
   "door-device": 30,
   "single-device": 15,
   "settings": 12,
-  "on-the-clock": 32
+  "on-the-clock": 32,
+  "admin-screen": 9
 }

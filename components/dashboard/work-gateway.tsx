@@ -45,7 +45,8 @@ export function WorkGateway({ groups, extra }: { groups: NavGroup[]; extra: Gate
   ].filter((s) => s.items.length > 0 || (s.missing?.length ?? 0) > 0);
 
   return (
-    <section className="hidden md:block" aria-label="Everything you can do">
+    // data-gateway marks the one place a link is allowed to repeat the rail (A142).
+    <section className="hidden md:block" aria-label="Everything you can do" data-gateway>
       <div className="columns-1 gap-4 lg:columns-2 xl:columns-3 2xl:columns-4">
         {sections.map((s, i) => (
           <div key={s.label} className="mb-4 break-inside-avoid overflow-hidden rounded-2xl ring-1 ring-border/60">

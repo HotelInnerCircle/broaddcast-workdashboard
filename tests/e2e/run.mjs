@@ -32,6 +32,7 @@ import * as doorDevice from "./suites/door-device.mjs";
 import * as settingsSuite from "./suites/settings.mjs";
 import * as singleDevice from "./suites/single-device.mjs";
 import * as onTheClock from "./suites/on-the-clock.mjs";
+import * as adminScreen from "./suites/admin-screen.mjs";
 
 /**
  * Order matters a little: scheduling clears the holidays it does not own, and
@@ -39,7 +40,7 @@ import * as onTheClock from "./suites/on-the-clock.mjs";
  */
 // single-device last: it signs in repeatedly, and anything after it would be
 // competing for the sign-in rate limit that the whole run shares.
-const ALL = [scheduling, swipes, timerGrouping, leave, ledger, profile, employeeCodes, accessControl, reports, payslips, payroll, workProof, faceCheck, doorDevice, settingsSuite, onTheClock, singleDevice];
+const ALL = [scheduling, swipes, timerGrouping, leave, ledger, profile, employeeCodes, accessControl, reports, payslips, payroll, workProof, faceCheck, doorDevice, settingsSuite, onTheClock, adminScreen, singleDevice];
 
 const wanted = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 const suites = wanted.length ? ALL.filter((s) => wanted.includes(s.name)) : ALL;
