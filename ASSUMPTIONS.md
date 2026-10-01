@@ -1060,3 +1060,12 @@ Four bugs in one week had one shape: a setting stored at one layer and ignored a
 **The suite that now exists does not check that a PATCH returned 200.** That passed for `approvalChain` the entire time swipes were ignoring it. It changes a setting and asks the thing downstream whether it noticed: a task takes the company's default status, a hidden menu stops reaching the person it was hidden from, a 26th cycle moves the first day of the ledger month, a new joiner's code follows the scheme, and every one is put back afterwards.
 
 **What the audit could not see, and is worth knowing:** it reads files for a setting's name, so a setting read through a variable rather than by name would look unread. It is a prompt to go and check, not a proof of correctness.
+
+### A135. The picture is optional, and its owner can see it (owner request, 1 Oct 2026)
+Two things, and the second is the one that bothered me once it was pointed out.
+
+- **Whether a photograph is required is now a switch.** The setting existed from the day the requirement did and there was no way to change it, so a company wanting the description without the picture had to ask somebody to write a PATCH. Asking people for a photograph twice a day is a real imposition and whether it is worth it is the company's decision, not a constant in a file. On by default, because that is how it arrived and a company that predates the switch should keep what it had. Turning it off changes nothing already taken.
+- **The person who took the picture could not see it anywhere.** It was compulsory to take and then visible only to whoever read the report - which makes the requirement feel like something done to somebody rather than a record of what they did. It is on their own timer screen now.
+- **On the line, not behind the expander.** The first attempt put it inside the sessions list, and the test failed: most jobs have one session, so a picture tucked behind an expander would almost never be seen, which is the same as not showing it. It sits on the visible row.
+- **The thumbnail moved to `components/ui/proof-thumb`.** Two copies would drift, and a photograph should behave the same way wherever it appears - the same reason the lightbox moved out of chat.
+- **The test asserts the thumbnail decoded**, not that an `<img>` is in the page. A signed link that has expired leaves an element behind either way.

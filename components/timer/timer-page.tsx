@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState, useMemo } from "react";
+import { ProofThumb } from "@/components/ui/proof-thumb";
 import { entryHref, entrySubtitle, entryTitle } from "./mini-timer";
 import Link from "next/link";
 import { Play, Pause, Square, Coffee, Clock, RotateCcw, ChevronDown, Timer as TimerIcon, Fingerprint } from "lucide-react";
@@ -29,7 +30,9 @@ interface Group {
   latest: Entry;
 }
 
-interface Entry { id: string; task: { id: string; name: string | null } | null; project: { id: string; name: string | null } | null; client: { id: string; name: string | null } | null; status: string; start: string; end: string | null; elapsedSeconds: number; durationSeconds: number; autoClosed: boolean; notes: string | null }
+interface Entry { id: string; task: { id: string; name: string | null } | null; project: { id: string; name: string | null } | null; client: { id: string; name: string | null } | null; status: string; start: string; end: string | null; elapsedSeconds: number; durationSeconds: number; autoClosed: boolean; notes: string | null;
+  /** Whether a picture of the work is attached (A135) - the link is fetched when it is shown. */
+  hasProof?: boolean }
 
 export function TimerPage() {
   const t = useTimer();
@@ -170,6 +173,19 @@ export function TimerPage() {
                       <li key={g.key} className="px-5 py-3 text-sm">
                         <div className="flex items-center gap-3">
                           <span className={cn("size-2 shrink-0 rounded-full", g.running ? "bg-success" : "bg-muted-foreground/50")} />
+                          {/*
+                            On the line itself, not only inside the sessions
+                            (A135). Most jobs have one session, so a picture
+                            tucked behind an expander would almost never be
+                            seen - which is the same as not showing it.
+                          */}
+                          {(g.entries.find((x) => x.hasProof)?.id) && (
+                            <ProofThumb
+                              entryId={g.entries.find((x) => x.hasProof)!.id}
+                              size="sm"
+                              label={`${g.title} - ${formatDateTime(g.firstStart).split(", ")[1]}`}
+                            />
+                          )}
                           <div className="min-w-0 flex-1">
                             <Link href={href} className="block truncate font-medium hover:text-primary hover:underline">{g.title}</Link>
                             <p className="truncate text-xs text-muted-foreground">
@@ -207,6 +223,18 @@ export function TimerPage() {
                           <ul className="mt-2 space-y-1 border-l-2 border-border pl-4">
                             {g.entries.map((x) => (
                               <li key={x.id} className="flex items-center gap-3 text-xs text-muted-foreground">
+                                {/*
+                                  Their own picture of the work, on their own
+                                  screen (A135). It was compulsory to take and
+                                  then only visible to whoever read the report -
+                                  the person who took it could not see it at
+                                  all, which makes the requirement feel like
+                                  something done to them rather than a record of
+                                  what they did.
+                                */}
+                                {x.hasProof && (
+                                  <ProofThumb entryId={x.id} size="sm" label={`${g.title} - ${formatDateTime(x.start).split(", ")[1]}`} />
+                                )}
                                 <span className="flex-1 truncate">
                                   {formatDateTime(x.start).split(", ")[1]}{x.end ? ` to ${formatDateTime(x.end).split(", ")[1]}` : " - running"}
                                   {x.autoClosed && " - auto-closed"}

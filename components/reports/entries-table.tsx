@@ -8,6 +8,7 @@ import { formatDate, formatDateTime } from "@/lib/utils/dates";
 import { formatHMS } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils/cn";
 import { Lightbox, type LightboxImage } from "@/components/ui/lightbox";
+import { ProofThumb } from "@/components/ui/proof-thumb";
 
 export interface ReportEntry {
   id: string;
@@ -26,44 +27,13 @@ export interface ReportEntry {
   hasProof?: boolean;
 }
 
-/**
- * The picture attached to one session (A118).
+/*
+ * The thumbnail moved to components/ui/proof-thumb (A135).
  *
- * Fetched when the row is opened rather than with the report: the link is signed
- * and short-lived, and a timesheet of two thousand rows would otherwise sign two
- * thousand URLs nobody looks at. Opening a person-day asks for the handful
- * underneath it and no more.
+ * The timer screen wants it too - somebody should be able to see the picture
+ * they were made to take - and two copies of it would drift. A photograph
+ * ought to behave the same way wherever it turns up.
  */
-function ProofThumb({ entryId, label, onOpen }: { entryId: string; label: string; onOpen: (img: LightboxImage) => void }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    fetch(`/api/work-proof/timer/${entryId}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((j) => { if (alive) setUrl(j?.data?.url ?? null); })
-      .catch(() => { if (alive) setFailed(true); });
-    return () => { alive = false; };
-  }, [entryId]);
-
-  if (failed) return <span className="text-xs text-muted-foreground">Picture unavailable</span>;
-  if (!url) return <span className="block h-14 w-20 animate-pulse rounded-md bg-muted" />;
-  return (
-    <button
-      type="button"
-      // Over the report, not away from it (A119). Opening a new browser tab took
-      // somebody out of the thing they were reading to look at one picture, and
-      // then made them find their way back to it.
-      onClick={(e) => { e.stopPropagation(); onOpen({ name: label, url, downloadUrl: url }); }}
-      title="See the full picture"
-      className="block rounded-md ring-1 ring-border transition-opacity hover:opacity-80"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element -- a signed storage URL that expires */}
-      <img src={url} alt="Picture of the work" className="h-14 w-20 rounded-md object-cover" />
-    </button>
-  );
-}
 
 const timeOf = (d: string | Date) => formatDateTime(d).split(", ")[1];
 

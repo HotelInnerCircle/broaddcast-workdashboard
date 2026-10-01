@@ -140,6 +140,28 @@ export default async function run({ browser, lab, check }) {
   // Back on for anything that follows.
   await call(admin, "/api/admin/company", { workProof: { timer: true, dailyReport: true } }, "PATCH");
 
+  /* ---------- the person who took it can see it (A135) ---------- */
+  /*
+   * It was compulsory to take and then visible only to whoever read the report.
+   * The person who took the photograph could not see it anywhere, which makes
+   * the requirement feel like something done to them rather than a record of
+   * what they did.
+   */
+  await emp.goto(`${lab.base}/timer`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await waitForText(emp, /Today.s entries/i, 30_000);
+  const opener = await emp.$('button:has-text("sessions")');
+  if (opener) { await opener.click(); await wait(700); }
+  const ownThumb = await emp.waitForSelector('img[alt="Picture of the work"]', { timeout: 20_000 }).catch(() => null);
+  check("somebody sees their own picture on the timer screen", Boolean(ownThumb), "no thumbnail on the timer screen");
+  if (ownThumb) {
+    // Present is not loaded: a signed link that has expired leaves an <img>.
+    const decoded = await emp.evaluate(() => {
+      const i = document.querySelector('img[alt="Picture of the work"]');
+      return Boolean(i && i.complete && i.naturalWidth > 0);
+    });
+    check("and the browser actually loads it", decoded, "the thumbnail did not decode");
+  }
+
   /* ---------- the phone home leads with today's swipes, not the timer (A106) ---------- */
   const phone = await signedIn(browser, lab.people.emp.email, lab.pw, { mobile: true });
   await phone.goto(`${lab.base}/employee/dashboard`, { waitUntil: "domcontentloaded", timeout: 60_000 });
