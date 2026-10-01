@@ -1,0 +1,47 @@
+# What runs on every push (A133).
+#
+# The other workflow builds the Android app; nothing ran the tests, so 461
+# browser checks and 303 unit checks sat there being an asset nobody used. Five
+# times in one week something reported success while being wrong, and every one
+# of them was caught by a person looking at a screen rather than by a red tick.
+#
+# The browser suite needs a database and a built server, so it is not here - it
+# is run before a release, by hand, against a production build. What is here is
+# everything that needs nothing but the repository: the types, the unit checks,
+# and whether the thing still builds.
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Types, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "npm" }
+      - run: npm ci
+
+      # Typecheck first: it is the fastest of the three and catches the most.
+      - name: Types
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      # A build that fails is a deploy that would have failed, found here
+      # instead of on Vercel after somebody has already merged.
+      - name: Build
+        run: npm run build
+        env:
+          # Enough for `next build` to run: nothing here reaches a real service,
+          # and the startup checks refuse these in production on purpose.
+          MONGODB_URI: mongodb://localhost:27017/ci
+          # The only one with no fallback. Production refuses a placeholder like
+          # this at startup, which is why it is safe to put here.
+          AUTH_SECRET: ci-only-not-a-real-secret-0000000000
+          APP_URL: http://localhost:3000

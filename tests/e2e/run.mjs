@@ -11,6 +11,8 @@
  * and look at what the run produced.
  */
 import { assertServerUp, BASE, launch, reporter, WORK } from "./harness.mjs";
+import fs from "node:fs";
+import path from "node:path";
 import { setUpLab, tearDownLab } from "./lab.mjs";
 
 import * as scheduling from "./suites/scheduling.mjs";
@@ -103,4 +105,47 @@ if (failed) {
   console.log(`\n${failed} failed:`);
   for (const s of tally) for (const r of s.results.filter((x) => !x.ok)) console.log(`  ${s.name}: ${r.name}${r.detail ? ` -- ${r.detail}` : ""}`);
 }
-process.exit(failed ? 1 : 0);
+
+/* ---------- a suite that shrank is a failure, even if nothing failed (A133) ---------- */
+/*
+ * Checks only ever get added. So a suite coming back with fewer than last time
+ * means some of them stopped running - a guard that bailed out early, a helper
+ * that threw before its block, a file that stopped being imported - and none of
+ * those report a failure. They report a smaller number, which looks like
+ * success if nobody is counting.
+ *
+ * The baseline moves up on its own and never down without being told, so the
+ * ordinary case - somebody adding checks - needs no ceremony, and the case
+ * worth catching cannot pass quietly.
+ */
+const BASELINE = path.join(import.meta.dirname, "baseline.json");
+const previous = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, "utf8")) : {};
+const ran = Object.fromEntries(tally.map((s) => [s.name, s.total]));
+
+const shrank = [];
+// Only when the whole suite ran: asking for one suite by name is not evidence
+// that the others vanished.
+if (!wanted.length) {
+  for (const [name, was] of Object.entries(previous)) {
+    const now = ran[name] ?? 0;
+    if (now < was) shrank.push({ name, was, now });
+  }
+}
+
+if (shrank.length) {
+  console.log(`\n${"-".repeat(56)}`);
+  console.log("Checks went missing. Nothing failed - they stopped running:");
+  for (const s of shrank) {
+    console.log(`  ${s.name.padEnd(16)} ${s.was} -> ${s.now}${s.now === 0 ? "  (the suite did not run at all)" : ""}`);
+  }
+  console.log("\nIf checks were deliberately removed, run with --accept-fewer to record the new count.");
+  console.log(`${"-".repeat(56)}`);
+}
+
+const acceptFewer = process.argv.includes("--accept-fewer");
+if (!failed && (!shrank.length || acceptFewer) && !wanted.length) {
+  // Grows on its own; shrinks only when somebody says so out loud.
+  fs.writeFileSync(BASELINE, `${JSON.stringify({ ...previous, ...ran }, null, 2)}\n`);
+}
+
+process.exit(failed || (shrank.length && !acceptFewer) ? 1 : 0);
