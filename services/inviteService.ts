@@ -86,7 +86,9 @@ export async function createEmployee(ctx: CompanyContext, input: CreateEmployeeI
     passwordHash: await hashPassword(input.password), status: "active", joiningDate: new Date(),
   });
   await audit({ ctx, companyId: ctx.companyId, entity: "user", entityId: user._id, action: "user.created", summary: `${ctx.name} created an account for ${input.name} (${ROLE_LABEL[input.role]})`, after: { email: input.email, role: input.role, teamId: input.teamId ?? null, method: "direct" }, ip });
-  return { id: String(user._id), name: user.name, email: user.email, role: user.role };
+  // The code comes back too (A134): it is the first thing somebody wants to
+  // hand the person they just added, and it was being assigned and withheld.
+  return { id: String(user._id), name: user.name, email: user.email, role: user.role, employeeCode: user.employeeCode ?? null };
 }
 
 /** Admin (any role/team) or Manager (TEAM_LEAD/EMPLOYEE, own teams only) invites by email (spec 6.2). */

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FaceCheckSettings } from "@/components/settings/face-check-settings";
 import { DoorDevices } from "@/components/settings/door-devices";
 import { EnrolInPerson } from "@/components/settings/enrol-in-person";
+import { PayrollAndCodes } from "@/components/settings/payroll-and-codes";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { ListEditor } from "@/components/settings/list-editor";
 import { ApprovalChainEditor } from "@/components/settings/approval-chain-editor";
@@ -54,6 +55,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </TabsContent>}
         {company && <TabsContent value="company" className="space-y-6"><CompanySettingsForm company={company} />
           <ApprovalChainEditor initial={company.approvalChain} />
+          {/* Two settings that had no screen until the audit found them (A134). */}
+          <PayrollAndCodes
+            payrollStartDay={company.payrollStartDay}
+            employeeCodePrefix={company.employeeCodePrefix}
+            employeeCodePadding={company.employeeCodePadding}
+          />
           <ListEditor
             field="services"
             initial={company.services}

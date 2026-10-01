@@ -114,9 +114,20 @@ export async function createTask(ctx: CompanyContext, input: CreateTaskInput, ip
   if (!project) throw Errors.notFound("Project");
   await assertAssignable(ctx, input.assignedTo);
   const assignedTo = input.assignedTo ? new Types.ObjectId(input.assignedTo) : null;
+  const { Company } = await import("@/models/Company");
+  const company = await Company.findById(ctx.companyId).select("defaultTaskStatus").lean();
+  const defaultStatus = (company?.defaultTaskStatus as string | undefined) || "To Do";
+
   const task = await scoped(Task, ctx).create({
     ...input, dueDate: parseDateInput(input.dueDate, ctx.company!.timezone), projectId: project._id, clientId: project.clientId, assignedTo, createdBy: new Types.ObjectId(ctx.userId),
-    status: input.status ?? "To Do", completedAt: input.status === "Completed" ? new Date() : null,
+    /*
+     * The company's own default when none is given (A134). It was hardcoded to
+     * "To Do" while `defaultTaskStatus` sat on the company, validated, with a
+     * field on the settings screen, read by nothing - a setting somebody could
+     * change and watch do nothing at all. Found by walking every setting
+     * through its layers rather than by anybody reporting it.
+     */
+    status: input.status ?? defaultStatus, completedAt: input.status === "Completed" ? new Date() : null,
   });
   // Assignees automatically become project members so they can see the project (ASSUMPTIONS A16).
   if (assignedTo && !project.memberIds.some((m) => m.equals(assignedTo))) await scoped(Project, ctx).updateOne({ _id: project._id }, { $addToSet: { memberIds: assignedTo } });

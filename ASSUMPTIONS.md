@@ -1046,3 +1046,17 @@ Two things, both aimed at the same thing: five times in a week something reporte
 - **A suite that returns fewer checks than last time now fails the run.** Checks only ever get added, so a smaller number means some stopped running - a guard that bailed out early, a helper that threw before its block, a file that stopped being imported - and *none of those report a failure*. They report a smaller number, which looks like success if nobody is counting. It happened twice: once the ledger suite bailed out and took thirty-five checks with it, and the total fell from 361 to 335 with nothing objecting.
 - **The baseline moves up on its own and never down without being asked.** Adding checks needs no ceremony; removing them needs `--accept-fewer`, said out loud.
 - **Proved by breaking it on purpose:** a suite made to return early came back with every check passing and the run still exited 1, naming the suite and the numbers - `timer-grouping 8 -> 1`.
+
+### A134. Every setting, walked through its layers (owner request, 1 Oct 2026)
+Four bugs in one week had one shape: a setting stored at one layer and ignored at the next. So rather than guess at a fifth, every company setting was walked through its layers - can it be set, is it read, does it have a screen, does a test prove it changes anything.
+
+**The audit found, and this is the honest tally:**
+
+- **`defaultTaskStatus` was stored, validated, given a field on the settings screen, and read by nothing.** Task creation hardcoded "To Do". Somebody could change that setting and watch it do nothing at all. Found by the audit, not by a person - which is the first time this week that sentence has been true.
+- **`payrollStartDay`, `employeeCodePrefix` and `employeeCodePadding` had no screen**, reachable only by writing a PATCH by hand. The payroll cycle decides which days land in which month's pay; it has a screen now, and one that says the cycle back in words, because "26" alone does not tell anybody that September's pay then runs from the 26th of August.
+- **Creating an employee assigned a code and did not return it** - the first thing somebody wants to hand the person they have just added.
+- **`currency`, `designations` and `hiddenNav` had no test at all** proving they changed anything downstream.
+
+**The suite that now exists does not check that a PATCH returned 200.** That passed for `approvalChain` the entire time swipes were ignoring it. It changes a setting and asks the thing downstream whether it noticed: a task takes the company's default status, a hidden menu stops reaching the person it was hidden from, a 26th cycle moves the first day of the ledger month, a new joiner's code follows the scheme, and every one is put back afterwards.
+
+**What the audit could not see, and is worth knowing:** it reads files for a setting's name, so a setting read through a variable rather than by name would look unread. It is a prompt to go and check, not a proof of correctness.
