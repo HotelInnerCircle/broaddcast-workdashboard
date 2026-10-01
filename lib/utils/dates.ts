@@ -37,6 +37,25 @@ export function formatDateTime(d: Date | string | number | null | undefined, tz?
   return tz ? formatInTimeZone(date, tz, DATETIME_FMT) : format(date, DATETIME_FMT);
 }
 
+/**
+ * A time of day, in the company's own clock (A137).
+ *
+ * Two things were being done instead, and both were wrong in the same way.
+ * Screens sliced characters 11 to 16 out of an ISO string, which is **UTC** -
+ * somebody who swiped in at 09:52 in India was shown 04:22. And others
+ * formatted the whole date and split off the second half, which gives the
+ * *viewer's* local time, so a manager reviewing a swipe from another country
+ * saw their own clock rather than the one the person actually worked by.
+ *
+ * Attendance is the place this matters most: the whole record is a claim about
+ * when somebody was somewhere.
+ */
+export function formatTime(d: Date | string | number | null | undefined, tz?: string): string {
+  const date = asDate(d);
+  if (!date) return "-";
+  return tz ? formatInTimeZone(date, tz, TIME_FMT) : format(date, TIME_FMT);
+}
+
 export function relativeTime(d: Date | string | number | null | undefined): string {
   const date = asDate(d);
   if (!date) return "never";

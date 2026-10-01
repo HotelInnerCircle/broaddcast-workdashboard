@@ -1078,3 +1078,11 @@ Salary lived only on the register - a separate screen listing everybody - so loo
 - **Gated on the payslips permission, not on seeing the employee.** A team lead who may open somebody's record does not thereby learn what they earn - and that is checked, because it is the sort of thing that is easy to get wrong by putting a card on a page.
 - **The register stays.** It answers a different question - who has no salary set, who is missing a payslip - and one screen per question beats one screen doing both badly.
 - **A test that would have described the order it ran in:** it first relied on a salary an earlier block had left behind. It sets its own now, and waits for the amount rather than the card title, since the card fetches its own rows.
+
+### A137. The clocked-in time was UTC (owner report, 1 Oct 2026)
+The owner's card read **CLOCKED IN 04:22** for somebody who had swiped in at 09:52. The screens were taking characters 11 to 16 out of the ISO timestamp - which is the UTC time, five and a half hours behind them.
+
+- **It is not a rounding or a formatting preference, it is the wrong number.** An attendance record is a claim about when somebody was somewhere, and the screen was making a different claim from the database.
+- **Fixed with a `formatTime(date, tz)` that renders in the company's own clock.** `TIME_FMT` had existed all along with nothing using it, which is how three screens ended up slicing strings instead.
+- **The company's clock, not the viewer's.** The other pattern in the codebase - formatting the whole date and splitting off the second half - gives the local time of whoever is looking, so a manager reviewing a swipe from another country would see their own clock rather than the one the person worked by. Eleven screens still do that; they are right for anybody in the company's timezone and wrong for anybody who is not, and they are worth a sweep.
+- **Verified against a real swipe**: recorded at 07:16 UTC, company on Asia/Kolkata, screen now shows 12:46 PM where it used to show 07:16.

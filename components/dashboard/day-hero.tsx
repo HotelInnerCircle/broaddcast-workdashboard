@@ -5,6 +5,8 @@ import { useTimer, formatHMS, formatHM } from "@/hooks/useTimer";
 import { entryHref, entrySubtitle, entryTitle } from "@/components/timer/mini-timer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils/cn";
+import { formatTime } from "@/lib/utils/dates";
+import { useAuth } from "@/hooks/useAuth";
 
 /**
  * Desktop day hero (A81): the phone's timer card turned landscape, with the attendance panel
@@ -12,6 +14,10 @@ import { cn } from "@/lib/utils/cn";
  * of truth - it is the same start/pause/break/stop and clock in/out the mini timer drives.
  */
 export function DayHero() {
+  // The company's clock, not the viewer's: a manager in another country
+  // reviewing a swipe should see the time the person actually worked by.
+  const me = useAuth();
+  const tz = me.company?.timezone;
   const t = useTimer();
   const running = t.entry?.status === "RUNNING";
   const onBreak = Boolean(t.break);
@@ -79,7 +85,11 @@ export function DayHero() {
       <div className="flex w-[300px] shrink-0 flex-col justify-center rounded-3xl bg-success-soft p-6 text-tile-success-fg">
         <p className="text-[11px] font-bold uppercase tracking-[0.1em]">{clockedIn ? "Clocked in" : att?.clockOut ? "Clocked out" : "Not clocked in"}</p>
         <p className="mt-1.5 font-display text-[40px] leading-none tabular-nums">
-          {att?.clockIn ? att.clockIn.slice(11, 16) : att?.clockOut ? att.clockOut.slice(11, 16) : "--:--"}
+          {/*
+            Was slicing characters out of the ISO string, which is UTC (A137) -
+            somebody who swiped in at 09:52 in India was shown 04:22.
+          */}
+          {att?.clockIn ? formatTime(att.clockIn, tz) : att?.clockOut ? formatTime(att.clockOut, tz) : "--:--"}
         </p>
         <p className="mt-2 text-[12.5px]">
           {formatHM(t.summary?.workSeconds ?? 0)} worked &middot; {formatHM(t.summary?.breakSeconds ?? 0)} break

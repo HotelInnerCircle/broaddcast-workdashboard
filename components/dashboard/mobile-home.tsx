@@ -4,7 +4,7 @@ import { Bell, ChevronRight, Fingerprint } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealtime } from "@/hooks/useRealtime";
 import { useTimer, formatHM } from "@/hooks/useTimer";
-import { formatDate } from "@/lib/utils/dates";
+import { formatDate, formatTime } from "@/lib/utils/dates";
 import { cn } from "@/lib/utils/cn";
 import { TILE_FILL, TILE_ICONS, TileBadge, visibleTiles, type LauncherTile } from "./tiles";
 import { TodaySwipes } from "./today-swipes";
@@ -110,7 +110,7 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
       <div className="mt-5 flex items-baseline gap-2 px-1">
         <h2 className="flex-1 font-display text-[21px]">Quick actions</h2>
         <span className="text-[11.5px] font-semibold text-muted-foreground">
-          {clockedIn ? `In at ${att!.clockIn!.slice(11, 16)}` : att?.clockOut ? "Day complete" : "Not clocked in"}
+          {clockedIn ? `In at ${formatTime(att!.clockIn!, timezone)}` : att?.clockOut ? "Day complete" : "Not clocked in"}
         </span>
       </div>
       <div className="mt-2.5 grid grid-cols-3 gap-2.5">
@@ -151,7 +151,7 @@ export function MobileHome({ tiles, alert, timezone }: { tiles: LauncherTile[]; 
       <div className="mt-3">
         {att?.clockOut ? (
           <p className="rounded-full bg-muted py-3.5 text-center text-sm font-medium text-muted-foreground">
-            Off duty at {att.clockOut.slice(11, 16)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked
+            Off duty at {formatTime(att.clockOut, timezone)} &middot; {formatHM(t.summary?.workSeconds ?? 0)} worked
           </p>
         ) : (
           <Link href="/swipe" className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-success text-[15.5px] font-bold text-white">
