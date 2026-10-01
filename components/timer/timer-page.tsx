@@ -120,38 +120,61 @@ export function TimerPage() {
   return (
     <>
       <PageHeader title="Timer" description="Pick the client and say what you are working on. One active timer at a time." />
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
+      {/*
+        A140: this page was 664px wide on a 360px phone, and scrolled sideways
+        on every one. `min-w-0` is the half of the fix that makes the rest
+        possible - a grid item defaults to `min-width: auto` and refuses to
+        shrink below its contents, so no amount of wrapping below could take
+        effect. Removing it alone does not bring the bug back, though: the
+        widths come from the hero together - the clock, the long client name
+        and the row of three large buttons - and all three are sized below.
+
+        Two columns from `lg` rather than `xl`: between 1024 and 1280 the page
+        was a single column with a 1280px-wide card holding a stopwatch in the
+        middle of it.
+      */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           <Card className={cn("overflow-hidden", t.break ? "border-warning/40" : running ? "border-success/40" : "")}>
-            <CardContent className="p-6 sm:p-8">
+            <CardContent className="p-5 sm:p-8">
               {t.loading ? <Skeleton className="h-48" /> : t.break ? (
                 <div className="flex flex-col items-center gap-4 text-center">
                   <div className="flex size-16 items-center justify-center rounded-full bg-warning-soft text-warning"><Coffee className="size-8" /></div>
                   <p className="text-sm font-medium text-warning">On break</p>
-                  <p className="font-mono text-6xl font-semibold tabular-nums tracking-tight">{formatHMS(t.breakElapsed)}</p>
+                  {/* A140: eight monospaced digits at 60px are 290px wide - wider than the inside of a small phone. */}
+                  <p className="font-mono text-5xl font-semibold tabular-nums tracking-tight sm:text-6xl">{formatHMS(t.breakElapsed)}</p>
                   {t.entry && <p className="text-sm text-muted-foreground">&ldquo;{entryTitle(t.entry)}&rdquo; is paused at {formatHMS(t.elapsed)}</p>}
-                  <Button size="lg" onClick={() => void t.endBreak()}>End break</Button>
+                  <Button size="lg" className="w-full sm:w-auto" onClick={() => void t.endBreak()}>End break</Button>
                 </div>
               ) : t.entry ? (
                 <div className="flex flex-col items-center gap-4 text-center">
-                  <div className="text-sm text-muted-foreground">{entrySubtitle(t.entry)}</div>
-                  <Link href={entryHref(t.entry)} className="font-display text-2xl hover:text-primary hover:underline">{entryTitle(t.entry)}</Link>
-                  <p className={cn("font-mono text-6xl font-semibold tabular-nums tracking-tight sm:text-7xl", running ? "text-success" : "text-muted-foreground")}>{formatHMS(t.elapsed)}</p>
+                  {/* A long client name and a long note both have to wrap rather than widen the card. */}
+                  <div className="w-full break-words text-sm text-muted-foreground">{entrySubtitle(t.entry)}</div>
+                  <Link href={entryHref(t.entry)} className="w-full break-words font-display text-xl hover:text-primary hover:underline sm:text-2xl">{entryTitle(t.entry)}</Link>
+                  <p className={cn("font-mono text-5xl font-semibold tabular-nums tracking-tight sm:text-6xl lg:text-7xl", running ? "text-success" : "text-muted-foreground")}>{formatHMS(t.elapsed)}</p>
                   <Badge variant={running ? "success" : "warning"}>{running ? "Running" : "Paused"}</Badge>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {running ? <Button size="lg" variant="outline" onClick={() => void t.pause()}><Pause />Pause</Button> : <Button size="lg" onClick={() => void t.resume()}><Play />Resume</Button>}
+                  {/*
+                    A140: a grid on a phone, a row from `sm`. Three large buttons
+                    need about 570px side by side; wrapping them leaves a ragged
+                    line, so the one you reach for - pause or resume - takes the
+                    full width and the other two share the line below it.
+                  */}
+                  <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-center">
+                    {running
+                      ? <Button size="lg" variant="outline" className="col-span-2 sm:col-auto" onClick={() => void t.pause()}><Pause />Pause</Button>
+                      : <Button size="lg" className="col-span-2 sm:col-auto" onClick={() => void t.resume()}><Play />Resume</Button>}
                     <Button size="lg" variant="outline" onClick={() => void t.startBreak()}><Coffee />Take a break</Button>
                     <Button size="lg" variant="danger" onClick={() => void t.stop()}><Square />Stop</Button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-5">
-                  <div className="flex items-center gap-3"><div className="flex size-12 items-center justify-center rounded-full bg-primary-soft text-primary"><TimerIcon className="size-6" /></div><div><p className="font-semibold">Start a timer</p><p className="text-sm text-muted-foreground">Pick the client and write a line about what you are working on.</p></div></div>
+                  <div className="flex items-center gap-3"><div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary"><TimerIcon className="size-6" /></div><div className="min-w-0"><p className="font-semibold">Start a timer</p><p className="text-sm text-muted-foreground">Pick the client and write a line about what you are working on.</p></div></div>
                   <div className="grid gap-4 sm:grid-cols-[1fr_1.6fr]">
                     <Field label="1. Client" htmlFor="tm-client"><NativeSelect id="tm-client" value={clientId} onChange={(e) => setClientId(e.target.value)}><option value="">Select client</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</NativeSelect></Field>
                     <Field label="2. What are you working on?" htmlFor="tm-notes" hint="Required - at least 3 characters. You can refine it when you stop."><Textarea id="tm-notes" rows={2} className="min-h-10" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Homepage wireframes and header revisions" maxLength={1000} /></Field>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid gap-2 sm:flex sm:flex-wrap">
                     <Button size="lg" disabled={!clientId || notes.trim().length < 3} loading={starting} onClick={startNow}><Play />Start timer</Button>
                     <Button size="lg" variant="outline" onClick={() => void t.startBreak()}><Coffee />Take a break</Button>
                   </div>
@@ -170,8 +193,15 @@ export function TimerPage() {
                     const isOpen = open.has(g.key);
                     const href = e.task?.id ? `/tasks/${e.task.id}` : e.project?.id ? `/projects/${e.project.id}` : `/clients/${e.client?.id}`;
                     return (
-                      <li key={g.key} className="px-5 py-3 text-sm">
-                        <div className="flex items-center gap-3">
+                      <li key={g.key} className="px-4 py-3 text-sm sm:px-5">
+                        {/*
+                          A140: one line on a desktop, two on a phone, without a
+                          breakpoint deciding it. The title keeps at least half
+                          the row; the total and the buttons sit on the right
+                          until they no longer fit, and then wrap underneath as
+                          a group rather than one at a time.
+                        */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                           <span className={cn("size-2 shrink-0 rounded-full", g.running ? "bg-success" : "bg-muted-foreground/50")} />
                           {/*
                             On the line itself, not only inside the sessions
@@ -186,7 +216,7 @@ export function TimerPage() {
                               label={`${g.title} - ${formatDateTime(g.firstStart).split(", ")[1]}`}
                             />
                           )}
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 basis-[55%]">
                             <Link href={href} className="block truncate font-medium hover:text-primary hover:underline">{g.title}</Link>
                             <p className="truncate text-xs text-muted-foreground">
                               {[e.client?.name, e.project?.name].filter(Boolean).join(" / ")}
@@ -194,7 +224,8 @@ export function TimerPage() {
                               {g.running ? " - running now" : g.lastEnd ? ` to ${formatDateTime(g.lastEnd).split(", ")[1]}` : ""}
                             </p>
                           </div>
-                          <span className="shrink-0 font-mono text-sm tabular-nums">{formatHMS(g.totalSeconds)}</span>
+                          <div className="ml-auto flex shrink-0 items-center gap-2">
+                          <span className="font-mono text-sm tabular-nums">{formatHMS(g.totalSeconds)}</span>
                           {g.entries.length > 1 && (
                             <button
                               type="button"
@@ -217,12 +248,13 @@ export function TimerPage() {
                               <span className="hidden sm:inline">{restarting === g.key ? "Starting..." : "Start again"}</span>
                             </Button>
                           )}
+                          </div>
                         </div>
 
                         {isOpen && (
-                          <ul className="mt-2 space-y-1 border-l-2 border-border pl-4">
+                          <ul className="mt-2 space-y-1 border-l-2 border-border pl-3 sm:pl-4">
                             {g.entries.map((x) => (
-                              <li key={x.id} className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <li key={x.id} className="flex items-center gap-2 text-xs text-muted-foreground sm:gap-3">
                                 {/*
                                   Their own picture of the work, on their own
                                   screen (A135). It was compulsory to take and
@@ -235,11 +267,11 @@ export function TimerPage() {
                                 {x.hasProof && (
                                   <ProofThumb entryId={x.id} size="sm" label={`${g.title} - ${formatDateTime(x.start).split(", ")[1]}`} />
                                 )}
-                                <span className="flex-1 truncate">
+                                <span className="min-w-0 flex-1 truncate">
                                   {formatDateTime(x.start).split(", ")[1]}{x.end ? ` to ${formatDateTime(x.end).split(", ")[1]}` : " - running"}
                                   {x.autoClosed && " - auto-closed"}
                                 </span>
-                                <span className="font-mono tabular-nums">{formatHMS(x.status === "COMPLETED" ? x.durationSeconds : x.id === t.entry?.id ? t.elapsed : x.elapsedSeconds)}</span>
+                                <span className="shrink-0 font-mono tabular-nums">{formatHMS(x.status === "COMPLETED" ? x.durationSeconds : x.id === t.entry?.id ? t.elapsed : x.elapsedSeconds)}</span>
                               </li>
                             ))}
                           </ul>
@@ -253,10 +285,15 @@ export function TimerPage() {
           </Card>
         </div>
 
-        <div className="space-y-6">
+        {/*
+          A140: side by side on a tablet, stacked again once they are beside the
+          timer. Between 640 and 1024 these two short cards each took the full
+          width of the page one under the other.
+        */}
+        <div className="grid min-w-0 items-start gap-6 sm:grid-cols-2 lg:block lg:space-y-6">
           <Card>
             <CardHeader><CardTitle>Attendance</CardTitle><CardDescription>{att?.clockIn ? `Clocked in at ${formatDateTime(att.clockIn).split(", ")[1]}${att.clockOut ? `, out at ${formatDateTime(att.clockOut).split(", ")[1]}` : ""}` : "You have not clocked in today."}</CardDescription></CardHeader>
-            <CardContent className="flex items-center justify-between gap-3 pt-0">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-0">
               {att?.status && <Badge variant={att.status === "Late" ? "warning" : att.status === "Half Day" ? "danger" : "success"}>{att.status}</Badge>}
               {att?.clockOut ? <span className="text-sm text-muted-foreground">Day complete</span> : <Button asChild><Link href="/swipe"><Fingerprint />{clockedIn ? "Swipe off duty" : "Swipe on duty"}</Link></Button>}
             </CardContent>

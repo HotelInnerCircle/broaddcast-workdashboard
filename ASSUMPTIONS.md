@@ -1109,3 +1109,21 @@ The owner's card read **CLOCKED IN 04:22** for somebody who had swiped in at 09:
 - **A screenshot moved it.** It was first placed where the old placeholder sat, which turned out to be two thousand pixels down the page, below the audit trail. It is directly under the tiles now.
 - **Two tests that would have passed without proving anything.** A company created this morning has no finished days, so "the admin has no absences" was vacuous; the check now backdates two people into a month that is entirely past and asserts the employee *does* show absences in the same report. And the suite spent the lab company's last client, which broke the suite that ran next - the same seat-spending mistake as A138, two days running.
 - **Not changed:** the admin can still record leave, and a face they enrolled earlier is left alone. Payroll is untouched - an admin who draws a salary is still paid, though a payslip computed from an attendance ledger they are not in would be worth looking at before relying on it.
+
+### A140. The timer page fits the screen it is read on (owner request, 1 Oct 2026)
+"Make /timer responsive for all screens." It was 664px wide on a 360px phone and scrolled sideways on every one.
+
+- **`min-w-0` on the two grid columns is what made the rest possible.** A grid item defaults to `min-width: auto` and refuses to shrink below its contents, so `flex-wrap` on the control row never had anything to wrap. It is not the whole cause though - removing it alone does not bring the bug back, because the width came from the hero as a whole: the clock, a long client name and three large buttons together.
+- **The clock is `text-5xl` until `sm`.** Eight monospaced digits at 60px are about 290px - wider than the inside of a small phone once the card padding is counted.
+- **The controls are a grid on a phone and a row from `sm`.** Three large buttons need ~570px side by side; wrapping them left a ragged line, so pause or resume takes the full width and the other two share the line below.
+- **The entry rows wrap as a group.** The total and the two buttons sit on the right until they do not fit and then drop underneath together, which needs no breakpoint to decide it.
+- **Two columns from `lg` rather than `xl`:** between 1024 and 1280 the page was a single column with a 1280px card holding a stopwatch in the middle of it. The two short side cards now sit beside each other on a tablet instead of one under the other.
+- **The mini-timer was sticking 4rem down on phones**, clearing a navbar that is `hidden md:flex`. On /timer it sat on the word "Timer", so the page looked like it had lost its title.
+- **The regression check passed against the broken page twice before it worked.** First it measured the idle form rather than a running timer; then it measured the hero while it was still a loading skeleton, which is narrow. It waits for the Stop button now, under a long client name, and it fails on the old page by 664px at 360 and 859px at 768 - the second of which the manual pass had missed.
+
+### A141. The admin has no payslip of their own (owner request, 1 Oct 2026)
+"For admin he cannot have My payslips page, remove it from admin." The screen only ever showed them an empty list.
+
+- **Same question as A139, so the same predicate.** For this product the people who clock in are exactly the people the company pays through it: the admin runs the place rather than being staffed by it. One predicate while the two answers agree - the day they diverge is the day to split it, not before. The nav flag is named `staffOnly` rather than `clocked` to say that.
+- **Refused at the endpoint, not just hidden.** `?mine=true` returns 403 with a line pointing at Payroll, rather than an empty list, so the screen is gone rather than blank.
+- **Payroll itself is untouched.** Generating, publishing and reading everybody else's payslips is under ADMIN and is still theirs.

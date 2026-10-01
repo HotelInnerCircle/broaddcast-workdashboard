@@ -38,7 +38,13 @@ export function MiniTimer() {
   const running = t.entry?.status === "RUNNING";
   return (
     <>
-      <div className={cn("sticky top-16 z-20 bg-card/95 px-3 py-2 shadow-card backdrop-blur md:top-[4.75rem] md:mx-0 md:rounded-2xl md:px-5", onHome ? "hidden md:block" : "", onBreak ? "border-l-4 border-l-warning" : "border-l-4 border-l-success")}>
+      {/*
+        `top-0` on a phone (A140). This was `top-16`, clearing a 4rem navbar -
+        but the navbar is `hidden md:flex`, so on a phone the bar stuck 64px
+        down the page and sat on top of whatever heading was there. On /timer
+        that was the word "Timer"; the page looked like it had lost its title.
+      */}
+      <div className={cn("sticky top-0 z-20 bg-card/95 px-3 py-2 shadow-card backdrop-blur md:top-[4.75rem] md:mx-0 md:rounded-2xl md:px-5", onHome ? "hidden md:block" : "", onBreak ? "border-l-4 border-l-warning" : "border-l-4 border-l-success")}>
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl", onBreak ? "bg-warning-soft text-warning" : running ? "bg-success-soft text-success" : "bg-muted text-muted-foreground")}>{onBreak ? <Coffee className="size-4" /> : <Timer className="size-4" />}</div>
           <div className="min-w-0 flex-1">

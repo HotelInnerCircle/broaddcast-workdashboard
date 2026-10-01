@@ -1,7 +1,7 @@
 {
   "scheduling": 18,
   "swipes": 41,
-  "timer-grouping": 8,
+  "timer-grouping": 14,
   "leave": 31,
   "ledger": 46,
   "profile": 21,
@@ -15,5 +15,5 @@
   "door-device": 30,
   "single-device": 15,
   "settings": 12,
-  "on-the-clock": 26
+  "on-the-clock": 32
 }

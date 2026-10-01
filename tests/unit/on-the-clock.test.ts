@@ -86,3 +86,20 @@ describe("everybody else is unaffected", () => {
     });
   }
 });
+
+describe("nor a payslip of their own (A141)", () => {
+  it("the admin is not offered My payslips", () => {
+    expect(hrefs("COMPANY_ADMIN")).not.toContain("/my/payslips");
+  });
+
+  it("but still runs payroll for everybody else", () => {
+    expect(hrefs("COMPANY_ADMIN")).toContain("/payroll/payslips");
+    expect(can("COMPANY_ADMIN", "payslips", "view")).toBe(true);
+  });
+
+  it("and everybody who is paid as staff keeps theirs", () => {
+    for (const role of ["HR", "MANAGER", "TEAM_LEAD", "EMPLOYEE"]) {
+      expect(hrefs(role), role).toContain("/my/payslips");
+    }
+  });
+});

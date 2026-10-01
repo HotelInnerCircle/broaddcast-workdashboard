@@ -149,6 +149,12 @@ export function can(role: Role, resource: Resource, action: Action): boolean {
  * and live status are oversight, and that is the whole point of the role - they
  * look at everybody. What goes is only the clocking of themselves.
  *
+ * A141: the same question answers "does this person have a payslip of their
+ * own". For this product the people who clock in are exactly the people the
+ * company pays through it - the admin runs the place and is not staffed by it,
+ * so "My payslips" is not theirs either. One predicate while the two answers
+ * agree; the day they do not is the day to split it in two, not before.
+ *
  * Stated once here, as a rule about roles rather than a condition repeated at
  * each screen, because the screens, the API and the attendance rolls all have
  * to agree about it or somebody ends up on a report they cannot act on.

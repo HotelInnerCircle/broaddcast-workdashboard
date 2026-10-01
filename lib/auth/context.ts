@@ -44,10 +44,11 @@ export async function requirePermission(resource: Resource, action: Action): Pro
  * work sites a swipe is measured against, while not swiping themselves. The
  * permission is still checked by the caller; this is the extra question.
  */
-export async function requireOnTheClock(ctx: CompanyContext): Promise<CompanyContext> {
-  if (!onTheClock(ctx.role)) {
-    throw Errors.forbidden("Your role oversees attendance rather than recording it");
-  }
+export async function requireOnTheClock(
+  ctx: CompanyContext,
+  why = "Your role oversees attendance rather than recording it",
+): Promise<CompanyContext> {
+  if (!onTheClock(ctx.role)) throw Errors.forbidden(why);
   return ctx;
 }
 

@@ -139,6 +139,31 @@ export default async function run({ browser, lab, check }) {
   check("and no longer promises it is coming soon", !/Attendance summary/i.test(board), board.slice(0, 160));
   await shot(admin, "admin-today-overview");
 
+  /* ---------- nor a payslip of their own (A141) ---------- */
+  /*
+   * "My payslips" showed the admin an empty list: they are not paid as staff
+   * here. Refused at the endpoint rather than left to return nothing, so the
+   * screen is gone rather than blank - and payroll for everybody else, which is
+   * a different screen, is untouched.
+   */
+  const mine = await call(admin, "/api/payslips?mine=true", null, "GET");
+  check("the admin has no payslips of their own", mine.status === 403, `status=${mine.status}`);
+  check("and is told where payroll actually is",
+    /payroll/i.test(JSON.stringify(mine.json?.error ?? "")), JSON.stringify(mine.json?.error ?? ""));
+
+  const afterPayslips = await landsOn(admin, lab.base, "/my/payslips");
+  check("the screen sends them home", afterPayslips !== "/my/payslips", afterPayslips);
+  await admin.goto(`${lab.base}/admin/dashboard`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+  await waitForText(admin, /Today/i, 45_000);
+  check("and nothing in the menu points at it", (await admin.$$('a[href="/my/payslips"]')).length === 0);
+
+  // What they do keep: running payroll for everybody else.
+  const register = await call(admin, "/api/payslips", null, "GET");
+  check("but they still read the payroll register", register.status === 200, `status=${register.status}`);
+
+  const empMine = await call(emp, "/api/payslips?mine=true", null, "GET");
+  check("an employee still has their own", empMine.status === 200, `status=${empMine.status}`);
+
   /* ---------- everybody else is untouched ---------- */
   const empTimer = await call(emp, "/api/timer/start", { clientId, notes: "ordinary work", force: false });
   check("an employee still starts a timer", empTimer.status === 201 || empTimer.status === 200,

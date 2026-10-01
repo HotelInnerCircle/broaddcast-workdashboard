@@ -1,7 +1,7 @@
 import { route, clientIp } from "@/lib/api/handler";
 import { ok, created } from "@/lib/api/response";
 import { Errors } from "@/lib/api/errors";
-import { requireCompanySession, requirePermission } from "@/lib/auth/context";
+import { requireCompanySession, requireOnTheClock, requirePermission } from "@/lib/auth/context";
 import { rateLimit } from "@/lib/rate-limit";
 import { validateUpload, sniffMatches } from "@/lib/storage";
 import { payslipRegister, myPayslips, uploadPayslip } from "@/services/payslipService";
@@ -16,7 +16,12 @@ export const GET = route(async (req) => {
   const url = new URL(req.url);
   const month = url.searchParams.get("month") ?? undefined;
   if (url.searchParams.get("mine") === "true") {
-    const ctx = await requireCompanySession();
+    // A141: the admin has no payslips of their own. Refused rather than
+    // returning an empty list, so the screen is gone rather than blank.
+    const ctx = await requireOnTheClock(
+      await requireCompanySession(),
+      "You are not paid as staff here - payroll is under Payroll",
+    );
     return ok(await myPayslips(ctx));
   }
   const ctx = await requirePermission("payslips", "view");

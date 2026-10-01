@@ -6,7 +6,7 @@ import {
 import { can, onTheClock, type Action, type Resource } from "@/lib/permissions";
 import { ROLE_HOME, type Role } from "@/types";
 
-export interface NavItem { label: string; href: string; icon: LucideIcon; permission?: [Resource, Action]; roles?: Role[]; phase?: number; clocked?: true }
+export interface NavItem { label: string; href: string; icon: LucideIcon; permission?: [Resource, Action]; roles?: Role[]; phase?: number; staffOnly?: true }
 export interface NavGroup { label: string; items: NavItem[] }
 
 /**
@@ -46,10 +46,10 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
       { label: "Authorise", href: "/attendance/authorise", icon: ClipboardCheck, permission: ["attendance", "view"] },
       // A83: swiping is its own screen - it needs the camera and a location fix, which the
       // attendance table has no business asking for.
-      // `clocked` (A139): only for people who clock themselves in. `attendance:create`
-      // cannot say that on its own - the admin needs it to record leave and to read
-      // the work sites a swipe is measured against.
-      { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"], clocked: true },
+      // `staffOnly` (A139): only for people the company staffs rather than those
+      // running it. `attendance:create` cannot say that on its own - the admin needs
+      // it to record leave and to read the work sites a swipe is measured against.
+      { label: "Swipe", href: "/swipe", icon: Fingerprint, permission: ["attendance", "create"], staffOnly: true },
       { label: "Leave", href: "/leave", icon: Palmtree, permission: ["attendance", "create"] },
       { label: "Swipe approvals", href: "/attendance/swipes", icon: ClipboardCheck, permission: ["attendance", "view"], roles: ["COMPANY_ADMIN", "HR", "MANAGER", "TEAM_LEAD"] },
       { label: "Daily Report", href: "/daily-report", icon: FileText, permission: ["dailyReports", "create"] },
@@ -64,7 +64,10 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
     ] },
     { label: "COMMUNICATION", items: [
       { label: "Chat", href: "/chat", icon: MessageSquare, permission: ["chat", "view"] },
-      { label: "Payslips", href: "/my/payslips", icon: Receipt },
+      // Somebody's own payslips (A141). Not the admin's: they are not paid as staff
+      // here, and the screen only ever showed them an empty list. Payroll itself is
+      // under ADMIN, and that is still theirs.
+      { label: "Payslips", href: "/my/payslips", icon: Receipt, staffOnly: true },
       { label: "Notifications", href: "/notifications", icon: Bell },
       { label: "Announcements", href: "/announcements", icon: Megaphone, permission: ["announcements", "view"] },
     ] },
@@ -89,6 +92,6 @@ export function navigationFor(role: Role, hidden: string[] = []): NavGroup[] {
     ] },
   ];
   return groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(role, ...i.permission)) && (!i.roles || i.roles.includes(role)) && (!i.clocked || onTheClock(role)) && (ALWAYS_VISIBLE.includes(i.href) || !hidden.includes(i.href))) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => (!i.permission || can(role, ...i.permission)) && (!i.roles || i.roles.includes(role)) && (!i.staffOnly || onTheClock(role)) && (ALWAYS_VISIBLE.includes(i.href) || !hidden.includes(i.href))) }))
     .filter((g) => g.items.length > 0);
 }
